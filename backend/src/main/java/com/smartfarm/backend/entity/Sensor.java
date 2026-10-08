@@ -4,7 +4,11 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "sensors")
+@Table(name = "sensors", indexes = {
+        @Index(name = "idx_sensor_zone_type", columnList = "zone_id, sensor_type"),
+        @Index(name = "idx_sensor_status", columnList = "status"),
+        @Index(name = "idx_sensor_code", columnList = "sensor_code")
+})
 public class Sensor extends BaseEntity {
 
     @Column(name = "sensor_code", nullable = false, unique = true, length = 50)
