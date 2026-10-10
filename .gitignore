@@ -9,6 +9,7 @@
 # ======================== GRADLE ========================
 .gradle/
 build/
+target/
 !**/gradle/wrapper/gradle-wrapper.jar
 !**/lib/*.jar
 !**/src/main/**/build/
@@ -26,6 +27,7 @@ logs/
 # Package files (khÃ´ng commit binary)
 *.jar
 !**/gradle/wrapper/gradle-wrapper.jar
+!**/.mvn/wrapper/maven-wrapper.jar
 *.war
 *.nar
 *.ear
