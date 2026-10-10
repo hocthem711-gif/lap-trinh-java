@@ -9,7 +9,7 @@ Hệ thống Quản lý Trang trại Thông minh, Dữ liệu Cảm biến IoT v
 
 ## 👥 Thành viên nhóm & Phân công
 - Nguyễn Trần Đình Hiệu (Dev 1 — Backend Core)
-- hieudnt0126 (Dev 2 — Gateway / MQTT)
-- Hồ Nguyễn Huy Long (Dev 3 — Frontend)
+- Đào Nguyễn Thiện Hiếu (Dev 2 — Gateway / MQTT)
+- Nguyễn Huy Long Hồ (Dev 3 — Frontend)
 - Nguyễn Trường An (Dev 4 — UI / Wireframe)
-- Trần (Dev 5 — IoT / Testing)
+- Trần Nguyễn Bảo Hoàng (Dev 5 — IoT / Testing)
