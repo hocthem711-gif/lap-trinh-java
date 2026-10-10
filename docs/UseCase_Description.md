@@ -53,23 +53,22 @@
 
 ---
 
-## 3. Quan hệ giữa các Use Case
+## 3. Quan hệ giữa các Use Case và Actor
 
-| Quan hệ | Từ | Đến | Loại |
-|---------|-----|------|------|
-| Xem Dashboard yêu cầu Đăng nhập | UC-04 | UC-01 | `<<include>>` |
-| Xem lịch sử yêu cầu Đăng nhập | UC-05 | UC-01 | `<<include>>` |
-| Điều khiển thiết bị yêu cầu Đăng nhập | UC-07 | UC-01 | `<<include>>` |
-| Quản lý người dùng yêu cầu Đăng nhập | UC-09 | UC-01 | `<<include>>` |
-| Lập lịch mở rộng từ Bật/Tắt | UC-08 | UC-07 | `<<extend>>` |
-| Cảnh báo dựa trên dữ liệu cảm biến | UC-06 | UC-12 | `<<include>>` |
+| Quan hệ | Từ | Đến | Loại | Mô tả |
+|---------|-----|------|------|-------|
+| Phân cấp vai trò | Quản trị viên (Admin) | Người dùng (User) | `<<kế thừa>>` | Admin kế thừa toàn bộ quyền của User |
+| Lập lịch mở rộng từ Bật/Tắt | UC-08 | UC-07 | `<<extend>>` | Tính năng lập lịch tự động mở rộng từ điều khiển Bật/Tắt |
+| Bật/Tắt điều khiển thiết bị | UC-07 | UC-13 | `<<include>>` | Khi User bật/tắt sẽ gửi và thiết bị IoT nhận lệnh điều khiển |
 
 ---
 
-## 4. Sơ đồ (PlantUML)
+## 4. Sơ đồ (PlantUML & Hình ảnh)
 
-> File sơ đồ PlantUML: [`docs/UseCase.puml`](./UseCase.puml)  
-> Mở bằng extension **PlantUML** trên VS Code hoặc paste vào [plantuml.com](https://www.plantuml.com/plantuml/uml) để xem ảnh.
+![Use Case Diagram](./images/UseCase.png)
+
+> - **Mã nguồn PlantUML:** [`docs/UseCase.puml`](./UseCase.puml)
+> - **Ảnh vector độ nét cao:** [`docs/images/UseCase.svg`](./images/UseCase.svg)
 
 ---
 
