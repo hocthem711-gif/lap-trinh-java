@@ -1,0 +1,80 @@
+# Use Case Diagram - Hệ thống Giám sát IoT
+
+**Dự án:** Lập Trình Java  
+**Task:** [Sprint 1][Dev 5] LTJ-5  
+**Ngày tạo:** 09/10/2026  
+
+---
+
+## 1. Danh sách Tác nhân (Actors)
+
+| # | Actor | Mô tả |
+|---|-------|-------|
+| 1 | **Người dùng (User)** | Người sử dụng hệ thống để giám sát và điều khiển thiết bị IoT |
+| 2 | **Quản trị viên (Admin)** | Quản lý người dùng, thiết bị và cấu hình hệ thống |
+| 3 | **Thiết bị IoT (IoT Device)** | Cảm biến / thiết bị gửi dữ liệu và nhận lệnh điều khiển |
+
+---
+
+## 2. Danh sách Use Case
+
+### 2.1. Quản lý Tài khoản
+| Mã | Use Case | Actor | Mô tả |
+|----|----------|-------|-------|
+| UC-01 | Đăng nhập | User, Admin | Xác thực tài khoản để truy cập hệ thống |
+| UC-02 | Đăng ký | User | Tạo tài khoản mới |
+| UC-03 | Đổi mật khẩu | User | Thay đổi mật khẩu cá nhân |
+
+### 2.2. Giám sát Dữ liệu
+| Mã | Use Case | Actor | Mô tả |
+|----|----------|-------|-------|
+| UC-04 | Xem Dashboard | User | Xem biểu đồ thông số (nhiệt độ, độ ẩm, ánh sáng) theo thời gian thực |
+| UC-05 | Xem lịch sử dữ liệu | User | Tra cứu dữ liệu cảm biến trong quá khứ |
+| UC-06 | Nhận cảnh báo | User | Nhận thông báo khi thông số vượt ngưỡng cho phép |
+
+### 2.3. Điều khiển Thiết bị
+| Mã | Use Case | Actor | Mô tả |
+|----|----------|-------|-------|
+| UC-07 | Bật / Tắt thiết bị | User | Điều khiển bật/tắt thiết bị IoT từ xa |
+| UC-08 | Lập lịch tự động | User | Thiết lập lịch trình tự động bật/tắt thiết bị |
+
+### 2.4. Quản trị Hệ thống
+| Mã | Use Case | Actor | Mô tả |
+|----|----------|-------|-------|
+| UC-09 | Quản lý người dùng | Admin | CRUD tài khoản người dùng |
+| UC-10 | Quản lý thiết bị | Admin | Thêm, sửa, xóa thiết bị IoT trong hệ thống |
+| UC-11 | Cấu hình ngưỡng cảnh báo | Admin | Thiết lập giá trị ngưỡng để kích hoạt cảnh báo |
+
+### 2.5. IoT Gateway
+| Mã | Use Case | Actor | Mô tả |
+|----|----------|-------|-------|
+| UC-12 | Gửi dữ liệu cảm biến | IoT Device | Gửi bản tin JSON qua giao thức MQTT |
+| UC-13 | Nhận lệnh điều khiển | IoT Device | Nhận và thực thi lệnh từ hệ thống |
+
+---
+
+## 3. Quan hệ giữa các Use Case
+
+| Quan hệ | Từ | Đến | Loại |
+|---------|-----|------|------|
+| Xem Dashboard yêu cầu Đăng nhập | UC-04 | UC-01 | `<<include>>` |
+| Xem lịch sử yêu cầu Đăng nhập | UC-05 | UC-01 | `<<include>>` |
+| Điều khiển thiết bị yêu cầu Đăng nhập | UC-07 | UC-01 | `<<include>>` |
+| Quản lý người dùng yêu cầu Đăng nhập | UC-09 | UC-01 | `<<include>>` |
+| Lập lịch mở rộng từ Bật/Tắt | UC-08 | UC-07 | `<<extend>>` |
+| Cảnh báo dựa trên dữ liệu cảm biến | UC-06 | UC-12 | `<<include>>` |
+
+---
+
+## 4. Sơ đồ (PlantUML)
+
+> File sơ đồ PlantUML: [`docs/UseCase.puml`](./UseCase.puml)  
+> Mở bằng extension **PlantUML** trên VS Code hoặc paste vào [plantuml.com](https://www.plantuml.com/plantuml/uml) để xem ảnh.
+
+---
+
+## 5. Ghi chú
+
+- Sơ đồ này bao quát **toàn bộ hệ thống** ở mức tổng quan Sprint 1.
+- Các Use Case chi tiết hơn (ví dụ: validation, phân quyền) sẽ được bổ sung ở các Sprint tiếp theo.
+- Cần thống nhất với **Dev 1** (Spring Boot Backend) và **Dev 4** (Gitflow & Wireframe) về luồng xử lý.

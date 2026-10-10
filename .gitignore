@@ -1,0 +1,134 @@
+# ============================================================
+# .gitignore - Dá»± Ã¡n IoT Simulator (Java + Gradle)
+# ============================================================
+# âš ï¸ File nÃ y quyáº¿t Ä‘á»‹nh cÃ¡i gÃ¬ KHÃ”NG lÃªn GitHub.
+# Tháº§y sáº½ khÃ´ng tháº¥y nhá»¯ng thá»© Ä‘Æ°á»£c liá»‡t kÃª á»Ÿ Ä‘Ã¢y.
+# NhÆ°ng hÃ£y CHáº®C CHáº®N khÃ´ng stage nháº§m file cÃ¡ nhÃ¢n.
+# ============================================================
+
+# ======================== GRADLE ========================
+.gradle/
+build/
+!**/gradle/wrapper/gradle-wrapper.jar
+!**/lib/*.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+gradle.properties
+
+# ======================== JAVA ==========================
+# Compiled class files
+*.class
+
+# Log files
+*.log
+logs/
+
+# Package files (khÃ´ng commit binary)
+*.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Virtual machine crash logs
+hs_err_pid*
+replay_pid*
+
+# ======================== IDE ===========================
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# NetBeans
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# ===================== Há»† ÄIá»€U HÃ€NH ====================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.directory
+
+# =============== FILE CÃ NHÃ‚N / BÃ Máº¬T ================
+# ThÆ° má»¥c ghi chÃº cÃ¡ nhÃ¢n - TUYá»†T Äá»I khÃ´ng lÃªn GitHub
+no github/
+QUY_TAC_TONG_THE.md
+up github/
+
+# File mÃ´i trÆ°á»ng / bÃ­ máº­t
+.env
+.env.*
+*.secret
+*.key
+*.pem
+config-local.*
+application-local.*
+secrets/
+
+# =============== FILE KHÃ”NG Cáº¦N THIáº¾T ==================
+# File táº¡m
+*.tmp
+*.bak
+*.swp
+*.swo
+*.orig
+temp/
+tmp/
+
+# File lá»›n khÃ´ng cáº§n trÃªn GitHub
+*.mp4
+*.avi
+*.mov
+*.mp3
+*.wav
+*.psd
+*.ai
+
+# File tÃ i liá»‡u ná»™p riÃªng (khÃ´ng cáº§n trÃªn GitHub)
+*.docx
+*.doc
+*.pptx
+*.ppt
+*.xlsx
+*.xls
+*.pdf
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Node modules (náº¿u cÃ³ frontend)
+node_modules/
+
