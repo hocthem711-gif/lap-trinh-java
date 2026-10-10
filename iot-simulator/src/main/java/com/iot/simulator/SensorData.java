@@ -82,7 +82,7 @@ public class SensorData {
 
     @Override
     public String toString() {
-        return String.format("[%s] Temp=%.1f°C | Humidity=%.1f%% | Light=%.1f lux | Time=%d",
+        return String.format("[%s] Temp=%.1f C | Humidity=%.1f%% | Light=%.1f lux | Time=%d",
                 deviceId, temperature, humidity, light, timestamp);
     }
 }

@@ -28,15 +28,15 @@ public class IoTSimulatorApp {
         int deviceCount = args.length > 1 ? Integer.parseInt(args[1]) : DEFAULT_DEVICE_COUNT;
         int intervalSeconds = args.length > 2 ? Integer.parseInt(args[2]) : DEFAULT_INTERVAL_SECONDS;
 
-        System.out.println("╔══════════════════════════════════════════════╗");
-        System.out.println("║     IoT Simulator - Dự án Lập Trình Java    ║");
-        System.out.println("║     [Sprint 1][Dev 5] Task LTJ-5            ║");
-        System.out.println("╚══════════════════════════════════════════════╝");
+        System.out.println("================================================");
+        System.out.println("      IoT Simulator - Du an Lap Trinh Java     ");
+        System.out.println("      [Sprint 1][Dev 5] Task LTJ-5             ");
+        System.out.println("================================================");
         System.out.println();
-        System.out.println("Cấu hình:");
+        System.out.println("Configuration:");
         System.out.println("  Broker URL    : " + brokerUrl);
-        System.out.println("  Số thiết bị   : " + deviceCount);
-        System.out.println("  Chu kỳ gửi    : " + intervalSeconds + " giây");
+        System.out.println("  Device count  : " + deviceCount);
+        System.out.println("  Interval      : " + intervalSeconds + " s");
         System.out.println("  Topic prefix  : " + TOPIC_PREFIX);
         System.out.println();
 
@@ -47,8 +47,8 @@ public class IoTSimulatorApp {
         try {
             publisher.connect();
         } catch (Exception e) {
-            System.err.println("!! Không thể kết nối tới Broker: " + e.getMessage());
-            System.err.println("!! Chuyển sang chế độ giả lập OFFLINE (chỉ in ra console).");
+            System.err.println("!! Cannot connect to Broker: " + e.getMessage());
+            System.err.println("!! Fallback to OFFLINE mode (console output only).");
             startOfflineSimulation(deviceCount, intervalSeconds);
             return;
         }
@@ -75,10 +75,10 @@ public class IoTSimulatorApp {
                         publisher.publish(topic, json);
 
                         int count = messageCount.incrementAndGet();
-                        System.out.printf("[#%d] Gửi >> Topic: %-30s | %s%n", count, topic, data);
+                        System.out.printf("[#%d] PUBLISH >> Topic: %-30s | %s%n", count, topic, data);
 
                     } catch (Exception e) {
-                        System.err.println("Lỗi gửi dữ liệu từ " + deviceId + ": " + e.getMessage());
+                        System.err.println("Error publishing from " + deviceId + ": " + e.getMessage());
                     }
                 }
                 System.out.println("---");
@@ -87,15 +87,15 @@ public class IoTSimulatorApp {
 
         // Đăng ký hook tắt chương trình để ngắt kết nối sạch
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("\n>> Đang tắt simulator...");
+            System.out.println("\n>> Shutting down simulator...");
             timer.cancel();
             publisher.disconnect();
-            System.out.println(">> Tổng số bản tin đã gửi: " + messageCount.get());
-            System.out.println(">> Hoàn tất. Tạm biệt!");
+            System.out.println(">> Total messages sent: " + messageCount.get());
+            System.out.println(">> Completed. Goodbye!");
         }));
 
         // Giữ chương trình chạy
-        System.out.println(">> Simulator đang chạy. Nhấn Ctrl+C để dừng.");
+        System.out.println(">> Simulator is running. Press Ctrl+C to stop.");
         try {
             Thread.currentThread().join();
         } catch (InterruptedException e) {

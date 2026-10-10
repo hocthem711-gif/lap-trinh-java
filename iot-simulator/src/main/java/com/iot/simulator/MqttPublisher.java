@@ -42,9 +42,9 @@ public class MqttPublisher {
         options.setConnectionTimeout(10);     // Timeout 10 giây
         options.setKeepAliveInterval(20);     // Keep alive 20 giây
 
-        System.out.println(">> Đang kết nối tới Broker: " + brokerUrl + " ...");
+        System.out.println(">> Connecting to Broker: " + brokerUrl + " ...");
         client.connect(options);
-        System.out.println(">> Kết nối thành công!");
+        System.out.println(">> Connected successfully!");
     }
 
     /**
