@@ -3,6 +3,8 @@ package com.smartfarm.backend.security;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import io.jsonwebtoken.security.SecurityException;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -23,21 +25,24 @@ public class JwtTokenProvider {
     @Value("${app.jwt.expiration-milliseconds:86400000}")
     private long jwtExpirationMilliseconds;
 
+    private Key cachedKey;
+
+    @PostConstruct
+    public void init() {
+        if (jwtSecret != null && !jwtSecret.isBlank()) {
+            this.cachedKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
+        }
+    }
+
     private Key key() {
-        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
+        if (cachedKey == null) {
+            cachedKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(jwtSecret));
+        }
+        return cachedKey;
     }
 
     public String generateToken(Authentication authentication) {
-        String username = authentication.getName();
-        Date currentDate = new Date();
-        Date expireDate = new Date(currentDate.getTime() + jwtExpirationMilliseconds);
-
-        return Jwts.builder()
-                .setSubject(username)
-                .setIssuedAt(new Date())
-                .setExpiration(expireDate)
-                .signWith(key(), SignatureAlgorithm.HS256)
-                .compact();
+        return generateTokenFromUsername(authentication.getName());
     }
 
     public String generateTokenFromUsername(String username) {
@@ -46,7 +51,7 @@ public class JwtTokenProvider {
 
         return Jwts.builder()
                 .setSubject(username)
-                .setIssuedAt(new Date())
+                .setIssuedAt(currentDate)
                 .setExpiration(expireDate)
                 .signWith(key(), SignatureAlgorithm.HS256)
                 .compact();
@@ -69,8 +74,8 @@ public class JwtTokenProvider {
                     .build()
                     .parseClaimsJws(token);
             return true;
-        } catch (MalformedJwtException e) {
-            log.error("Token JWT không hợp lệ: {}", e.getMessage());
+        } catch (SecurityException | MalformedJwtException e) {
+            log.error("Token JWT không hợp lệ hoặc chữ ký sai: {}", e.getMessage());
         } catch (ExpiredJwtException e) {
             log.error("Token JWT đã hết hạn: {}", e.getMessage());
         } catch (UnsupportedJwtException e) {
