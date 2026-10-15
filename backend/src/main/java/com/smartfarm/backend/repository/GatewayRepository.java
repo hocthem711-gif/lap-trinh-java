@@ -9,4 +9,5 @@ import java.util.Optional;
 @Repository
 public interface GatewayRepository extends JpaRepository<Gateway, Long> {
     Optional<Gateway> findByCode(String code);
+    boolean existsByCode(String code);
 }

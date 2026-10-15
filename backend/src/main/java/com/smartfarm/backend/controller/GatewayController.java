@@ -50,6 +50,16 @@ public class GatewayController {
         return ResponseEntity.ok(ApiResponse.success("Đã xóa Gateway mã: " + code, code));
     }
 
+    @PatchMapping({"/api/v1/gateways/{code}/status", "/gateways/{code}/status"})
+    @Operation(summary = "Cập nhật trạng thái hoạt động của trạm Gateway (LTJ-7)")
+    public ResponseEntity<ApiResponse<Gateway>> updateGatewayStatus(
+            @PathVariable String code,
+            @RequestBody Map<String, String> payload) {
+        String status = payload != null ? payload.get("status") : null;
+        Gateway updated = gatewayService.updateGatewayStatus(code, status);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái Gateway thành công", updated));
+    }
+
     @PatchMapping({"/api/v1/gateways/sensors/{sensorId}/zone", "/gateways/sensors/{sensorId}/zone"})
     @Operation(summary = "Gán cảm biến vào khu vực Zone qua Gateway (LTJ-7)")
     public ResponseEntity<ApiResponse<Sensor>> assignSensorToZone(

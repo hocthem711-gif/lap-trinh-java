@@ -30,9 +30,29 @@ public class GatewayService {
     }
 
     public Gateway createGateway(Gateway gateway) {
-        if (gateway.getStatus() == null) {
-            gateway.setStatus("ACTIVE");
+        if (gateway == null || gateway.getCode() == null || gateway.getCode().isBlank()) {
+            throw new IllegalArgumentException("Mã định danh Gateway không được để trống");
         }
+        String normalizedCode = gateway.getCode().trim().toUpperCase();
+        if (gatewayRepository.existsByCode(normalizedCode)) {
+            throw new IllegalArgumentException("Gateway với mã " + normalizedCode + " đã tồn tại");
+        }
+        gateway.setCode(normalizedCode);
+        if (gateway.getStatus() == null || gateway.getStatus().isBlank()) {
+            gateway.setStatus("ACTIVE");
+        } else {
+            gateway.setStatus(gateway.getStatus().trim().toUpperCase());
+        }
+        return gatewayRepository.save(gateway);
+    }
+
+    @Transactional
+    public Gateway updateGatewayStatus(String code, String status) {
+        if (status == null || status.isBlank()) {
+            throw new IllegalArgumentException("Trạng thái Gateway không được để trống");
+        }
+        Gateway gateway = getGatewayByCode(code);
+        gateway.setStatus(status.trim().toUpperCase());
         return gatewayRepository.save(gateway);
     }
 
