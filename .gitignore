@@ -1,10 +1,43 @@
-HELP.md
+# ===== Private & System Rules (BẢO MẬT TUYỆT ĐỐI) =====
+no github/
+.gemini/
+GEMINI.md
+
+# ===== Java / Maven Build Artifacts =====
 target/
-.mvn/wrapper/maven-wrapper.jar
+**/target/
+!.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
+${project.build.directory}/
+*.lck
+backend_gateway_server-*
 
-### STS ###
+# ===== Frontend & Node Modules =====
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ===== IDEs & Editors =====
+.idea/
+.vscode/
+*.iws
+*.iml
+*.ipr
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+*~
 .apt_generated
 .classpath
 .factorypath
@@ -13,21 +46,14 @@ target/
 .springBeans
 .sts4-cache
 
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
+# ===== OS & Logs =====
+Thumbs.db
+.DS_Store
+*.log
+logs/
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
+# ===== Environment =====
+.env
+.env.*
 build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### VS Code ###
-.vscode/
+out/
