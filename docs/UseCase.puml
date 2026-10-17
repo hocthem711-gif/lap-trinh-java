@@ -1,0 +1,77 @@
+@startuml UseCaseDiagram
+left to right direction
+skinparam actorStyle awesome
+skinparam packageStyle rectangle
+skinparam roundcorner 8
+skinparam shadowing false
+skinparam linetype polyline
+
+skinparam usecase {
+    BackgroundColor #F0F8FF
+    BorderColor #4682B4
+    ArrowColor #2C3E50
+}
+
+title Hệ thống Giám sát IoT - Use Case Diagram\n[Sprint 1][Dev 5] LTJ-5
+
+actor "Quản trị viên\n(Admin)" as Admin #LightGreen
+actor "Người dùng\n(User)" as User #LightBlue
+actor "Thiết bị IoT\n(IoT Device)" as IoT #Orange
+
+rectangle "Hệ thống Giám sát IoT" {
+
+    package "Quản trị Hệ thống" {
+        usecase "Quản lý người dùng" as UC9
+        usecase "Quản lý thiết bị" as UC10
+        usecase "Cấu hình ngưỡng\ncảnh báo" as UC11
+    }
+
+    package "Quản lý Tài khoản" {
+        usecase "Đăng nhập" as UC1
+        usecase "Đăng ký" as UC2
+        usecase "Đổi mật khẩu" as UC3
+    }
+
+    package "Giám sát Dữ liệu" {
+        usecase "Xem Dashboard\n(Biểu đồ thời gian thực)" as UC4
+        usecase "Xem lịch sử\ndữ liệu cảm biến" as UC5
+        usecase "Nhận cảnh báo\n(Alert)" as UC6
+    }
+
+    package "Điều khiển Thiết bị" {
+        usecase "Bật / Tắt thiết bị" as UC7
+        usecase "Lập lịch tự động" as UC8
+    }
+
+    package "IoT Gateway" {
+        usecase "Gửi dữ liệu\ncảm biến (MQTT)" as UC12
+        usecase "Nhận lệnh\nđiều khiển" as UC13
+    }
+}
+
+' Phân cấp vai trò: Admin kế thừa User
+User <|-- Admin : <<kế thừa>>
+
+' Tương tác Quản trị viên
+Admin --> UC9
+Admin --> UC10
+Admin --> UC11
+
+' Tương tác Người dùng
+User --> UC1
+User --> UC2
+User --> UC3
+User --> UC4
+User --> UC5
+User --> UC6
+User --> UC7
+
+' Tương tác Thiết bị IoT (từ bên phải sang)
+UC12 <-- IoT
+UC13 <-- IoT
+
+' Quan hệ giữa các Use Case
+UC8 .up.> UC7 : <<extend>>
+UC7 ..> UC13 : <<include>>
+
+@enduml

@@ -1,15 +1,37 @@
-# ===== Private & System Rules (BẢO MẬT TUYỆT ĐỐI) =====
+# ===== Private & Security (BẢO MẬT TUYỆT ĐỐI) =====
 no github/
+QUY_TAC_TONG_THE.md
+up github/
 .gemini/
 GEMINI.md
+.env
+.env.*
+*.secret
+*.key
+*.pem
+secrets/
 
-# ===== Java / Maven Build Artifacts =====
+# ===== Java / Maven / Gradle Build Artifacts =====
 target/
 **/target/
-!.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 ${project.build.directory}/
+.gradle/
+build/
+**/build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+*.class
+*.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+!**/.mvn/wrapper/maven-wrapper.jar
+lib/
+**/lib/
+*.war
+*.ear
+*.zip
+*.tar.gz
 *.lck
 backend_gateway_server-*
 
@@ -42,18 +64,37 @@ lerna-debug.log*
 .classpath
 .factorypath
 .project
+.settings/
 .settings
 .springBeans
 .sts4-cache
+bin/
+out/
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
 
 # ===== OS & Logs =====
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
 *.log
 logs/
+hs_err_pid*
+replay_pid*
 
-# ===== Environment =====
-.env
-.env.*
-build/
-out/
+# ===== Temporary & Database Files =====
+*.tmp
+*.bak
+*.orig
+temp/
+tmp/
+*.db
+*.sqlite
+*.sqlite3
