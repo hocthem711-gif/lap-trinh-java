@@ -11,17 +11,11 @@ export const store = configureStore({
     device: deviceReducer,
     sensor: sensorReducer,
   },
-  devTools: process.env.NODE_ENV !== 'production',
+  devTools: import.meta.env.DEV,
 });
 
 export type RootState = ReturnType<typeof store.getState>;
 export type AppDispatch = typeof store.dispatch;
 
-// Typed hooks helper
-export const useAppDispatch = () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { useDispatch } = require('react-redux');
-  return useDispatch<AppDispatch>();
-};
-
 export default store;
+
