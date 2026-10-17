@@ -7,13 +7,14 @@ import type { PayloadAction } from '@reduxjs/toolkit';
  * Author: Quatrungvoon
  */
 
-export enum WaypointType {
-  NORMAL = 'NORMAL',
-  TAKEOFF = 'TAKEOFF',
-  LANDING = 'LANDING',
-  HOVER = 'HOVER',
-  RETURN_HOME = 'RETURN_HOME',
-}
+export const WaypointType = {
+  NORMAL: 'NORMAL',
+  TAKEOFF: 'TAKEOFF',
+  LANDING: 'LANDING',
+  HOVER: 'HOVER',
+  RETURN_HOME: 'RETURN_HOME',
+} as const;
+export type WaypointType = (typeof WaypointType)[keyof typeof WaypointType];
 
 export interface Waypoint {
   id: number;

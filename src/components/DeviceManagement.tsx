@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   Plane, Radio, Search, Plus, Trash2, Eye, Signal,
-  Battery, Activity, WifiOff, Wrench, X, Server
+  Activity, WifiOff, Wrench, X, Server
 } from 'lucide-react';
 import type { RootState, AppDispatch } from '../store';
 import type { UAVStatus, GatewayStatus } from '../types';
@@ -399,7 +399,6 @@ function AddDeviceModal({ type, onClose, onAdded }: {
   onAdded: () => void;
 }) {
   const [formData, setFormData] = useState<Record<string, string>>({});
-  const dispatch = useDispatch<AppDispatch>();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

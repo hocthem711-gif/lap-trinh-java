@@ -8,27 +8,30 @@ import type { PayloadAction } from '@reduxjs/toolkit';
  */
 
 // Các hằng số cho chế độ bay
-export enum FlightMode {
-  MANUAL = 'MANUAL',
-  AUTOMATED = 'AUTOMATED',
-}
+export const FlightMode = {
+  MANUAL: 'MANUAL',
+  AUTOMATED: 'AUTOMATED',
+} as const;
+export type FlightMode = (typeof FlightMode)[keyof typeof FlightMode];
 
 // Các hằng số cho trạng thái nhiệm vụ
-export enum MissionStatus {
-  STANDBY = 'STANDBY',
-  ACTIVE = 'ACTIVE',
-  PAUSED = 'PAUSED',
-  COMPLETED = 'COMPLETED',
-  ABORTED = 'ABORTED',
-}
+export const MissionStatus = {
+  STANDBY: 'STANDBY',
+  ACTIVE: 'ACTIVE',
+  PAUSED: 'PAUSED',
+  COMPLETED: 'COMPLETED',
+  ABORTED: 'ABORTED',
+} as const;
+export type MissionStatus = (typeof MissionStatus)[keyof typeof MissionStatus];
 
 // Các hằng số cho mức tín hiệu
-export enum SignalLevel {
-  STRONG = 'STRONG',
-  MEDIUM = 'MEDIUM',
-  WEAK = 'WEAK',
-  LOST = 'LOST',
-}
+export const SignalLevel = {
+  STRONG: 'STRONG',
+  MEDIUM: 'MEDIUM',
+  WEAK: 'WEAK',
+  LOST: 'LOST',
+} as const;
+export type SignalLevel = (typeof SignalLevel)[keyof typeof SignalLevel];
 
 export interface DroneDetails {
   altitude: number;
