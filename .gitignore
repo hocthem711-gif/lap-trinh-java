@@ -26,7 +26,8 @@ build/
 *.jar
 !**/gradle/wrapper/gradle-wrapper.jar
 !**/.mvn/wrapper/maven-wrapper.jar
-!**/lib/*.jar
+lib/
+**/lib/
 *.war
 *.ear
 *.zip
