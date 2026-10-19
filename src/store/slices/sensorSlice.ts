@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import type { SensorNode, SensorType } from '../../types';
 import { sensorApi } from '../../services/api';
@@ -100,14 +100,17 @@ const sensorSlice = createSlice({
 
 export const { setSelectedFarmId, setSelectedZoneId, setTypeFilter, clearSensorError } = sensorSlice.actions;
 
-// Selectors
-export const selectFilteredSensors = (state: { sensor: SensorState }) => {
-  const { sensors, selectedZoneId, typeFilter } = state.sensor;
-  return sensors.filter(s => {
-    const matchesZone = !selectedZoneId || s.zoneId === selectedZoneId;
-    const matchesType = typeFilter === 'ALL' || s.sensorType === typeFilter;
-    return matchesZone && matchesType;
-  });
-};
+// Memoized Selectors (createSelector)
+const selectSensorState = (state: { sensor: SensorState }) => state.sensor;
+
+export const selectFilteredSensors = createSelector(
+  [selectSensorState],
+  ({ sensors, selectedZoneId, typeFilter }) =>
+    sensors.filter(s => {
+      const matchesZone = !selectedZoneId || s.zoneId === selectedZoneId;
+      const matchesType = typeFilter === 'ALL' || s.sensorType === typeFilter;
+      return matchesZone && matchesType;
+    }),
+);
 
 export default sensorSlice.reducer;

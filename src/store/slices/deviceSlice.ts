@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import type { UAV, Gateway } from '../../types';
 import { uavApi, gatewayApi } from '../../services/api';
@@ -115,29 +115,37 @@ const deviceSlice = createSlice({
 
 export const { setActiveTab, setSearchQuery, setStatusFilter, clearError } = deviceSlice.actions;
 
-// Selectors
-export const selectFilteredUAVs = (state: { device: DeviceState }) => {
-  const { uavs, searchQuery, statusFilter } = state.device;
-  return uavs.filter(u => {
-    const matchesSearch = !searchQuery ||
-      u.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      u.model.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'ALL' || u.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-};
+// Memoized Selectors (createSelector)
+const selectDeviceState = (state: { device: DeviceState }) => state.device;
 
-export const selectFilteredGateways = (state: { device: DeviceState }) => {
-  const { gateways, searchQuery, statusFilter } = state.device;
-  return gateways.filter(g => {
-    const matchesSearch = !searchQuery ||
-      g.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      g.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      g.ipAddress.includes(searchQuery);
-    const matchesStatus = statusFilter === 'ALL' || g.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
-};
+export const selectFilteredUAVs = createSelector(
+  [selectDeviceState],
+  ({ uavs, searchQuery, statusFilter }) => {
+    const q = searchQuery.trim().toLowerCase();
+    return uavs.filter(u => {
+      const matchesSearch = !q ||
+        String(u.name ?? '').toLowerCase().includes(q) ||
+        String(u.id ?? '').toLowerCase().includes(q) ||
+        String(u.model ?? '').toLowerCase().includes(q);
+      const matchesStatus = statusFilter === 'ALL' || u.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  },
+);
+
+export const selectFilteredGateways = createSelector(
+  [selectDeviceState],
+  ({ gateways, searchQuery, statusFilter }) => {
+    const q = searchQuery.trim().toLowerCase();
+    return gateways.filter(g => {
+      const matchesSearch = !q ||
+        String(g.name ?? '').toLowerCase().includes(q) ||
+        String(g.id ?? '').toLowerCase().includes(q) ||
+        String(g.ipAddress ?? '').toLowerCase().includes(q);
+      const matchesStatus = statusFilter === 'ALL' || g.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  },
+);
 
 export default deviceSlice.reducer;
