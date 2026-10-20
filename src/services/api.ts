@@ -331,16 +331,75 @@ export const zoneApi = {
   },
 };
 
-// ==================== UAV API (Hybrid + Mock Fallback) ====================
+// ==================== UAV API (Hybrid + Mock Fallback + Backend Adapter) ====================
 let nextUavSeq = MOCK_UAVS.length + 1;
+
+interface BackendUavRaw {
+  id?: string | number;
+  code?: string;
+  name?: string;
+  model?: string;
+  battery?: number;
+  batteryLevel?: number;
+  signal?: number;
+  isConnected?: boolean;
+  status?: string;
+  location?: string;
+  latitude?: number;
+  longitude?: number;
+  lastSeen?: string;
+  lastSeenAt?: string;
+}
+
+function normalizeUavStatus(rawStatus?: string): UAV['status'] {
+  const s = String(rawStatus ?? '').toUpperCase();
+  if (s === 'ACTIVE' || s === 'FLYING' || s === 'RETURNING') return 'ACTIVE';
+  if (s === 'IDLE' || s === 'STANDBY' || s === 'READY') return 'IDLE';
+  if (s === 'MAINTENANCE') return 'MAINTENANCE';
+  return 'OFFLINE';
+}
+
+function normalizeUav(raw: BackendUavRaw, fallback?: Partial<UAV>): UAV {
+  const code = raw.code || (typeof raw.id === 'string' ? raw.id : `UAV-${String(raw.id ?? nextUavSeq++).padStart(3, '0')}`);
+  const status = normalizeUavStatus(raw.status ?? fallback?.status);
+  const battery =
+    typeof raw.battery === 'number'
+      ? raw.battery
+      : typeof raw.batteryLevel === 'number'
+        ? Math.round(raw.batteryLevel)
+        : (fallback?.battery ?? (status === 'OFFLINE' ? 0 : 85));
+  const signal =
+    typeof raw.signal === 'number'
+      ? raw.signal
+      : (fallback?.signal ?? (raw.isConnected === false || status === 'OFFLINE' ? 0 : 90));
+  const location =
+    raw.location ||
+    fallback?.location ||
+    (typeof raw.latitude === 'number' && typeof raw.longitude === 'number'
+      ? `${raw.latitude.toFixed(4)}, ${raw.longitude.toFixed(4)}`
+      : 'Trang trại Đà Lạt');
+
+  return {
+    id: code,
+    name: raw.name || fallback?.name || `UAV ${code}`,
+    model: raw.model || fallback?.model || 'DJI Matrice 300 RTK',
+    battery: Math.max(0, Math.min(100, battery)),
+    signal: Math.max(0, Math.min(100, signal)),
+    status,
+    location,
+    lastSeen: raw.lastSeen || raw.lastSeenAt || fallback?.lastSeen || new Date().toISOString(),
+  };
+}
 
 export const uavApi = {
   getAll: async (): Promise<UAV[]> => {
     try {
-      const result = await apiRequest<UAV[]>('/uavs');
-      if (Array.isArray(result.data)) return result.data;
+      const result = await apiRequest<BackendUavRaw[]>('/uavs');
+      if (Array.isArray(result.data) && result.data.length > 0) {
+        return result.data.map(item => normalizeUav(item));
+      }
     } catch {
-      // Backend chưa có /api/v1/uavs -> dùng Mock chuẩn
+      // Backend chưa bật hoặc lỗi kết nối -> dùng Mock chuẩn
     }
     return [...MOCK_UAVS];
   },
@@ -350,18 +409,31 @@ export const uavApi = {
   },
 
   create: async (data: Omit<UAV, 'id' | 'lastSeen'>): Promise<UAV> => {
+    const generatedCode = `UAV-${String(nextUavSeq++).padStart(3, '0')}`;
     try {
-      const result = await apiRequest<UAV>('/uavs', {
+      const backendPayload = {
+        code: generatedCode,
+        name: data.name,
+        model: data.model,
+        status: data.status,
+        batteryLevel: data.battery,
+        isConnected: data.status === 'ACTIVE' || data.status === 'IDLE',
+      };
+      const result = await apiRequest<BackendUavRaw>('/uavs', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(backendPayload),
       });
-      if (result.data) return result.data;
+      if (result.data) {
+        const normalized = normalizeUav(result.data, { ...data, id: generatedCode });
+        MOCK_UAVS.push(normalized);
+        return normalized;
+      }
     } catch {
       // Fallback thêm vào Mock store
     }
     const newUav: UAV = {
       ...data,
-      id: `UAV-${String(nextUavSeq++).padStart(3, '0')}`,
+      id: generatedCode,
       lastSeen: new Date().toISOString(),
     };
     MOCK_UAVS.push(newUav);
@@ -381,16 +453,55 @@ export const uavApi = {
   },
 };
 
-// ==================== Gateway API (Hybrid + Mock Fallback) ====================
+// ==================== Gateway API (Hybrid + Mock Fallback + Backend Adapter) ====================
 let nextGwSeq = MOCK_GATEWAYS.length + 1;
+
+interface BackendGatewayRaw {
+  id?: string | number;
+  code?: string;
+  name?: string;
+  ipAddress?: string;
+  status?: string;
+  connectedSensors?: number;
+  firmwareVersion?: string;
+  lastPing?: string;
+  updatedAt?: string;
+  zone?: { id?: number; name?: string } | null;
+}
+
+function normalizeGatewayStatus(rawStatus?: string): Gateway['status'] {
+  const s = String(rawStatus ?? '').toUpperCase();
+  if (s === 'ONLINE' || s === 'ACTIVE') return 'ONLINE';
+  if (s === 'ERROR') return 'ERROR';
+  return 'OFFLINE';
+}
+
+function normalizeGateway(raw: BackendGatewayRaw, fallback?: Partial<Gateway>): Gateway {
+  const code = raw.code || (typeof raw.id === 'string' ? raw.id : `GW-${String(raw.id ?? nextGwSeq++).padStart(3, '0')}`);
+  const status = normalizeGatewayStatus(raw.status ?? fallback?.status);
+  return {
+    id: code,
+    name: raw.name || fallback?.name || (raw.zone?.name ? `Gateway ${raw.zone.name}` : `Gateway ${code}`),
+    ipAddress: raw.ipAddress || fallback?.ipAddress || '192.168.1.100',
+    status,
+    connectedSensors:
+      typeof raw.connectedSensors === 'number'
+        ? raw.connectedSensors
+        : (fallback?.connectedSensors ?? (status === 'ONLINE' ? 4 : 0)),
+    firmwareVersion: raw.firmwareVersion || fallback?.firmwareVersion || 'v2.1.0',
+    lastPing: raw.lastPing || raw.updatedAt || fallback?.lastPing || new Date().toISOString(),
+  };
+}
 
 export const gatewayApi = {
   getAll: async (): Promise<Gateway[]> => {
     try {
-      const result = await apiRequest<Gateway[]>('/gateways');
-      if (Array.isArray(result.data)) return result.data;
+      const result = await apiRequest<BackendGatewayRaw[]>('/gateways');
+      if (Array.isArray(result.data) && result.data.length > 0) {
+        return result.data.map(item => normalizeGateway(item));
+      }
     } catch {
-      // Backend chưa có /api/v1/gateways -> dùng Mock chuẩn
+      // Backend chưa bật hoặc lỗi kết nối -> dùng Mock chuẩn
     }
     return [...MOCK_GATEWAYS];
   },
@@ -400,18 +511,28 @@ export const gatewayApi = {
   },
 
   create: async (data: Omit<Gateway, 'id' | 'lastPing'>): Promise<Gateway> => {
+    const generatedCode = `GW-${String(nextGwSeq++).padStart(3, '0')}`;
     try {
-      const result = await apiRequest<Gateway>('/gateways', {
+      const backendPayload = {
+        code: generatedCode,
+        ipAddress: data.ipAddress,
+        status: data.status === 'ONLINE' ? 'ACTIVE' : data.status,
+      };
+      const result = await apiRequest<BackendGatewayRaw>('/gateways', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(backendPayload),
       });
-      if (result.data) return result.data;
+      if (result.data) {
+        const normalized = normalizeGateway(result.data, { ...data, id: generatedCode });
+        MOCK_GATEWAYS.push(normalized);
+        return normalized;
+      }
     } catch {
       // Fallback thêm vào Mock store
     }
     const newGw: Gateway = {
       ...data,
-      id: `GW-${String(nextGwSeq++).padStart(3, '0')}`,
+      id: generatedCode,
       lastPing: new Date().toISOString(),
     };
     MOCK_GATEWAYS.push(newGw);
@@ -486,13 +607,14 @@ export const sensorApi = {
     latitude?: number;
     longitude?: number;
   }): Promise<SensorNode> => {
+    const isDaLatZone = data.zoneId <= 3;
     const backendPayload = {
       sensorCode: data.sensorCode.trim(),
       name: data.name?.trim() || `Cảm biến ${data.sensorCode.trim()}`,
       sensorType: data.sensorType,
       zoneId: data.zoneId,
-      latitude: data.latitude ?? 10.8505,
-      longitude: data.longitude ?? 106.7730,
+      latitude: data.latitude ?? (isDaLatZone ? 11.9418 : 10.8505),
+      longitude: data.longitude ?? (isDaLatZone ? 108.4596 : 106.7730),
     };
 
     try {

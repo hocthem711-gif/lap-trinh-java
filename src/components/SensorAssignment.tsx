@@ -98,14 +98,15 @@ export default function SensorAssignment() {
 
   const handleAddSensor = async () => {
     if (!newSensorCode || !selectedZoneId || !selectedZone) return;
+    const isDaLatFarm = selectedZone.farmId === 1;
     await dispatch(addSensor({
       sensorCode: newSensorCode.trim().toUpperCase(),
       name: newSensorName.trim() || `Cảm biến ${newSensorCode.trim().toUpperCase()}`,
       sensorType: newSensorType,
       zoneId: selectedZoneId,
       zoneName: selectedZone.name,
-      latitude: 10.845,
-      longitude: 106.765,
+      latitude: isDaLatFarm ? 11.9418 : 10.8505,
+      longitude: isDaLatFarm ? 108.4596 : 106.7730,
     }));
     setNewSensorCode('');
     setNewSensorName('');
