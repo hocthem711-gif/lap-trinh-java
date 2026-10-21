@@ -38,6 +38,10 @@ public class SensorDataValidator {
             return ValidationResult.fail("Giá trị đo (value) không được để null");
         }
 
+        if (sensorType == null) {
+            return ValidationResult.fail("Loại cảm biến (sensorType) không được để null");
+        }
+
         if (Double.isNaN(value) || Double.isInfinite(value)) {
             return ValidationResult.fail("Giá trị đo không phải là số hợp lệ");
         }
@@ -67,6 +71,11 @@ public class SensorDataValidator {
             case CO2:
                 if (value < 0.0 || value > 5000.0) {
                     return ValidationResult.fail(String.format("Nồng độ CO2 %.1f ppm bất thường (phải từ 0 đến 5,000 ppm)", value));
+                }
+                break;
+            default:
+                if (value < -100.0 || value > 1000000.0) {
+                    return ValidationResult.fail(String.format("Giá trị cảm biến %.1f ngoài dải đo khả dụng", value));
                 }
                 break;
         }
