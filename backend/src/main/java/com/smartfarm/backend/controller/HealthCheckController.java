@@ -21,7 +21,7 @@ public class HealthCheckController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> healthCheck() {
         Map<String, Object> healthInfo = new HashMap<>();
         healthInfo.put("status", "UP");
-        healthInfo.put("service", "Smart Farm Backend Core");
+        healthInfo.put("laglag/demo/service", "Smart Farm Backend Core");
         healthInfo.put("sprint", "Sprint 1");
         healthInfo.put("task", "LTJ-1");
 

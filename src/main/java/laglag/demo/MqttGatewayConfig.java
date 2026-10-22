@@ -1,4 +1,4 @@
-package laglag.demo; // Lưu ý: Đảm bảo dòng package này khớp với package của project bạn
+package laglag.demo;
 
 import org.eclipse.paho.client.mqttv3.*;
 import org.springframework.stereotype.Component;
