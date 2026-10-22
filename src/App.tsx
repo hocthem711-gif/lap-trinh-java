@@ -1,19 +1,21 @@
 import { useState } from 'react';
 import {
   LayoutDashboard, Plane, Radio, Map, ClipboardList,
-  Settings, Bell, Search, Cpu, Wifi
+  Settings, Bell, Search, Cpu, Wifi, Activity, MapPin
 } from 'lucide-react';
 import DeviceManagement from './components/DeviceManagement';
 import SensorAssignment from './components/SensorAssignment';
+import SensorRealtimeTable from './components/SensorRealtimeTable';
+import SensorMapPopup from './components/SensorMapPopup';
 import './App.css';
 
 /**
  * SmartFarm Dashboard — Main Application
- * Task: LTJ-9 - Sprint 2
+ * Task: LTJ-9 (Sprint 2), LTJ-14 (Sprint 3)
  * Author: Quatrungvoon (Nguyễn Trường An)
  */
 
-type PageId = 'dashboard' | 'devices' | 'sensors' | 'stations' | 'map' | 'missions' | 'settings';
+type PageId = 'dashboard' | 'devices' | 'sensors' | 'sensorRealtime' | 'sensorMap' | 'stations' | 'map' | 'missions' | 'settings';
 
 interface NavItem {
   id: PageId;
@@ -37,6 +39,13 @@ const NAV_ITEMS: { section: string; items: NavItem[] }[] = [
     ],
   },
   {
+    section: 'Giám sát Realtime',
+    items: [
+      { id: 'sensorRealtime', label: 'Cảm biến Realtime', icon: Activity, badge: 'LIVE' },
+      { id: 'sensorMap', label: 'Bản đồ & Popup', icon: MapPin },
+    ],
+  },
+  {
     section: 'Vận hành',
     items: [
       { id: 'stations', label: 'Trạm điều khiển', icon: Radio },
@@ -56,6 +65,8 @@ const PAGE_TITLES: Record<PageId, { title: string; subtitle: string }> = {
   dashboard: { title: 'Dashboard', subtitle: 'Tổng quan hệ thống giám sát nông trại' },
   devices: { title: 'Quản lý UAV & Gateway', subtitle: 'Danh sách và trạng thái thiết bị điều khiển' },
   sensors: { title: 'Cảm biến & Gán Zone', subtitle: 'Quản lý nút cảm biến IoT theo vùng canh tác' },
+  sensorRealtime: { title: 'Cảm biến Realtime', subtitle: 'Giám sát chỉ số cảm biến thời gian thực' },
+  sensorMap: { title: 'Bản đồ & Popup', subtitle: 'Vị trí cảm biến trên bản đồ — Click Marker xem chi tiết' },
   stations: { title: 'Trạm điều khiển', subtitle: 'Giám sát trạng thái trạm thu phát' },
   map: { title: 'Bản đồ & Vị trí', subtitle: 'Vị trí thiết bị trên bản đồ trang trại' },
   missions: { title: 'Nhiệm vụ bay', subtitle: 'Lập kế hoạch và theo dõi nhiệm vụ UAV' },
@@ -63,8 +74,11 @@ const PAGE_TITLES: Record<PageId, { title: string; subtitle: string }> = {
 };
 
 function App() {
-  const [activePage, setActivePage] = useState<PageId>('devices');
+  const [activePage, setActivePage] = useState<PageId>('sensorRealtime');
   const pageInfo = PAGE_TITLES[activePage];
+
+  /** Các trang đã được triển khai component thực */
+  const implementedPages: PageId[] = ['devices', 'sensors', 'sensorRealtime', 'sensorMap'];
 
   return (
     <div className="dashboard-layout">
@@ -96,7 +110,7 @@ function App() {
                   >
                     <Icon size={18} />
                     {item.label}
-                    {item.badge && <span className="nav-badge">{item.badge}</span>}
+                    {item.badge && <span className={`nav-badge ${item.badge === 'LIVE' ? 'nav-badge-live' : ''}`}>{item.badge}</span>}
                   </button>
                 );
               })}
@@ -126,7 +140,7 @@ function App() {
           <div className="header-right">
             <div className="sprint-tag">
               <span className="sprint-dot" />
-              Sprint 2
+              Sprint 3
             </div>
             <button className="header-icon-btn" title="Tìm kiếm">
               <Search size={18} />
@@ -142,9 +156,11 @@ function App() {
         <div className="page-content">
           {activePage === 'devices' && <DeviceManagement />}
           {activePage === 'sensors' && <SensorAssignment />}
+          {activePage === 'sensorRealtime' && <SensorRealtimeTable />}
+          {activePage === 'sensorMap' && <SensorMapPopup />}
 
           {/* Placeholder pages cho các trang chưa triển khai */}
-          {!['devices', 'sensors'].includes(activePage) && (
+          {!implementedPages.includes(activePage) && (
             <div className="placeholder-page">
               <div className="placeholder-icon">
                 {activePage === 'dashboard' && <LayoutDashboard size={36} />}
@@ -154,7 +170,7 @@ function App() {
                 {activePage === 'settings' && <Settings size={36} />}
               </div>
               <h3>{pageInfo.title}</h3>
-              <p>Trang này sẽ được triển khai trong các Sprint tiếp theo. Hiện tại bạn có thể trải nghiệm tính năng <strong>Quản lý UAV/Gateway</strong> và <strong>Gán cảm biến vào Zone</strong>.</p>
+              <p>Trang này sẽ được triển khai trong các Sprint tiếp theo. Hiện tại bạn có thể trải nghiệm tính năng <strong>Cảm biến Realtime</strong>, <strong>Bản đồ & Popup</strong>, <strong>Quản lý UAV/Gateway</strong> và <strong>Gán cảm biến vào Zone</strong>.</p>
             </div>
           )}
         </div>

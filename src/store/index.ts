@@ -3,6 +3,7 @@ import missionReducer from './slices/missionSlice';
 import waypointReducer from './slices/waypointSlice';
 import deviceReducer from './slices/deviceSlice';
 import sensorReducer from './slices/sensorSlice';
+import sensorRealtimeReducer from './slices/sensorRealtimeSlice';
 
 export const store = configureStore({
   reducer: {
@@ -10,6 +11,7 @@ export const store = configureStore({
     waypoint: waypointReducer,
     device: deviceReducer,
     sensor: sensorReducer,
+    sensorRealtime: sensorRealtimeReducer,
   },
   devTools: import.meta.env.DEV,
 });
