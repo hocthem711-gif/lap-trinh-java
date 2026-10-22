@@ -11,4 +11,6 @@ import java.util.Optional;
 public interface SensorRepository extends JpaRepository<Sensor, Long> {
     Optional<Sensor> findBySensorCode(String sensorCode);
     List<Sensor> findByZoneId(Long zoneId);
+    List<Sensor> findByZoneFarmId(Long farmId);
+    boolean existsBySensorCode(String sensorCode);
 }

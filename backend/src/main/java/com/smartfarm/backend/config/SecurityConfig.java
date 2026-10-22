@@ -47,7 +47,9 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/v3/api-docs/**",
                                 "/h2-console/**",
-                                "/health"
+                                "/health",
+                                "/sensors/**",
+                                "/sensor-data/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );
