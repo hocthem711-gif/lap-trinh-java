@@ -1,0 +1,91 @@
+@startuml Sequence_Add_Device
+!theme plain
+autonumber
+skinparam BoxPadding 10
+skinparam ParticipantPadding 10
+skinparam RoundCorner 8
+skinparam Shadowing false
+skinparam ArrowColor #2C3E50
+skinparam ActorBorderColor #2C3E50
+skinparam ParticipantBorderColor #2C3E50
+
+title [Sprint 2][Dev 5] Sơ Đồ Tuần Tự (Sequence Diagram) - Luồng Thêm Thiết Bị & Kết Nối MQTT (F03/IoT)
+
+actor "Chủ Trang Trại (Farmer)" as Farmer #LightYellow
+boundary "Web Dashboard\n(React UI)" as UI #AliceBlue
+control "JwtAuthFilter" as Filter #LightCyan
+control "Device/Zone Controller" as Controller #LightCyan
+control "Device/Zone Service" as Service #LightCyan
+database "Database\n(H2 / PostgreSQL)" as DB #Ivory
+queue "MQTT Broker\n(HiveMQ / EMQX)" as Broker #Honeydew
+entity "IoT Simulator\n(Sensor Client)" as Simulator #MistyRose
+
+== 1. YÊU CẦU THÊM THIẾT BỊ MỚI VÀO VÙNG CANH TÁC ==
+Farmer -> UI: Chọn Farm -> Chọn Zone A -> Nhấn [+ Thêm Thiết Bị]
+activate UI
+
+Farmer -> UI: Điền Form: Tên thiết bị ("Sensor Temp/Hum 01"), Loại cảm biến, Chu kỳ gửi (5s)
+UI -> Filter: POST /api/v1/zones/{zoneId}/devices\nHeader: Authorization: Bearer <accessToken>\nPayload: { "deviceName", "deviceType", "interval": 5 }
+activate Filter
+
+Filter -> Filter: Xác thực tính hợp lệ của Bearer Token (ROLE_FARMER)
+Filter -> Controller: Cho phép chuyển tiếp Request
+deactivate Filter
+activate Controller
+
+Controller -> Service: createDevice(zoneId, deviceRequest, currentUserId)
+activate Service
+
+== 2. KIỂM TRA PHÂN QUYỀN VÀ LƯU VÀO DATABASE ==
+Service -> DB: SELECT * FROM zones WHERE id = ? AND farm.owner.id = ?
+activate DB
+DB --> Service: Trả về thông tin Zone hợp lệ
+deactivate DB
+
+alt Không tìm thấy Zone hoặc Người dùng không sở hữu Trang trại
+    Service --> Controller: Ném ResourceNotFoundException / AccessDeniedException
+    Controller --> UI: 403 Forbidden / 404 Not Found
+    UI --> Farmer: Báo lỗi "Không có quyền thêm thiết bị vào khu vực này"
+else Zone hợp lệ & Có toàn quyền sở hữu
+    Service -> Service: Sinh mã thiết bị duy nhất: deviceCode = "DEV-Z1-001"\nCấu hình Topic: "iot/ltj/sensor/zone-1/DEV-Z1-001"
+    Service -> DB: INSERT INTO devices (code, name, type, zone_id, status) VALUES (...)
+    activate DB
+    DB --> Service: Lưu thành công (Device ID = 10, Status = "PENDING_CONNECT")
+    deactivate DB
+
+    == 3. ĐĂNG KÝ VỚI MQTT BROKER ==
+    Service -> Broker: Backend Gateway Subscribe Topic:\n"iot/ltj/sensor/zone-1/DEV-Z1-001" (QoS 1)
+    activate Broker
+    Broker --> Service: SUBACK (Xác nhận đăng ký nhận dữ liệu thành công)
+    deactivate Broker
+
+    Service --> Controller: Trả về DeviceResponse (ID, Mã thiết bị, MQTT Topic, Trạng thái)
+    deactivate Service
+
+    Controller --> UI: 201 Created\n{"status": 201, "data": { "deviceId": 10, "topic": "iot/ltj/sensor/zone-1/DEV-Z1-001" }}
+    deactivate Controller
+
+    UI --> Farmer: Hiển thị thiết bị mới trong danh sách cây Zone A (Icon cam: Chờ kết nối)
+    deactivate UI
+end
+
+== 4. THIẾT BỊ IOT / SIMULATOR KẾT NỐI VÀ BẮN DỮ LIỆU THỰC TẾ ==
+Simulator -> Broker: CONNECT (ClientId: "DEV-Z1-001", CleanSession: true)
+activate Simulator
+activate Broker
+Broker --> Simulator: CONNACK (Connection Accepted)
+
+loop Định kỳ mỗi 5 giây (Scheduled Telemetry)
+    Simulator -> Simulator: Đọc/Giả lập chỉ số cảm biến:\n{ temperature: 27.5, humidity: 68.2, soilMoisture: 75.0, timestamp: 172916... }
+    Simulator -> Broker: PUBLISH Topic: "iot/ltj/sensor/zone-1/DEV-Z1-001"\nPayload: JSON Data (QoS 1)
+    Broker --> Simulator: PUBACK (Đã nhận gói tin)
+    
+    Broker -> Controller: Đẩy gói tin sang Backend MQTT Inbound Adapter
+    Controller -> DB: Ghi nhận bản ghi Telemetry lịch sử & cập nhật Device Status = "ONLINE"
+    Controller -> UI: Đẩy sự kiện qua WebSocket (STOMP / SockJS)
+    UI --> Farmer: Cập nhật icon Xanh Lá (Online) và biểu đồ Realtime nhảy số tức thì
+end
+deactivate Broker
+deactivate Simulator
+
+@enduml

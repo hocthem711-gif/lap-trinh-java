@@ -1,33 +1,100 @@
-HELP.md
+# ===== Private & Security (BẢO MẬT TUYỆT ĐỐI) =====
+no github/
+QUY_TAC_TONG_THE.md
+up github/
+.gemini/
+GEMINI.md
+.env
+.env.*
+*.secret
+*.key
+*.pem
+secrets/
+
+# ===== Java / Maven / Gradle Build Artifacts =====
 target/
-.mvn/wrapper/maven-wrapper.jar
+**/target/
 !**/src/main/**/target/
 !**/src/test/**/target/
+${project.build.directory}/
+.gradle/
+build/
+**/build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+*.class
+*.jar
+!**/gradle/wrapper/gradle-wrapper.jar
+!**/.mvn/wrapper/maven-wrapper.jar
+lib/
+**/lib/
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.lck
+backend_gateway_server-*
 
-### STS ###
+# ===== Frontend & Node Modules =====
+node_modules/
+dist/
+dist-ssr/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# ===== IDEs & Editors =====
+.idea/
+.vscode/
+*.iws
+*.iml
+*.ipr
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+*~
 .apt_generated
 .classpath
 .factorypath
 .project
+.settings/
 .settings
 .springBeans
 .sts4-cache
+bin/
+out/
+nbproject/private/
+nbbuild/
+nbdist/
+.nb-gradle/
 
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
+# ===== OS & Logs =====
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+*.log
+logs/
+hs_err_pid*
+replay_pid*
 
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### VS Code ###
-.vscode/
+# ===== Temporary & Database Files =====
+*.tmp
+*.bak
+*.orig
+temp/
+tmp/
+*.db
+*.sqlite
+*.sqlite3

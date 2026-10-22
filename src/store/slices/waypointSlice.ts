@@ -1,4 +1,5 @@
-import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice } from '@reduxjs/toolkit';
+import type { PayloadAction } from '@reduxjs/toolkit';
 
 /**
  * Waypoint Slice - Quản lý danh sách các điểm bay (Waypoints) trên bản đồ
@@ -6,13 +7,14 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
  * Author: Quatrungvoon
  */
 
-export enum WaypointType {
-  NORMAL = 'NORMAL',
-  TAKEOFF = 'TAKEOFF',
-  LANDING = 'LANDING',
-  HOVER = 'HOVER',
-  RETURN_HOME = 'RETURN_HOME',
-}
+export const WaypointType = {
+  NORMAL: 'NORMAL',
+  TAKEOFF: 'TAKEOFF',
+  LANDING: 'LANDING',
+  HOVER: 'HOVER',
+  RETURN_HOME: 'RETURN_HOME',
+} as const;
+export type WaypointType = (typeof WaypointType)[keyof typeof WaypointType];
 
 export interface Waypoint {
   id: number;

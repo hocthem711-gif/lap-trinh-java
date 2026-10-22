@@ -1,0 +1,99 @@
+@startuml Sequence_Auth_Login
+!theme plain
+autonumber
+skinparam BoxPadding 10
+skinparam ParticipantPadding 10
+skinparam RoundCorner 8
+skinparam Shadowing false
+skinparam ArrowColor #2C3E50
+skinparam ActorBorderColor #2C3E50
+skinparam ParticipantBorderColor #2C3E50
+
+title [Sprint 2][Dev 5] Sơ Đồ Tuần Tự (Sequence Diagram) - Luồng Đăng Nhập & Xác Thực JWT (F01)
+
+actor "Người Dùng (User)" as User #LightYellow
+boundary "Web Client\n(React/Vite)" as Client #AliceBlue
+control "JwtAuthFilter" as Filter #LightCyan
+control "AuthController" as AuthCtrl #LightCyan
+control "AuthService" as AuthSvc #LightCyan
+control "AuthenticationManager" as AuthMgr #Lavender
+control "CustomUserDetailsService" as UserDetailsSvc #Lavender
+database "Database\n(H2 / PostgreSQL)" as DB #Ivory
+control "JwtTokenProvider" as JwtProv #Lavender
+
+== 1. GỬI YÊU CẦU ĐĂNG NHẬP ==
+User -> Client: Nhập username/email và mật khẩu, nhấn [Đăng Nhập]
+activate Client
+
+Client -> AuthCtrl: POST /api/v1/auth/login\nPayload: { "usernameOrEmail", "password" }
+activate AuthCtrl
+
+AuthCtrl -> AuthSvc: login(LoginRequest)
+activate AuthSvc
+
+== 2. XÁC THỰC DANH TÍNH (AUTHENTICATION) ==
+AuthSvc -> AuthMgr: authenticate(UsernamePasswordAuthenticationToken)
+activate AuthMgr
+
+AuthMgr -> UserDetailsSvc: loadUserByUsername(usernameOrEmail)
+activate UserDetailsSvc
+
+UserDetailsSvc -> DB: SELECT * FROM users WHERE username = ? OR email = ?
+activate DB
+DB --> UserDetailsSvc: Trả về thông tin User (mật khẩu mã hóa BCrypt, Roles)
+deactivate DB
+
+UserDetailsSvc --> AuthMgr: Trả về CustomUserDetails
+deactivate UserDetailsSvc
+
+AuthMgr -> AuthMgr: PasswordEncoder.matches(rawPassword, encodedPassword)
+
+alt Mật khẩu KHÔNG chính xác / Tài khoản không tồn tại
+    AuthMgr --> AuthSvc: Throws BadCredentialsException
+    AuthSvc --> AuthCtrl: Ném ngoại lệ
+    AuthCtrl --> Client: 401 Unauthorized\n{"status": 401, "message": "Tên đăng nhập hoặc mật khẩu không chính xác"}
+    Client --> User: Hiển thị thông báo lỗi màu đỏ trên form
+else Xác thực thành công (Valid Credentials)
+    AuthMgr --> AuthSvc: Trả về đối tượng Authentication hợp lệ
+    deactivate AuthMgr
+
+    == 3. TẠO MÃ JWT BEARER TOKEN ==
+    AuthSvc -> JwtProv: generateToken(authentication)
+    activate JwtProv
+    note right of JwtProv
+      Tạo JWT Token:
+      - Subject: username
+      - Claims: roles, issuedAt, expiration (24h)
+      - Ký bằng thuật toán HMAC-SHA256 với secret key
+    end note
+    JwtProv --> AuthSvc: Trả về chuỗi JWT Access Token
+    deactivate JwtProv
+
+    AuthSvc --> AuthCtrl: Trả về AuthResponse (Token, TokenType, User Profile, Roles)
+    deactivate AuthSvc
+
+    AuthCtrl --> Client: 200 OK\n{"status": 200, "data": { "accessToken": "eyJ...", "roles": ["ROLE_FARMER"] }}
+    deactivate AuthCtrl
+
+    Client -> Client: Lưu accessToken vào localStorage
+    Client --> User: Đăng nhập thành công! Chuyển hướng vào Dashboard
+    deactivate Client
+end
+
+== 4. CÁC REQUEST TIẾP THEO (GỌI API CÓ BẢO MẬT) ==
+User -> Client: Xem danh sách trang trại (Nhấn vào Menu Trang Trại)
+activate Client
+Client -> Filter: GET /api/v1/farms\nHeader: Authorization: Bearer <accessToken>
+activate Filter
+
+Filter -> JwtProv: validateToken(token) & getUsernameFromJWT(token)
+activate JwtProv
+JwtProv --> Filter: Token hợp lệ, trả về username
+deactivate JwtProv
+
+Filter -> Filter: Thiết lập SecurityContextHolder.getContext().setAuthentication(...)
+Filter -> Client: Chuyển tiếp Request vào FarmController xử lý và trả về dữ liệu (200 OK)
+deactivate Filter
+deactivate Client
+
+@enduml
