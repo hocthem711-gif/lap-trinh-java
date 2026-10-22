@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import Login from './components/Login'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -16,6 +17,7 @@ import {
   Radio,
   Map,
   ClipboardList,
+  Users,
   Settings,
   Bell,
   Search,
@@ -42,6 +44,7 @@ const menuItems = [
   { label: 'Trạm điều khiển', icon: Radio },
   { label: 'Bản đồ & vị trí', icon: Map },
   { label: 'Nhiệm vụ', icon: ClipboardList },
+  { label: 'Quản lý người dùng', icon: Users },
   { label: 'Cài đặt', icon: Settings },
 ]
 
@@ -111,6 +114,38 @@ const uavList = [
   },
 ]
 
+type UserItem = {
+  id: number
+  name: string
+  email: string
+  role: string
+  status: string
+}
+
+const initialUsers: UserItem[] = [
+  {
+    id: 1,
+    name: 'Long Hồ',
+    email: 'nguyenho26062006@gmail.com',
+    role: 'Quản trị viên',
+    status: 'Hoạt động',
+  },
+  {
+    id: 2,
+    name: 'Đình Hiệu',
+    email: 'hieuclet@gmail.com',
+    role: 'Người vận hành',
+    status: 'Hoạt động',
+  },
+  {
+    id: 3,
+    name: 'Thiện Hiếu',
+    email: 'thienhieu@gmail.com',
+    role: 'Người vận hành',
+    status: 'Tạm khóa',
+  },
+]
+
 const activityChartData = {
   labels: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00'],
   datasets: [
@@ -147,15 +182,45 @@ const activityChartOptions = {
   },
 }
 
+
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
+  const [username, setUsername] = useState('')
+
   const [activePage, setActivePage] = useState('Tổng quan')
   const [uavSearch, setUavSearch] = useState('')
+  const [users, setUsers] = useState<UserItem[]>(initialUsers)
+  const [userSearch, setUserSearch] = useState('')
+
+  const filteredUsers = users.filter((user) =>
+    `${user.name} ${user.email} ${user.role}`
+      .toLowerCase()
+      .includes(userSearch.trim().toLowerCase()),
+)
 
   const filteredUavs = uavList.filter((uav) =>
     `${uav.id} ${uav.name}`
       .toLowerCase()
       .includes(uavSearch.trim().toLowerCase()),
   )
+  const [showAddUserForm, setShowAddUserForm] = useState(false)
+
+  const [newUser, setNewUser] = useState({
+         name: '',
+         email: '',
+         role: 'Operator',
+})
+
+  if (!isLoggedIn) {
+    return (
+      <Login
+        onLogin={(name) => {
+          setUsername(name)
+          setIsLoggedIn(true)
+        }}
+      />
+    )
+  }
 
   return (
     <div className="app-shell">
@@ -171,7 +236,7 @@ function App() {
           </div>
         </div>
 
-        <p className="menu-heading">MENU CHÍNH</p>
+                <p className="menu-heading">MENU CHÍNH</p>
 
         <nav className="sidebar-nav">
           {menuItems.map((item) => {
@@ -232,7 +297,7 @@ function App() {
             </div>
           </div>
 
-          <div className="topbar-actions">
+                    <div className="topbar-actions">
             <label className="search-box">
               <Search size={18} />
               <input type="search" placeholder="Tìm kiếm..." />
@@ -248,12 +313,27 @@ function App() {
             </button>
 
             <div className="user-profile">
-              <div className="avatar">AD</div>
+              <div className="avatar">
+                {(username || 'AD').slice(0, 2).toUpperCase()}
+              </div>
               <div className="user-info">
-                <strong>Administrator</strong>
+                <strong>{username || 'Administrator'}</strong>
                 <span>Quản trị viên</span>
               </div>
             </div>
+
+            <button
+              type="button"
+              className="logout-button"
+              onClick={() => {
+                setIsLoggedIn(false)
+                setUsername('')
+                setActivePage('Tổng quan')
+                setUavSearch('')
+              }}
+            >
+              Đăng xuất
+            </button>
           </div>
         </header>
 
@@ -281,11 +361,25 @@ function App() {
               {/* Thống kê */}
               <div className="section-title">
                 <div>
-                  <h2>Chỉ số tổng quan</h2>
-                  <p>Các số liệu tổng hợp của hệ thống</p>
+                  <h2>Danh sách người dùng</h2>
+                  <p>Quản lý tài khoản và quyền truy cập hệ thống</p>
                 </div>
                 <span className="date-label">Dữ liệu minh họa</span>
               </div>
+              <button
+  type="button"
+  className="back-button"
+  onClick={() => {
+    setNewUser({
+      name: '',
+      email: '',
+      role: 'Operator',
+    })
+    setShowAddUserForm(true)
+  }}
+>
+  + Thêm người dùng
+</button>
 
               <div className="stats-grid">
                 {stats.map((stat) => {
@@ -333,7 +427,7 @@ function App() {
                       </span>
                     </div>
 
-                    <div className="activity-chart">
+                                        <div className="activity-chart">
                       <Line
                         data={activityChartData}
                         options={activityChartOptions}
@@ -385,7 +479,7 @@ function App() {
                 </section>
               </div>
             </>
-          ) : activePage === 'Quản lý UAV' ? (
+                      ) : activePage === 'Quản lý UAV' ? (
             /* Trang quản lý UAV */
             <div className="uav-page">
               <div className="section-title">
@@ -399,7 +493,132 @@ function App() {
                   {uavList.length} thiết bị
                 </span>
               </div>
+{showAddUserForm && (
+  <div className="panel add-user-panel">
+    <div className="add-user-heading">
+      <div>
+        <h3>Thêm người dùng mới</h3>
+        <p>Nhập thông tin tài khoản cần thêm vào hệ thống.</p>
+      </div>
 
+      <button
+        type="button"
+        className="back-button"
+        onClick={() => setShowAddUserForm(false)}
+      >
+        Đóng
+      </button>
+    </div>
+
+    <form
+      className="add-user-form"
+      onSubmit={(event) => {
+        event.preventDefault()
+
+        const name = newUser.name.trim()
+        const email = newUser.email.trim()
+
+        if (!name || !email) {
+          window.alert('Vui lòng nhập đầy đủ họ tên và email.')
+          return
+        }
+
+        const emailExists = users.some(
+          (user) => user.email.toLowerCase() === email.toLowerCase(),
+        )
+
+        if (emailExists) {
+          window.alert('Email này đã tồn tại.')
+          return
+        }
+
+        setUsers((current) => [
+          ...current,
+          {
+            id: Date.now(),
+            name,
+            email,
+            role: newUser.role,
+            status: 'Hoạt động',
+          },
+        ])
+
+        setUserSearch('')
+        setNewUser({
+          name: '',
+          email: '',
+          role: 'Operator',
+        })
+        setShowAddUserForm(false)
+      }}
+    >
+      <div className="form-field">
+        <label htmlFor="new-user-name">Họ và tên</label>
+        <input
+          id="new-user-name"
+          type="text"
+          value={newUser.name}
+          onChange={(event) =>
+            setNewUser((current) => ({
+              ...current,
+              name: event.target.value,
+            }))
+          }
+          placeholder="Nhập họ và tên"
+          required
+        />
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="new-user-email">Email</label>
+        <input
+          id="new-user-email"
+          type="email"
+          value={newUser.email}
+          onChange={(event) =>
+            setNewUser((current) => ({
+              ...current,
+              email: event.target.value,
+            }))
+          }
+          placeholder="example@email.com"
+          required
+        />
+      </div>
+
+      <div className="form-field">
+        <label htmlFor="new-user-role">Vai trò</label>
+        <select
+          id="new-user-role"
+          value={newUser.role}
+          onChange={(event) =>
+            setNewUser((current) => ({
+              ...current,
+              role: event.target.value,
+            }))
+          }
+        >
+          <option value="Admin">Admin</option>
+          <option value="Operator">Operator</option>
+        </select>
+      </div>
+
+      <div className="add-user-actions">
+        <button
+          type="button"
+          className="back-button"
+          onClick={() => setShowAddUserForm(false)}
+        >
+          Hủy
+        </button>
+
+        <button type="submit" className="save-user-button">
+          Lưu người dùng
+        </button>
+      </div>
+    </form>
+  </div>
+)}
               <div className="panel uav-table-panel">
                 <div className="uav-toolbar">
                   <h3>Thiết bị UAV</h3>
@@ -474,8 +693,7 @@ function App() {
                       ))}
                     </tbody>
                   </table>
-
-                  {filteredUavs.length === 0 && (
+                               {filteredUavs.length === 0 && (
                     <p className="uav-empty">
                       Không tìm thấy UAV phù hợp.
                     </p>
@@ -483,36 +701,120 @@ function App() {
                 </div>
               </div>
             </div>
-          ) : (
-            /* Các trang còn lại */
-            <div className="panel page-placeholder">
-              <div className="stat-icon">
-                {activePage === 'Trạm điều khiển' ? (
-                  <Radio size={24} />
-                ) : activePage === 'Bản đồ & vị trí' ? (
-                  <Map size={24} />
-                ) : activePage === 'Nhiệm vụ' ? (
-                  <ClipboardList size={24} />
-                ) : (
-                  <Settings size={24} />
-                )}
-              </div>
+                   ) : activePage === 'Quản lý người dùng' ? (
+  <div className="uav-page">
+    <div className="section-title">
+      <div>
+        <h2>Danh sách người dùng</h2>
+        <p>Quản lý tài khoản và quyền truy cập hệ thống</p>
+      </div>
+      <span className="date-label">
+        {users.length} người dùng
+      </span>
+    </div>
 
-              <h2>{activePage}</h2>
-              <p>
-                Đây là khu vực {activePage.toLowerCase()}.
-                Nội dung chi tiết sẽ được xây dựng ở bước tiếp theo.
-              </p>
+    <div className="panel uav-table-panel">
+      <div className="uav-toolbar">
+        <h3>Tài khoản hệ thống</h3>
+        <input
+          type="search"
+          value={userSearch}
+          onChange={(event) => setUserSearch(event.target.value)}
+          placeholder="Tìm theo tên, email hoặc vai trò..."
+          aria-label="Tìm kiếm người dùng"
+        />
+      </div>
 
-              <button
-                type="button"
-                className="back-button"
-                onClick={() => setActivePage('Tổng quan')}
-              >
-                Quay lại Tổng quan
-              </button>
-            </div>
-          )}
+      <div className="uav-table-scroll">
+        <table className="uav-table">
+          <thead>
+            <tr>
+              <th>Họ và tên</th>
+              <th>Email</th>
+              <th>Vai trò</th>
+              <th>Trạng thái</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredUsers.map((user) => (
+              <tr key={user.id}>
+                <td><strong>{user.name}</strong></td>
+                <td>{user.email}</td>
+                <td>{user.role}</td>
+                <td>
+                  <span
+                    className={
+                      user.status === 'Hoạt động'
+                        ? 'uav-status status-active'
+                        : 'uav-status status-warning'
+                    }
+                  >
+                    {user.status}
+                  </span>
+                </td>
+                <td>
+                  <button
+                    type="button"
+                    className="logout-button"
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          `Bạn có chắc muốn xóa ${user.name}?`,
+                        )
+                      ) {
+                        setUsers((current) =>
+                          current.filter((item) => item.id !== user.id),
+                        )
+                      }
+                    }}
+                  >
+                    Xóa
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {filteredUsers.length === 0 && (
+          <p className="uav-empty">
+            Không tìm thấy người dùng phù hợp.
+          </p>
+        )}
+      </div>
+    </div>
+  </div>
+) : (
+  <div className="panel page-placeholder">
+    <div className="stat-icon">
+      {activePage === 'Trạm điều khiển' ? (
+        <Radio size={24} />
+      ) : activePage === 'Bản đồ & vị trí' ? (
+        <Map size={24} />
+      ) : activePage === 'Nhiệm vụ' ? (
+        <ClipboardList size={24} />
+      ) : (
+        <Settings size={24} />
+      )}
+    </div>
+
+    <h2>{activePage}</h2>
+    <p>
+      Đây là khu vực {activePage.toLowerCase()}.
+      Nội dung chi tiết sẽ được xây dựng ở bước tiếp theo.
+    </p>
+
+    <button
+      type="button"
+      className="back-button"
+      onClick={() => setActivePage('Tổng quan')}
+    >
+      Quay lại Tổng quan
+    </button>
+  </div>
+)}
+
         </section>
 
         {/* Footer */}
