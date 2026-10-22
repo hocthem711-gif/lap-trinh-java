@@ -92,7 +92,10 @@ public class MqttGatewayConfig {
         }, "MqttGateway-Init-Thread").start();
     }
 
-    private void handleIncomingMqttMessage(String topic, MqttMessage message) {
+    void handleIncomingMqttMessage(String topic, MqttMessage message) {
+        if (topic == null || topic.isBlank() || message == null) {
+            return;
+        }
         try {
             String payload = new String(message.getPayload(), StandardCharsets.UTF_8);
             log.debug("[MQTT GATEWAY] Nhận tin từ topic [{}]: {}", topic, payload);
@@ -126,7 +129,10 @@ public class MqttGatewayConfig {
         }
     }
 
-    private boolean isAllowedByRateLimiter(String nodeCode) {
+    boolean isAllowedByRateLimiter(String nodeCode) {
+        if (nodeCode == null || nodeCode.isBlank()) {
+            return false;
+        }
         long now = System.currentTimeMillis();
         Long last = lastMessageTimeMap.get(nodeCode);
         if (last == null || (now - last) >= MIN_INTERVAL_MS) {
@@ -136,11 +142,18 @@ public class MqttGatewayConfig {
         return false;
     }
 
-    private String extractNodeCode(String topic, String payload) {
+    void resetRateLimiter() {
+        lastMessageTimeMap.clear();
+    }
+
+    String extractNodeCode(String topic, String payload) {
         try {
-            if (topic.contains("/")) {
+            if (topic != null && topic.contains("/")) {
                 String[] parts = topic.split("/");
-                return parts[parts.length - 1];
+                String candidate = parts[parts.length - 1].trim();
+                if (!candidate.isEmpty()) {
+                    return candidate;
+                }
             }
         } catch (Exception ignored) {
         }
