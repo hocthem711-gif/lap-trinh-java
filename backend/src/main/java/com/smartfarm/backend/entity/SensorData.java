@@ -19,6 +19,12 @@ public class SensorData {
     @Column(length = 20)
     private String unit;
 
+    @Column(name = "battery_level")
+    private Double batteryLevel;
+
+    @Column(length = 20)
+    private String status = "NORMAL";
+
     @Column(name = "recorded_at", nullable = false)
     private LocalDateTime recordedAt;
 
@@ -33,6 +39,16 @@ public class SensorData {
         this.unit = unit;
         this.recordedAt = recordedAt != null ? recordedAt : LocalDateTime.now();
         this.sensor = sensor;
+        this.status = "NORMAL";
+    }
+
+    public SensorData(Double value, String unit, Double batteryLevel, String status, LocalDateTime recordedAt, Sensor sensor) {
+        this.value = value;
+        this.unit = unit;
+        this.batteryLevel = batteryLevel;
+        this.status = status != null ? status : "NORMAL";
+        this.recordedAt = recordedAt != null ? recordedAt : LocalDateTime.now();
+        this.sensor = sensor;
     }
 
     public Long getId() { return id; }
@@ -43,6 +59,12 @@ public class SensorData {
 
     public String getUnit() { return unit; }
     public void setUnit(String unit) { this.unit = unit; }
+
+    public Double getBatteryLevel() { return batteryLevel; }
+    public void setBatteryLevel(Double batteryLevel) { this.batteryLevel = batteryLevel; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 
     public LocalDateTime getRecordedAt() { return recordedAt; }
     public void setRecordedAt(LocalDateTime recordedAt) { this.recordedAt = recordedAt; }
