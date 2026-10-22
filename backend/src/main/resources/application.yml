@@ -37,3 +37,7 @@ springdoc:
   swagger-ui:
     path: /swagger-ui/index.html
     operationsSorter: method
+    logging:
+  level:
+    org.springframework.security: DEBUG
+    com.smartfarm.backend: DEBUG

@@ -1,156 +1,151 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
 
-/* ============================================================
-   App.css — SmartFarm Dashboard Layout
-   Task: LTJ-9 - Sprint 2
-   Author: Quatrungvoon (Nguyễn Trường An)
-   ============================================================ */
-
-/* ===== Reset & Base ===== */
-*,
-*::before,
-*::after {
-  margin: 0;
-  padding: 0;
+/* ==============================
+   1. THIẾT LẬP CHUNG
+================================ */
+* {
   box-sizing: border-box;
 }
 
-:root {
-  --sidebar-width: 260px;
-  --header-height: 64px;
-  --bg-primary: #0f0f1a;
-  --bg-secondary: #151525;
-  --bg-card: rgba(255, 255, 255, 0.03);
-  --border-color: rgba(255, 255, 255, 0.06);
-  --text-primary: #ffffff;
-  --text-secondary: rgba(255, 255, 255, 0.6);
-  --text-muted: rgba(255, 255, 255, 0.35);
-  --accent-primary: #6366f1;
-  --accent-gradient: linear-gradient(135deg, #6366f1, #8b5cf6);
-}
-
-body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--bg-primary);
-  color: var(--text-primary);
-  overflow: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* ===== Dashboard Layout ===== */
-.dashboard-layout {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-}
-
-/* ===== Sidebar ===== */
-.sidebar {
-  width: var(--sidebar-width);
-  height: 100vh;
-  background: var(--bg-secondary);
-  border-right: 1px solid var(--border-color);
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  position: relative;
-  z-index: 10;
-}
-
-.sidebar-header {
-  padding: 20px 22px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.brand-logo {
-  width: 38px;
-  height: 38px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 10px;
-  background: var(--accent-gradient);
-  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
-}
-
-.brand-text h1 {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.01em;
-}
-
-.brand-text span {
-  font-size: 11px;
-  color: var(--text-muted);
-  letter-spacing: 0.03em;
-}
-
-/* Sidebar Navigation */
-.sidebar-nav {
-  flex: 1;
-  padding: 16px 12px;
+html {
+  min-height: 100%;
   overflow-y: auto;
 }
 
-.nav-section-label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-muted);
-  padding: 8px 12px 8px;
-  margin-top: 8px;
+body {
+  margin: 0;
+  min-height: 100vh;
+  height: auto;
+  overflow-x: hidden;
+  overflow-y: auto !important;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #172033;
+  background: #f5f7fb;
 }
 
-.nav-item {
+#root {
+  min-height: 100vh;
+  height: auto;
+  overflow: visible;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.app-shell {
+  min-height: 100vh;
+  height: auto;
+  overflow: visible;
+}
+
+/* ==============================
+   2. SIDEBAR
+================================ */
+.sidebar {
+  width: 252px;
+  background: #111c34;
+  color: #d7deec;
+  position: fixed;
+  inset: 0 auto 0 0;
+  display: flex;
+  flex-direction: column;
+  padding: 27px 17px 20px;
+  z-index: 10;
+}
+
+.brand {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 11px 14px;
-  border-radius: 10px;
-  color: var(--text-secondary);
-  font-size: 14px;
-  font-weight: 450;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  border: none;
-  background: transparent;
-  width: 100%;
-  text-align: left;
-  font-family: 'Inter', sans-serif;
+  padding: 0 8px 34px;
 }
 
-.nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-primary);
+.brand-icon {
+  width: 43px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  background: #4275f5;
+  color: white;
+}
+
+.brand h2 {
+  font-size: 17px;
+  color: white;
+  margin: 0 0 4px;
+}
+
+.brand span {
+  font-size: 9px;
+  letter-spacing: 1.2px;
+  color: #8d9bb5;
+}
+
+.menu-heading {
+  padding: 0 12px;
+  color: #7887a4;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.3px;
+  margin: 0 0 12px;
+}
+
+.sidebar-nav {
+  display: grid;
+  gap: 7px;
+}
+
+.nav-item {
+  color: #aebbd1;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 13px 12px;
+  border-radius: 9px;
+  text-decoration: none;
+  font-size: 13px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.nav-item:hover,
+.nav-item.active {
+  color: white;
+  background: #2d4777;
 }
 
 .nav-item.active {
-  background: rgba(99, 102, 241, 0.12);
-  color: #a5b4fc;
-  font-weight: 500;
+  box-shadow: inset 3px 0 #6390ff;
 }
 
-.nav-item.active svg {
-  color: #818cf8;
+.sidebar-bottom {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: auto;
+  padding: 16px 10px 4px;
+  border-top: 1px solid #293650;
 }
 
-.nav-item .nav-badge {
-  margin-left: auto;
-  background: rgba(99, 102, 241, 0.2);
-  color: #a5b4fc;
-  padding: 2px 8px;
-  border-radius: 12px;
+.connection-dot,
+.status-pill span {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #35ce91;
+  margin-top: 4px;
+}
+
+.sidebar-bottom strong,
+.sidebar-bottom span {
+  display: block;
   font-size: 11px;
-  font-weight: 600;
 }
 
 .nav-item .nav-badge-live {
@@ -164,216 +159,866 @@ body {
   50% { opacity: 0.5; }
 }
 
-/* Sidebar Footer */
-.sidebar-footer {
-  padding: 16px;
-  border-top: 1px solid var(--border-color);
+.sidebar-bottom span {
+  color: #8c9bb5;
+  font-size: 10px;
 }
 
-.user-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+/* ==============================
+   3. KHU VỰC NỘI DUNG CHÍNH
+================================ */
+.main-area {
+  min-height: 100vh;
+  height: auto;
+  margin-left: 252px;
+  overflow: visible;
 }
 
-.user-avatar {
-  width: 36px;
-  height: 36px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #3b82f6, #6366f1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.user-info {
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.user-info strong {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.user-info span {
-  font-size: 11px;
-  color: var(--text-muted);
-}
-
-/* ===== Main Content ===== */
-.main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  min-width: 0;
-}
-
-/* ===== Top Header ===== */
-.top-header {
-  height: var(--header-height);
+.topbar {
+  min-height: 91px;
+  background: white;
+  border-bottom: 1px solid #e9edf4;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
-  background: rgba(15, 15, 26, 0.8);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--border-color);
-  flex-shrink: 0;
+  gap: 20px;
+  padding: 18px 34px;
 }
 
-.header-left {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.page-heading h1 {
+  color: #172033;
+  font-size: 21px;
+  letter-spacing: -0.5px;
+  margin: 0 0 7px;
 }
 
-.header-left h2 {
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.header-left span {
+.page-heading p,
+.section-title p,
+.panel-heading p {
+  color: #8b95a7;
   font-size: 12px;
-  color: var(--text-muted);
+  margin: 0;
 }
 
-.header-right {
+.topbar-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 20px;
 }
 
-.header-icon-btn {
-  width: 38px;
-  height: 38px;
+.search-box {
+  width: 210px;
+  height: 39px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  border: 1px solid var(--border-color);
-  border-radius: 10px;
+  gap: 9px;
+  padding: 0 12px;
+  border: 1px solid #e5e9f1;
+  border-radius: 8px;
+  color: #8994a7;
+}
+
+.search-box input {
+  border: 0;
+  outline: 0;
+  width: 100%;
+  min-width: 0;
   background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
+  font-size: 12px;
 }
 
-.header-icon-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--text-primary);
+.icon-button,
+.mobile-menu {
+  border: 0;
+  background: transparent;
+  color: #647087;
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.icon-button {
+  width: 35px;
+  height: 35px;
 }
 
 .notification-dot {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  right: 5px;
+  top: 4px;
   width: 7px;
   height: 7px;
+  border: 1px solid white;
   border-radius: 50%;
-  background: #ef4444;
-  box-shadow: 0 0 6px rgba(239, 68, 68, 0.5);
+  background: #f16d75;
 }
 
-.sprint-tag {
+.user-profile {
   display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 18px;
+  border-left: 1px solid #e9edf4;
+}
+
+.avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #e3ebff;
+  color: #3764d9;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.user-info strong,
+.user-info span {
+  display: block;
+}
+
+.user-info strong {
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.user-info span {
+  color: #8b95a7;
+  font-size: 10px;
+}
+
+.mobile-menu {
+  display: none;
+}
+
+.dashboard-content {
+  width: 100%;
+  max-width: 1600px;
+  min-height: 0;
+  height: auto;
+  margin: 0 auto;
+  padding: 29px 34px 18px;
+  overflow: visible;
+}
+
+/* ==============================
+   4. BANNER CHÀO MỪNG
+================================ */
+.welcome-banner {
+  min-height: 177px;
+  border-radius: 15px;
+  padding: 29px 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(110deg, #2857c8, #497ff1);
+  color: white;
+  position: relative;
+  overflow: hidden;
+}
+
+.welcome-banner::after {
+  content: "";
+  position: absolute;
+  width: 240px;
+  height: 240px;
+  border: 1px solid rgb(255 255 255 / 13%);
+  border-radius: 50%;
+  right: 5%;
+  top: -80px;
+  box-shadow:
+    0 0 0 25px rgb(255 255 255 / 4%),
+    0 0 0 55px rgb(255 255 255 / 3%);
+  pointer-events: none;
+}
+
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 1.8px;
+  color: #d5e1ff;
+}
+
+.welcome-banner h2 {
+  font-size: 25px;
+  margin: 13px 0 9px;
+  letter-spacing: -0.5px;
+}
+
+.welcome-banner p {
+  color: #e0e8ff;
+  font-size: 12px;
+  margin: 0;
+  line-height: 1.7;
+}
+
+.banner-icon {
+  color: #dce6ff;
+  margin-right: 35px;
+  z-index: 1;
+  flex-shrink: 0;
+}
+
+/* ==============================
+   5. TIÊU ĐỀ VÀ THỐNG KÊ
+================================ */
+.section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 30px 0 17px;
+}
+
+.section-title h2,
+.panel-heading h2 {
+  color: #172033;
+  font-size: 16px;
+  margin: 0 0 6px;
+}
+
+.date-label {
+  background: #eaf0ff;
+  color: #3866d9;
+  font-size: 10px;
+  padding: 8px 11px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 17px;
+}
+
+.stat-card,
+.panel {
+  background: white;
+  border: 1px solid #edf0f5;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgb(24 42 76 / 3%);
+}
+
+.stat-card {
+  padding: 20px;
+  min-width: 0;
+}
+
+.stat-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #7f8ba0;
+  font-size: 11px;
+}
+
+.stat-icon {
+  width: 39px;
+  height: 39px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: #4678ee;
+  background: #edf2ff;
+  border-radius: 10px;
+}
+
+.stat-card:nth-child(2) .stat-icon {
+  color: #18a979;
+  background: #e7f8f0;
+}
+
+.stat-card:nth-child(3) .stat-icon {
+  color: #d58a28;
+  background: #fff4e3;
+}
+
+.stat-card:nth-child(4) .stat-icon {
+  color: #8b63d8;
+  background: #f1ebff;
+}
+
+.stat-value {
+  display: block;
+  font-size: 29px;
+  letter-spacing: -1px;
+  margin: 14px 0 7px;
+}
+
+.stat-card p {
+  margin: 0;
+  color: #9aa3b2;
+  font-size: 10px;
+}
+
+/* ==============================
+   6. BIỂU ĐỒ VÀ HOẠT ĐỘNG
+================================ */
+.content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
+  gap: 18px;
+  margin-top: 22px;
+}
+
+.panel {
+  padding: 23px;
+  min-width: 0;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.status-pill {
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 14px;
-  border-radius: 8px;
-  background: rgba(34, 197, 94, 0.1);
-  color: #4ade80;
-  font-size: 12px;
-  font-weight: 600;
-  border: 1px solid rgba(34, 197, 94, 0.15);
+  padding: 7px 9px;
+  border-radius: 20px;
+  background: #e9f9f1;
+  color: #149768;
+  font-size: 10px;
+  white-space: nowrap;
 }
 
-.sprint-tag .sprint-dot {
+.status-pill span {
   width: 6px;
   height: 6px;
-  border-radius: 50%;
-  background: #4ade80;
-  animation: pulse-dot 2s infinite;
+  margin: 0;
 }
 
-/* ===== Page Content ===== */
-.page-content {
-  flex: 1;
-  overflow-y: auto;
-  padding: 28px;
-}
-
-.page-content::-webkit-scrollbar {
-  width: 6px;
-}
-
-.page-content::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.page-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 3px;
-}
-
-.page-content::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
-
-/* ===== Placeholder Page ===== */
-.placeholder-page {
+.activity-placeholder {
+  min-height: 220px;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  min-height: 400px;
-  padding: 40px;
+  align-items: center;
+  text-align: center;
+  padding: 25px 10px;
+}
+
+.activity-graphic {
+  width: 70px;
+  height: 70px;
+  display: grid;
+  place-items: center;
+  border-radius: 22px;
+  background: #edf2ff;
+  color: #4777eb;
+  margin-bottom: 15px;
+}
+
+.activity-placeholder h3 {
+  color: #172033;
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
+.activity-placeholder p {
+  max-width: 290px;
+  color: #8d97a8;
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 0;
+}
+
+.chart-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.chart-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chart-summary > div > span {
+  color: #8490a3;
+  font-size: 13px;
+}
+
+.chart-summary strong {
+  color: #172b4d;
+  font-size: 24px;
+}
+
+.chart-live-label {
+  padding: 6px 10px;
+  color: #315de7;
+  background: #edf3ff;
+  border-radius: 20px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.activity-chart {
+  position: relative;
+  width: 100%;
+  height: 250px;
+}
+
+/* ==============================
+   7. TRẠNG THÁI KẾT NỐI
+================================ */
+.quick-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.connection-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 17px 0;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.connection-row:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.connection-symbol {
+  width: 37px;
+  height: 37px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #268fca;
+  background: #e8f6ff;
+}
+
+.connection-symbol.purple {
+  color: #8b63d8;
+  background: #f1ebff;
+}
+
+.connection-symbol.orange {
+  color: #d58a28;
+  background: #fff4e3;
+}
+
+.connection-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.connection-text strong,
+.connection-text span {
+  display: block;
+}
+
+.connection-text strong {
+  font-size: 11px;
+  margin-bottom: 5px;
+}
+
+.connection-text span {
+  color: #939daf;
+  font-size: 10px;
+}
+
+.connection-number {
+  font-size: 17px;
+}
+
+.dashboard-footer {
+  padding: 27px 0 5px;
+  color: #9ba4b4;
+  font-size: 10px;
   text-align: center;
 }
 
-.placeholder-icon {
-  width: 80px;
-  height: 80px;
+.dashboard-footer span {
+  padding: 0 5px;
+}
+
+/* ==============================
+   8. TRANG PLACEHOLDER
+================================ */
+.page-placeholder {
+  min-height: 280px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 14px;
+}
+
+.page-placeholder h2,
+.page-placeholder p {
+  margin: 0;
+  color: #172033;
+}
+
+.page-placeholder p {
+  color: #7f8ba0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.back-button {
+  border: 0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  background: #386ce5;
+  color: white;
+}
+
+.back-button:hover {
+  background: #2857c8;
+}
+
+/* ==============================
+   9. QUẢN LÝ UAV
+================================ */
+.uav-page {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: 100%;
+  min-width: 0;
+}
+
+.uav-page .section-title {
+  margin-bottom: 0;
+}
+
+.uav-page .section-title h2 {
+  margin-bottom: 7px;
+  color: #172b4d;
+  font-size: 22px;
+  font-weight: 750;
+}
+
+.uav-page .section-title p {
+  margin: 0;
+  color: #8490a3;
+  font-size: 13px;
+}
+
+.uav-table-panel {
+  min-width: 0;
+  padding: 0;
+  background: #fff;
+  border: 1px solid #e8edf5;
+  border-radius: 16px;
+  box-shadow: 0 5px 20px rgb(31 50 81 / 4%);
+}
+
+.uav-toolbar {
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px;
+  border-bottom: 1px solid #edf0f5;
+}
+
+.uav-toolbar h3 {
+  margin: 0;
+  color: #172b4d;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.uav-toolbar input {
+  width: 300px;
+  max-width: 100%;
+  padding: 11px 14px;
+  color: #24344d;
+  font-size: 14px;
+  background: #f8faff;
+  border: 1px solid #e1e7f0;
+  border-radius: 10px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.uav-toolbar input::placeholder {
+  color: #98a2b3;
+}
+
+.uav-toolbar input:focus {
+  border-color: #4778f5;
+  box-shadow: 0 0 0 3px rgb(71 120 245 / 12%);
+  background: #fff;
+}
+
+.uav-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.uav-table {
+  width: 100%;
+  min-width: 800px;
+  border-collapse: separate;
+  border-spacing: 0;
+  text-align: left;
+}
+
+.uav-table thead {
+  background: #f7f9fc;
+}
+
+.uav-table th {
+  padding: 15px 20px;
+  color: #667085;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  border-bottom: 1px solid #e9edf4;
+}
+
+.uav-table td {
+  padding: 19px 20px;
+  color: #475467;
+  font-size: 13px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f0f2f6;
+  white-space: nowrap;
+}
+
+.uav-table tbody tr {
+  transition: background-color 0.2s;
+}
+
+.uav-table tbody tr:hover {
+  background: #f7f9ff;
+}
+
+.uav-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.uav-table td strong {
+  color: #315de7;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.uav-name {
+  margin-bottom: 5px;
+  color: #1d2939;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.uav-model {
+  display: block;
+  margin-top: 5px;
+  color: #98a2b3;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.uav-table td .battery-value,
+.uav-table td .battery-low,
+.uav-table td .signal-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.battery-value {
+  color: #16865c;
+}
+
+.battery-value svg {
+  color: #20a779;
+}
+
+.battery-low {
+  color: #dc4545;
+}
+
+.battery-low svg {
+  color: #e5484d;
+}
+
+.signal-value {
+  color: #475467;
+}
+
+.signal-value svg {
+  color: #4778f5;
+}
+
+.uav-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
   border-radius: 20px;
-  background: rgba(99, 102, 241, 0.08);
-  color: rgba(99, 102, 241, 0.5);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.uav-status::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.status-active {
+  color: #13845c;
+  background: #e8f8f0;
+}
+
+.status-warning {
+  color: #c83d3d;
+  background: #fff0f0;
+}
+
+.status-idle {
+  color: #a66a08;
+  background: #fff5df;
+}
+
+.uav-empty {
+  margin: 0;
+  padding: 36px 20px;
+  color: #98a2b3;
+  font-size: 14px;
+  text-align: center;
+}
+
+/* ==============================
+   10. FORM THÊM NGƯỜI DÙNG
+================================ */
+.add-user-panel {
+  padding: 24px;
+  margin-bottom: 24px;
+  border-radius: 16px;
+}
+
+.add-user-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 24px;
 }
 
-.placeholder-page h3 {
+.add-user-heading h3 {
+  margin: 0 0 8px;
   font-size: 20px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
-  margin-bottom: 8px;
 }
 
-.placeholder-page p {
+.add-user-heading p {
+  margin: 0;
+  color: #64748b;
   font-size: 14px;
-  color: var(--text-muted);
-  max-width: 360px;
 }
 
-/* ===== Responsive ===== */
-@media (max-width: 1024px) {
-  :root {
-    --sidebar-width: 220px;
+.add-user-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-field label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.form-field input,
+.form-field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: #1e293b;
+  font: inherit;
+}
+
+.form-field input:focus,
+.form-field select:focus {
+  outline: 2px solid #93c5fd;
+  border-color: #3b82f6;
+}
+
+.add-user-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.save-user-button {
+  padding: 11px 18px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.save-user-button:hover {
+  background: #1d4ed8;
+}
+
+/* ==============================
+   11. RESPONSIVE
+================================ */
+@media (max-width: 1200px) {
+  .sidebar {
+    width: 220px;
+  }
+
+  .main-area {
+    margin-left: 220px;
+  }
+
+  .topbar {
+    padding: 18px 24px;
+  }
+
+  .dashboard-content {
+    padding: 24px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .content-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -382,7 +1027,154 @@ body {
     display: none;
   }
 
-  .page-content {
+  .main-area {
+    margin-left: 0;
+  }
+
+  .topbar {
+    align-items: flex-start;
+    padding: 17px;
+  }
+
+  .page-heading {
+    display: flex;
+    gap: 10px;
+  }
+
+  .mobile-menu {
+    display: grid;
+    align-self: flex-start;
+    padding: 3px;
+  }
+
+  .page-heading h1 {
+    font-size: 17px;
+  }
+
+  .page-heading p {
+    max-width: 230px;
+    line-height: 1.5;
+  }
+
+  .topbar-actions {
+    gap: 8px;
+  }
+
+  .search-box,
+  .user-info {
+    display: none;
+  }
+
+  .user-profile {
+    padding-left: 8px;
+  }
+
+  .dashboard-content {
+    padding: 17px;
+  }
+
+  .welcome-banner {
+    padding: 24px 20px;
+    min-height: 165px;
+  }
+
+  .welcome-banner h2 {
+    font-size: 21px;
+  }
+
+  .welcome-banner p {
+    max-width: 260px;
+    line-height: 1.6;
+  }
+
+  .banner-icon {
+    display: none;
+  }
+
+  .stats-grid {
+    gap: 11px;
+  }
+
+  .stat-card {
+    padding: 15px;
+  }
+
+  .stat-card-top {
+    align-items: flex-start;
+  }
+
+  .stat-icon {
+    width: 32px;
+    height: 32px;
+  }
+
+  .stat-value {
+    font-size: 25px;
+  }
+
+  .panel {
+    padding: 17px;
+  }
+
+  .section-title h2 {
+    font-size: 15px;
+  }
+
+  .activity-chart {
+    height: 220px;
+  }
+
+  .chart-summary strong {
+    font-size: 20px;
+  }
+
+  .uav-page {
+    gap: 16px;
+  }
+
+  .uav-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 18px;
+  }
+
+  .uav-toolbar input {
+    width: 100%;
+  }
+
+  .uav-table th,
+  .uav-table td {
+    padding: 14px 16px;
+  }
+
+  .uav-page .section-title h2 {
+    font-size: 19px;
+  }
+
+  .add-user-form {
+    grid-template-columns: 1fr;
+  }
+
+  .add-user-actions {
+    grid-column: auto;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 380px) {
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-content {
+    padding: 12px;
+  }
+
+  .welcome-banner {
     padding: 20px 16px;
+  }
+
+  .section-title {
+    align-items: flex-start;
   }
 }
