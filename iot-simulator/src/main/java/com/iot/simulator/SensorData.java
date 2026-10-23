@@ -10,7 +10,9 @@ import java.util.Random;
  * Lớp đại diện cho dữ liệu cảm biến IoT trong Hệ thống Nông Nghiệp Thông Minh (Smart Farm).
  * Dữ liệu này sẽ được serialize thành JSON chuẩn và gửi qua giao thức MQTT.
  *
- * Tích hợp Sprint 2: Hỗ trợ định danh theo Farm ID, Zone ID và chỉ số Soil Moisture (Độ ẩm đất).
+ * Tích hợp Sprint 2 (LTJ-10): Hỗ trợ định danh theo Farm ID, Zone ID và chỉ số Soil Moisture (Độ ẩm đất).
+ * Nâng cấp Sprint 3 (LTJ-15): Hỗ trợ sinh dữ liệu liên tục (F20), Compact JSON cho Load Test (10-20 sensors @ 1s)
+ * và giả lập dữ liệu nhiễu/ngoài ngưỡng vật lý (Anomaly Injection) để kiểm thử bộ lọc dữ liệu rác F19.
  */
 public class SensorData {
 
@@ -21,11 +23,12 @@ public class SensorData {
     private double humidity;      // Độ ẩm không khí (%RH)
     private double soilMoisture;  // Độ ẩm đất (%)
     private double light;         // Cường độ ánh sáng (lux)
-    private String status;        // Trạng thái vận hành: NORMAL hoặc WARNING
+    private String status;        // Trạng thái vận hành: NORMAL, WARNING, hoặc ANOMALY
     private long timestamp;       // Thời gian Unix epoch (seconds)
 
     private static final Random random = new Random();
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
+    private static final Gson compactGson = new Gson();
 
     public SensorData() {}
 
@@ -77,6 +80,32 @@ public class SensorData {
     }
 
     /**
+     * Sinh dữ liệu cảm biến có xác suất chèn nhiễu/lỗi vật lý (Anomaly Injection)
+     * phục vụ kiểm thử tải và kiểm chứng thuật toán lọc dữ liệu rác F19 ở Backend.
+     *
+     * @param farmId             Mã trang trại
+     * @param zoneId             Mã vùng canh tác
+     * @param deviceId           Mã thiết bị cảm biến
+     * @param anomalyProbability Xác suất sinh dữ liệu lỗi (0.0 đến 1.0, ví dụ 0.05 = 5%)
+     * @return SensorData đối tượng dữ liệu cảm biến
+     */
+    public static SensorData generateWithAnomalyOption(Long farmId, Long zoneId, String deviceId, double anomalyProbability) {
+        SensorData data = generateRandom(farmId, zoneId, deviceId);
+        if (anomalyProbability > 0 && random.nextDouble() < anomalyProbability) {
+            int anomalyType = random.nextInt(3);
+            if (anomalyType == 0) {
+                data.setTemperature(85.5);   // Vượt ngưỡng vật lý (-10°C đến 60°C)
+            } else if (anomalyType == 1) {
+                data.setHumidity(135.0);     // Vượt ngưỡng vật lý (0% đến 100%)
+            } else {
+                data.setSoilMoisture(-12.0); // Âm bất thường (< 0%)
+            }
+            data.setStatus("ANOMALY");
+        }
+        return data;
+    }
+
+    /**
      * Phương thức backward compatibility từ Sprint 1.
      */
     public static SensorData generateRandom(String deviceId) {
@@ -84,10 +113,17 @@ public class SensorData {
     }
 
     /**
-     * Chuyển đổi dữ liệu cảm biến thành chuỗi JSON chuẩn.
+     * Chuyển đổi dữ liệu cảm biến thành chuỗi JSON chuẩn (Pretty Print).
      */
     public String toJson() {
         return gson.toJson(this);
+    }
+
+    /**
+     * Chuyển đổi dữ liệu cảm biến thành chuỗi JSON gọn trên 1 dòng (tối ưu băng thông khi Load Test).
+     */
+    public String toCompactJson() {
+        return compactGson.toJson(this);
     }
 
     public String getDeviceId() { return deviceId; }
