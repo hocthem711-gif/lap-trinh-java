@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Login from './components/Login'
+import SensorOverviewMap from './components/SensorOverviewMap'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -580,6 +581,8 @@ function App() {
             <SensorRealtimeTable />
           ) : activePage === 'Bản đồ & Popup' ? (
             <SensorMapPopup />
+          ) : activePage === 'Bản đồ & vị trí' ? (
+           <SensorOverviewMap />
           ) : activePage === 'Quản lý người dùng' ? (
   <div className="uav-page">
     <div className="section-title">
