@@ -12,7 +12,7 @@
  * - Sensor đang chọn để hiện Popup trên bản đồ
  */
 
-import { createSlice } from '@reduxjs/toolkit';
+import { createSlice, createSelector } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import type {
   RealtimeSensorNode,
@@ -135,33 +135,35 @@ const sensorRealtimeSlice = createSlice({
 
 import type { RootState } from '..';
 
-/** Lấy danh sách sensor đã lọc theo bộ lọc hiện tại */
-export const selectFilteredSensors = (state: RootState): RealtimeSensorNode[] => {
-  const { sensors, filter } = state.sensorRealtime;
+const selectSensorRealtimeState = (state: RootState) => state.sensorRealtime;
 
-  return sensors.filter(sensor => {
-    if (filter.zoneId !== null && sensor.zoneId !== filter.zoneId) return false;
-    if (filter.status !== 'ALL' && sensor.status !== filter.status) return false;
-    if (filter.sensorType !== 'ALL' && sensor.sensorType !== filter.sensorType) return false;
-    if (filter.searchQuery) {
-      const q = filter.searchQuery.toLowerCase();
-      if (
-        !sensor.sensorCode.toLowerCase().includes(q) &&
-        !sensor.zoneName.toLowerCase().includes(q)
-      ) {
-        return false;
+/** Lấy danh sách sensor đã lọc theo bộ lọc hiện tại (memoized) */
+export const selectFilteredSensors = createSelector(
+  [selectSensorRealtimeState],
+  ({ sensors, filter }): RealtimeSensorNode[] =>
+    sensors.filter(sensor => {
+      if (filter.zoneId !== null && sensor.zoneId !== filter.zoneId) return false;
+      if (filter.status !== 'ALL' && sensor.status !== filter.status) return false;
+      if (filter.sensorType !== 'ALL' && sensor.sensorType !== filter.sensorType) return false;
+      if (filter.searchQuery) {
+        const q = filter.searchQuery.toLowerCase();
+        if (
+          !sensor.sensorCode.toLowerCase().includes(q) &&
+          !sensor.zoneName.toLowerCase().includes(q)
+        ) {
+          return false;
+        }
       }
-    }
-    return true;
-  });
-};
+      return true;
+    }),
+);
 
-/** Lấy sensor đang được chọn cho Popup */
-export const selectSelectedSensor = (state: RootState): RealtimeSensorNode | undefined => {
-  return state.sensorRealtime.sensors.find(
-    s => s.id === state.sensorRealtime.selectedSensorId,
-  );
-};
+/** Lấy sensor đang được chọn cho Popup (memoized) */
+export const selectSelectedSensor = createSelector(
+  [selectSensorRealtimeState],
+  ({ sensors, selectedSensorId }): RealtimeSensorNode | undefined =>
+    sensors.find(s => s.id === selectedSensorId),
+);
 
 /** Lấy thống kê tổng hợp */
 export const selectRealtimeStats = (state: RootState): RealtimeStats => {

@@ -32,9 +32,14 @@ import { SENSOR_TYPE_LABELS } from '../types';
 import 'leaflet/dist/leaflet.css';
 import './SensorMapPopup.css';
 
-// ===== Custom Marker Icons =====
+// ===== Custom Marker Icons (Cached to avoid recreating L.divIcon every render) =====
+
+const sensorMarkerIconCache = new Map<RealtimeStatus, L.DivIcon>();
 
 function createMarkerIcon(status: RealtimeStatus): L.DivIcon {
+  const cached = sensorMarkerIconCache.get(status);
+  if (cached) return cached;
+
   const colorMap: Record<RealtimeStatus, string> = {
     ONLINE: '#22c55e',
     WARNING: '#f59e0b',
@@ -43,7 +48,7 @@ function createMarkerIcon(status: RealtimeStatus): L.DivIcon {
   const color = colorMap[status];
   const pulseClass = status === 'ONLINE' ? 'map-marker-pulse' : '';
 
-  return L.divIcon({
+  const icon = L.divIcon({
     className: 'map-custom-marker',
     html: `
       <div class="map-marker-wrapper ${pulseClass}">
@@ -59,6 +64,8 @@ function createMarkerIcon(status: RealtimeStatus): L.DivIcon {
     iconAnchor: [14, 14],
     popupAnchor: [0, -14],
   });
+  sensorMarkerIconCache.set(status, icon);
+  return icon;
 }
 
 // ===== FlyTo Component (điều hướng bản đồ khi chọn sensor) =====
