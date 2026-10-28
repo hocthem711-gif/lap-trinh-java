@@ -84,6 +84,12 @@ public class SensorDataController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
+        if (size > 100) {
+            size = 100;
+        }
+        if (start != null && end != null && start.isAfter(end)) {
+            throw new IllegalArgumentException("Thời gian bắt đầu (start) phải trước thời gian kết thúc (end)");
+        }
         PagedResponse<SensorDataResponse> response = sensorDataService.getHistoricalDataPaged(
                 sensorId, zoneId, start, end, page, size);
         return ResponseEntity.ok(ApiResponse.success("Lấy lịch sử phân trang thành công!", response));
@@ -97,7 +103,14 @@ public class SensorDataController {
             @RequestParam(defaultValue = "HOURLY") String interval,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
-        TimeSeriesResponse response = sensorDataService.getTimeSeriesData(sensorId, interval, start, end);
+        String normalizedInterval = interval != null ? interval.trim().toUpperCase() : "HOURLY";
+        if (!"HOURLY".equals(normalizedInterval) && !"DAILY".equals(normalizedInterval)) {
+            throw new IllegalArgumentException("Tham số interval không hợp lệ: '" + interval + "'. Chỉ hỗ trợ HOURLY hoặc DAILY");
+        }
+        if (start != null && end != null && start.isAfter(end)) {
+            throw new IllegalArgumentException("Thời gian bắt đầu (start) phải trước thời gian kết thúc (end)");
+        }
+        TimeSeriesResponse response = sensorDataService.getTimeSeriesData(sensorId, normalizedInterval, start, end);
         return ResponseEntity.ok(ApiResponse.success("Lấy chuỗi thời gian thành công!", response));
     }
 
