@@ -5,7 +5,10 @@ import com.smartfarm.backend.dto.request.BulkSyncPayload;
 import com.smartfarm.backend.dto.request.IoTSimulatorPayload;
 import com.smartfarm.backend.dto.request.SensorDataIngestRequest;
 import com.smartfarm.backend.dto.response.BulkSyncResponse;
+import com.smartfarm.backend.dto.response.DashboardSummaryResponse;
+import com.smartfarm.backend.dto.response.PagedResponse;
 import com.smartfarm.backend.dto.response.SensorDataResponse;
+import com.smartfarm.backend.dto.response.TimeSeriesResponse;
 import com.smartfarm.backend.service.SensorDataService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -113,5 +116,61 @@ class SensorDataControllerTest {
         assertEquals(HttpStatus.OK, response.getStatusCode());
         assertNotNull(response.getBody());
         assertTrue(response.getBody().getData().isEmpty());
+    }
+
+    @Test
+    @DisplayName("LTJ-16: Lấy chuỗi thời gian HOURLY thành công trả về HTTP 200")
+    void testGetTimeSeriesData_Hourly_Success() {
+        TimeSeriesResponse mockTs = new TimeSeriesResponse();
+        mockTs.setSensorId(1L);
+        mockTs.setInterval("HOURLY");
+        when(sensorDataService.getTimeSeriesData(1L, "HOURLY", null, null)).thenReturn(mockTs);
+
+        ResponseEntity<ApiResponse<TimeSeriesResponse>> response = controller.getTimeSeriesData(1L, "HOURLY", null, null);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        assertEquals("HOURLY", response.getBody().getData().getInterval());
+    }
+
+    @Test
+    @DisplayName("LTJ-16: Lấy chuỗi thời gian với interval không hợp lệ ném IllegalArgumentException")
+    void testGetTimeSeriesData_InvalidInterval_ThrowsException() {
+        assertThrows(IllegalArgumentException.class, () ->
+                controller.getTimeSeriesData(1L, "YEARLY", null, null));
+    }
+
+    @Test
+    @DisplayName("LTJ-16: Lấy chuỗi thời gian với start > end ném IllegalArgumentException")
+    void testGetTimeSeriesData_InvalidDateRange_ThrowsException() {
+        LocalDateTime now = LocalDateTime.now();
+        assertThrows(IllegalArgumentException.class, () ->
+                controller.getTimeSeriesData(1L, "HOURLY", now.plusDays(1), now));
+    }
+
+    @Test
+    @DisplayName("LTJ-16: Phân trang lịch sử với size > 100 tự động giới hạn ở 100")
+    void testGetHistoricalDataPaged_CappedSize() {
+        PagedResponse<SensorDataResponse> mockPaged = new PagedResponse<>(Collections.emptyList(), 0, 100, 0L, 0, true);
+        when(sensorDataService.getHistoricalDataPaged(1L, null, null, null, 0, 100)).thenReturn(mockPaged);
+
+        ResponseEntity<ApiResponse<PagedResponse<SensorDataResponse>>> response =
+                controller.getHistoricalDataPaged(1L, null, null, null, 0, 500);
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
+        verify(sensorDataService).getHistoricalDataPaged(1L, null, null, null, 0, 100);
+    }
+
+    @Test
+    @DisplayName("LTJ-16: Lấy Dashboard summary trả về HTTP 200")
+    void testGetDashboardSummary() {
+        DashboardSummaryResponse mockSummary = new DashboardSummaryResponse();
+        when(sensorDataService.getDashboardSummary()).thenReturn(mockSummary);
+
+        ResponseEntity<ApiResponse<DashboardSummaryResponse>> response = controller.getDashboardSummary();
+
+        assertEquals(HttpStatus.OK, response.getStatusCode());
+        assertNotNull(response.getBody());
     }
 }
