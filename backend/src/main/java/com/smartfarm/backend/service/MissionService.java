@@ -16,12 +16,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class MissionService {
+
+    private static final Set<String> ALLOWED_MISSION_STATUSES = Set.of(
+            "CREATED", "PENDING", "READY", "ACTIVE", "IN_PROGRESS",
+            "FLYING", "PAUSED", "RETURNING", "COMPLETED", "ABORTED", "CANCELLED", "FAILED"
+    );
 
     private final MissionRepository missionRepository;
     private final UavRepository uavRepository;
@@ -64,6 +71,7 @@ public class MissionService {
                 wp.setMission(mission);
                 waypoints.add(wp);
             }
+            waypoints.sort(Comparator.comparingInt(wp -> wp.getOrderIndex() != null ? wp.getOrderIndex() : Integer.MAX_VALUE));
             mission.setWaypoints(waypoints);
             mission.setTotalWaypoints(waypoints.size());
         } else {
@@ -85,7 +93,13 @@ public class MissionService {
     @Transactional
     public Mission updateMissionStatus(Long id, String newStatus) {
         Mission mission = getMissionById(id);
-        mission.setStatus(newStatus != null ? newStatus.toUpperCase() : "CREATED");
+        String normalized = (newStatus == null || newStatus.isBlank())
+                ? "CREATED"
+                : newStatus.trim().toUpperCase();
+        if (!ALLOWED_MISSION_STATUSES.contains(normalized)) {
+            throw new IllegalArgumentException("Trạng thái nhiệm vụ không hợp lệ: " + newStatus);
+        }
+        mission.setStatus(normalized);
         return missionRepository.save(mission);
     }
 
