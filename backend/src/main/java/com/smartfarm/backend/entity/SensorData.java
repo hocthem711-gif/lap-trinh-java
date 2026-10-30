@@ -5,7 +5,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "sensor_data", indexes = {
-        @Index(name = "idx_sensor_recorded", columnList = "sensor_id, recorded_at")
+        @Index(name = "idx_sensor_recorded", columnList = "sensor_id, recorded_at"),
+        @Index(name = "idx_recorded_at", columnList = "recorded_at")
 })
 public class SensorData {
 

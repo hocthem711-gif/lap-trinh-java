@@ -8,6 +8,12 @@ import java.util.List;
 
 @Repository
 public interface AlertRepository extends JpaRepository<Alert, Long> {
+
     List<Alert> findByZoneIdOrderByCreatedAtDesc(Long zoneId);
+
     List<Alert> findByIsReadFalse();
+
+    long countByIsReadFalse();
+
+    long countByZoneIdAndIsReadFalse(Long zoneId);
 }
