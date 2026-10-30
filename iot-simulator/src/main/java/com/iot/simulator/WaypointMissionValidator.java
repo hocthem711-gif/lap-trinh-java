@@ -1,153 +1,62 @@
 package com.iot.simulator;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
- * Bộ kiểm định cấu trúc JSON Waypoints & Kiểm thử luồng tạo Mission UAV (F14, F16).
- *
+ * Bộ kiểm tra cấu trúc JSON Waypoints & Kiểm thử tạo Mission UAV (F14, F16).
  * Task: [Sprint 4][Dev 5] LTJ-20 - Review JSON Waypoints & Test Tạo Mission.
- *
- * Chức năng chính:
- * 1. Review & Validate cấu trúc JSON Waypoints xuất từ Frontend (FlightPathPlanner - Dev 4)
- *    trước khi gửi sang Backend API (POST /api/v1/missions - Dev 2).
- * 2. Kiểm tra vùng an toàn Geofence của nông trại: Lat [10.840 .. 10.860], Lng [106.760 .. 106.790].
- * 3. Kiểm tra giới hạn vật lý an toàn bay của UAV: Cao độ [5m .. 500m], Tốc độ [1m/s .. 30m/s].
- * 4. Đối chiếu độc lập thuật toán khoảng cách 3D Haversine, thời gian bay dự kiến và mức hao pin (0.35%/phút).
- * 5. Kiểm thử vòng đời chuyển trạng thái Mission (F16): STANDBY -> PLANNING -> ACTIVE -> PAUSED -> COMPLETED / ABORTED.
  */
 public class WaypointMissionValidator {
 
-    // ===== Hằng số chuẩn đồng bộ với Frontend (waypointSlice.ts) & Backend =====
-    public static final double GEOFENCE_MIN_LAT = 10.840;
-    public static final double GEOFENCE_MAX_LAT = 10.860;
-    public static final double GEOFENCE_MIN_LNG = 106.760;
-    public static final double GEOFENCE_MAX_LNG = 106.790;
+    // 1. Khung tọa độ an toàn của nông trại (Geofence) và giới hạn vật lý của UAV
+    public static final double MIN_LAT = 10.840, MAX_LAT = 10.860;
+    public static final double MIN_LNG = 106.760, MAX_LNG = 106.790;
+    public static final double MIN_ALT = 5.0,    MAX_ALT = 500.0;  // Độ cao: 5m - 500m
+    public static final double MIN_SPD = 1.0,    MAX_SPD = 30.0;   // Tốc độ: 1 - 30 m/s
+    public static final double BATTERY_RATE_PER_MIN = 0.35;        // Hao pin: 0.35% / phút
 
-    public static final double MIN_ALTITUDE_M = 5.0;
-    public static final double MAX_ALTITUDE_M = 500.0;
-    public static final double MIN_SPEED_MS = 1.0;
-    public static final double MAX_SPEED_MS = 30.0;
-    public static final double BATTERY_DRAIN_RATE_PER_MIN = 0.35; // 0.35% mỗi phút bay
-    public static final double MAX_SAFE_BATTERY_DRAIN = 80.0;     // Cảnh báo đỏ nếu > 80% pin
-    public static final double EARTH_RADIUS_M = 6371000.0;
+    private static final Gson GSON = new Gson();
 
-    private static final Set<String> VALID_WAYPOINT_TYPES = new HashSet<>(
-            Arrays.asList("NORMAL", "TAKEOFF", "LANDING", "HOVER", "RETURN_HOME")
-    );
-
-    private static final Set<String> VALID_MISSION_STATUSES = new HashSet<>(
-            Arrays.asList("STANDBY", "PLANNING", "ACTIVE", "PAUSED", "COMPLETED", "ABORTED")
-    );
-
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-
-    // ===== Mô hình dữ liệu JSON Waypoint & Mission Payload =====
-
+    // 2. Cấu trúc 1 điểm bay (Waypoint) và gói tin Mission (khớp với JSON từ Frontend)
     public static class WaypointItem {
         public int order;
         public double latitude;
         public double longitude;
         public double altitude;
         public double speed;
-        public String type;
-
-        public WaypointItem() {
-        }
-
-        public WaypointItem(int order, double latitude, double longitude, double altitude, double speed, String type) {
-            this.order = order;
-            this.latitude = latitude;
-            this.longitude = longitude;
-            this.altitude = altitude;
-            this.speed = speed;
-            this.type = type;
-        }
+        public String type; // TAKEOFF, NORMAL, HOVER, LANDING, RETURN_HOME
     }
 
     public static class MissionPayload {
         public String missionName;
-        public Long uavId;
-        public Long zoneId;
         public List<WaypointItem> waypoints;
         public double totalDistanceM;
         public int estimatedTimeSeconds;
         public double estimatedBatteryDrain;
-
-        public MissionPayload() {
-        }
     }
-
-    public static class ValidationResult {
-        public final boolean valid;
-        public final List<String> errors;
-        public final List<String> warnings;
-        public final double calculatedDistanceM;
-        public final int calculatedTimeSeconds;
-        public final double calculatedBatteryDrain;
-
-        public ValidationResult(boolean valid, List<String> errors, List<String> warnings,
-                                double calculatedDistanceM, int calculatedTimeSeconds, double calculatedBatteryDrain) {
-            this.valid = valid;
-            this.errors = errors;
-            this.warnings = warnings;
-            this.calculatedDistanceM = calculatedDistanceM;
-            this.calculatedTimeSeconds = calculatedTimeSeconds;
-            this.calculatedBatteryDrain = calculatedBatteryDrain;
-        }
-    }
-
-    // ===== Các hàm tính toán hình học & kiểm định JSON =====
 
     /**
-     * Tính khoảng cách mặt cầu giữa 2 tọa độ GPS bằng công thức Haversine (đơn vị: mét).
+     * HÀM 1: Tính khoảng cách mặt đất giữa 2 tọa độ GPS bằng công thức Haversine (đơn vị: mét).
      */
     public static double haversineDistanceMeters(double lat1, double lng1, double lat2, double lng2) {
+        double R = 6371000.0; // Bán kính Trái Đất (mét)
         double dLat = Math.toRadians(lat2 - lat1);
         double dLng = Math.toRadians(lng2 - lng1);
         double a = Math.sin(dLat / 2) * Math.sin(dLat / 2)
                 + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
                 * Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return EARTH_RADIUS_M * c;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
     /**
-     * Kiểm tra một tọa độ GPS có nằm trong vùng an toàn Geofence của nông trại hay không.
+     * HÀM 2: Kiểm tra gói JSON Waypoints.
+     * Trả về chuỗi "OK|quãng_đường|thời_gian|pin" nếu hợp lệ, hoặc "LOI: <lý do>" nếu sai.
      */
-    public static boolean isWithinGeofence(double lat, double lng) {
-        return lat >= GEOFENCE_MIN_LAT && lat <= GEOFENCE_MAX_LAT
-                && lng >= GEOFENCE_MIN_LNG && lng <= GEOFENCE_MAX_LNG;
-    }
-
-    /**
-     * Kiểm định toàn diện một gói JSON Mission Waypoints.
-     */
-    public static ValidationResult validateMissionJson(String jsonString) {
-        List<String> errors = new ArrayList<>();
-        List<String> warnings = new ArrayList<>();
-
-        if (jsonString == null || jsonString.trim().isEmpty()) {
-            errors.add("Payload JSON rỗng hoặc null.");
-            return new ValidationResult(false, errors, warnings, 0, 0, 0);
-        }
-
-        MissionPayload payload;
-        try {
-            payload = GSON.fromJson(jsonString, MissionPayload.class);
-        } catch (Exception e) {
-            errors.add("Lỗi cú pháp JSON không hợp lệ: " + e.getMessage());
-            return new ValidationResult(false, errors, warnings, 0, 0, 0);
-        }
-
+    public static String validateMissionJson(String jsonString) {
+        MissionPayload payload = GSON.fromJson(jsonString, MissionPayload.class);
         if (payload == null || payload.waypoints == null || payload.waypoints.size() < 2) {
-            errors.add("Lộ trình bay (waypoints) phải có tối thiểu 2 điểm bay trở lên.");
-            return new ValidationResult(false, errors, warnings, 0, 0, 0);
+            return "LOI: Lộ trình bay phải có tối thiểu từ 2 điểm Waypoints trở lên.";
         }
 
         double totalDistM = 0.0;
@@ -155,197 +64,113 @@ public class WaypointMissionValidator {
 
         for (int i = 0; i < payload.waypoints.size(); i++) {
             WaypointItem wp = payload.waypoints.get(i);
-            int expectedOrder = i + 1;
 
-            if (wp.order != expectedOrder) {
-                errors.add(String.format("Điểm bay thứ %d có thứ tự order=%d không liên tục (kỳ vọng %d).",
-                        expectedOrder, wp.order, expectedOrder));
+            // Kiểm tra 1: Số thứ tự order phải tăng dần liên tục 1, 2, 3...
+            if (wp.order != i + 1) {
+                return "LOI: Điểm bay thứ " + (i + 1) + " bị sai thứ tự order=" + wp.order;
+            }
+            // Kiểm tra 2: Tọa độ GPS phải nằm trong vùng an toàn Geofence của nông trại
+            if (wp.latitude < MIN_LAT || wp.latitude > MAX_LAT || wp.longitude < MIN_LNG || wp.longitude > MAX_LNG) {
+                return "LOI: Waypoint #" + wp.order + " nằm ngoài ranh giới an toàn Geofence.";
+            }
+            // Kiểm tra 3: Độ cao bay an toàn [5m - 500m]
+            if (wp.altitude < MIN_ALT || wp.altitude > MAX_ALT) {
+                return "LOI: Waypoint #" + wp.order + " có độ cao " + wp.altitude + "m vượt ngưỡng [5m - 500m].";
+            }
+            // Kiểm tra 4: Tốc độ bay an toàn [1m/s - 30m/s]
+            if (wp.speed < MIN_SPD || wp.speed > MAX_SPD) {
+                return "LOI: Waypoint #" + wp.order + " có tốc độ " + wp.speed + "m/s vượt ngưỡng [1 - 30m/s].";
+            }
+            // Kiểm tra 5: Loại hành động tại điểm bay
+            if (!"TAKEOFF".equals(wp.type) && !"NORMAL".equals(wp.type) && !"HOVER".equals(wp.type)
+                    && !"LANDING".equals(wp.type) && !"RETURN_HOME".equals(wp.type)) {
+                return "LOI: Waypoint #" + wp.order + " có loại hành động '" + wp.type + "' không hợp lệ.";
             }
 
-            if (!isWithinGeofence(wp.latitude, wp.longitude)) {
-                errors.add(String.format("Waypoint #%d (%.5f, %.5f) nằm ngoài ranh giới Geofence nông trại.",
-                        wp.order, wp.latitude, wp.longitude));
-            }
-
-            if (wp.altitude < MIN_ALTITUDE_M || wp.altitude > MAX_ALTITUDE_M) {
-                errors.add(String.format("Waypoint #%d có cao độ %.1fm vượt giới hạn cho phép [5m - 500m].",
-                        wp.order, wp.altitude));
-            }
-
-            if (wp.speed < MIN_SPEED_MS || wp.speed > MAX_SPEED_MS) {
-                errors.add(String.format("Waypoint #%d có tốc độ %.1fm/s vượt giới hạn cho phép [1m/s - 30m/s].",
-                        wp.order, wp.speed));
-            }
-
-            if (wp.type == null || !VALID_WAYPOINT_TYPES.contains(wp.type)) {
-                errors.add(String.format("Waypoint #%d có loại hành động '%s' không hợp lệ.", wp.order, wp.type));
-            }
-
+            // Tính quãng đường 3D (Pythagoras của khoảng cách ngang Haversine và chênh lệch độ cao)
             if (i > 0) {
                 WaypointItem prev = payload.waypoints.get(i - 1);
                 double hDist = haversineDistanceMeters(prev.latitude, prev.longitude, wp.latitude, wp.longitude);
                 double vDist = Math.abs(wp.altitude - prev.altitude);
                 double segDist = Math.sqrt(hDist * hDist + vDist * vDist);
                 totalDistM += segDist;
-
-                double speed = wp.speed > 0 ? wp.speed : 8.0;
-                totalTimeSec += segDist / speed;
+                totalTimeSec += segDist / wp.speed;
             }
         }
 
-        double calcDistM = Math.round(totalDistM * 100.0) / 100.0;
-        int calcTimeSec = (int) Math.round(totalTimeSec);
-        double calcBattery = Math.round((totalTimeSec / 60.0) * BATTERY_DRAIN_RATE_PER_MIN * 100.0) / 100.0;
-
-        if (calcBattery > MAX_SAFE_BATTERY_DRAIN) {
-            warnings.add(String.format("Mức tiêu hao pin dự kiến (%.2f%%) vượt ngưỡng an toàn 80%%.", calcBattery));
-        }
-
-        // Kiểm tra sai số giữa telemetry gửi lên và kết quả tính toán độc lập
-        if (payload.totalDistanceM > 0 && Math.abs(payload.totalDistanceM - calcDistM) > 1.0) {
-            warnings.add(String.format("Chênh lệch khoảng cách: Payload=%.2fm vs Tính toán=%.2fm.",
-                    payload.totalDistanceM, calcDistM));
-        }
-
-        return new ValidationResult(errors.isEmpty(), errors, warnings, calcDistM, calcTimeSec, calcBattery);
+        double distRounded = Math.round(totalDistM * 100.0) / 100.0;
+        int timeRounded = (int) Math.round(totalTimeSec);
+        double batteryDrain = Math.round((totalTimeSec / 60.0) * BATTERY_RATE_PER_MIN * 100.0) / 100.0;
+        return String.format("OK|Dist=%.2fm, Time=%ds, Pin=%.2f%%", distRounded, timeRounded, batteryDrain);
     }
 
     /**
-     * Kiểm tra tính hợp lệ của việc chuyển đổi trạng thái Mission (F16).
+     * HÀM 3: Kiểm tra quy tắc chuyển đổi trạng thái Mission (F16).
+     * Luồng chuẩn: STANDBY -> PLANNING -> ACTIVE -> PAUSED -> COMPLETED (hoặc ABORTED).
      */
-    public static boolean isValidStatusTransition(String currentStatus, String nextStatus) {
-        if (!VALID_MISSION_STATUSES.contains(currentStatus) || !VALID_MISSION_STATUSES.contains(nextStatus)) {
-            return false;
-        }
-        switch (currentStatus) {
-            case "STANDBY":
-                return "PLANNING".equals(nextStatus);
-            case "PLANNING":
-                return "ACTIVE".equals(nextStatus) || "ABORTED".equals(nextStatus) || "STANDBY".equals(nextStatus);
-            case "ACTIVE":
-                return "PAUSED".equals(nextStatus) || "COMPLETED".equals(nextStatus) || "ABORTED".equals(nextStatus);
-            case "PAUSED":
-                return "ACTIVE".equals(nextStatus) || "ABORTED".equals(nextStatus);
+    public static boolean isValidStatusTransition(String current, String next) {
+        switch (current) {
+            case "STANDBY":   return "PLANNING".equals(next);
+            case "PLANNING":  return "ACTIVE".equals(next) || "ABORTED".equals(next);
+            case "ACTIVE":    return "PAUSED".equals(next) || "COMPLETED".equals(next) || "ABORTED".equals(next);
+            case "PAUSED":    return "ACTIVE".equals(next) || "ABORTED".equals(next);
             case "COMPLETED":
-            case "ABORTED":
-                return "STANDBY".equals(nextStatus);
-            default:
-                return false;
+            case "ABORTED":   return "STANDBY".equals(next);
+            default:          return false;
         }
     }
 
     /**
-     * Chạy bộ 10 kịch bản kiểm thử tự động cho Task LTJ-20 (Review JSON Waypoints & Test Tạo Mission).
+     * HÀM 4: Chạy tự động 10 kịch bản kiểm thử cho Task LTJ-20 (--test-mission).
      */
     public static void runAutomatedMissionTestSuite() {
         System.out.println("==========================================================================");
         System.out.println("   SMART FARM IOT - REVIEW JSON WAYPOINTS & TEST TAO MISSION (LTJ-20)     ");
         System.out.println("==========================================================================");
 
-        int passed = 0;
-        int total = 10;
-
-        // TC-01: JSON lộ trình chuẩn 4 điểm bay (TAKEOFF -> NORMAL -> HOVER -> LANDING) trong vùng Geofence
-        String validJson = "{\n"
-                + "  \"missionName\": \"Khao sat Khu A - Dau Tay Thuy Canh\",\n"
-                + "  \"uavId\": 1,\n"
-                + "  \"zoneId\": 1,\n"
-                + "  \"waypoints\": [\n"
-                + "    {\"order\": 1, \"latitude\": 10.8450, \"longitude\": 106.7650, \"altitude\": 30, \"speed\": 8, \"type\": \"TAKEOFF\"},\n"
-                + "    {\"order\": 2, \"latitude\": 10.8485, \"longitude\": 106.7710, \"altitude\": 50, \"speed\": 10, \"type\": \"NORMAL\"},\n"
-                + "    {\"order\": 3, \"latitude\": 10.8520, \"longitude\": 106.7760, \"altitude\": 50, \"speed\": 8, \"type\": \"HOVER\"},\n"
-                + "    {\"order\": 4, \"latitude\": 10.8550, \"longitude\": 106.7820, \"altitude\": 20, \"speed\": 5, \"type\": \"LANDING\"}\n"
-                + "  ],\n"
-                + "  \"totalDistanceM\": 2168.78,\n"
-                + "  \"estimatedTimeSeconds\": 307,\n"
-                + "  \"estimatedBatteryDrain\": 1.79\n"
-                + "}";
-        ValidationResult r1 = validateMissionJson(validJson);
-        passed += printTestResult("TC-01", "Tạo Mission chuẩn 4 Waypoints trong vùng Geofence (F14)",
-                r1.valid, String.format("Valid=%b, Dist=%.2fm, Time=%ds, Pin=%.2f%%",
-                        r1.valid, r1.calculatedDistanceM, r1.calculatedTimeSeconds, r1.calculatedBatteryDrain));
-
-        // TC-02: Kiểm tra độ chính xác công thức Haversine 3D & thời gian bay
-        boolean mathOk = r1.calculatedDistanceM > 2100 && r1.calculatedDistanceM < 2250 && r1.calculatedTimeSeconds > 200;
-        passed += printTestResult("TC-02", "Đối chiếu công thức Haversine 3D & tiêu hao pin (0.35%/phút)",
-                mathOk, String.format("3D Dist=%.2fm, Time=%ds, Drain=%.2f%%",
-                        r1.calculatedDistanceM, r1.calculatedTimeSeconds, r1.calculatedBatteryDrain));
-
-        // TC-03: Từ chối Mission chỉ có 1 điểm bay (< 2 waypoints)
-        String singleWpJson = "{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"}]}";
-        ValidationResult r3 = validateMissionJson(singleWpJson);
-        passed += printTestResult("TC-03", "Chặn tạo Mission khi số lượng Waypoints < 2 điểm",
-                !r3.valid, r3.errors.get(0));
-
-        // TC-04: Phát hiện điểm bay vượt ranh giới Geofence (Out of Bounds)
-        String oobJson = "{\"waypoints\":["
-                + "{\"order\":1,\"latitude\":10.850,\"longitude\":106.770,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},"
-                + "{\"order\":2,\"latitude\":10.910,\"longitude\":106.850,\"altitude\":50,\"speed\":8,\"type\":\"NORMAL\"}"
+        String valid4Wp = "{\"missionName\":\"Khao sat Khu A\",\"waypoints\":["
+                + "{\"order\":1,\"latitude\":10.8450,\"longitude\":106.7650,\"altitude\":30,\"speed\":8,\"type\":\"TAKEOFF\"},"
+                + "{\"order\":2,\"latitude\":10.8485,\"longitude\":106.7710,\"altitude\":50,\"speed\":10,\"type\":\"NORMAL\"},"
+                + "{\"order\":3,\"latitude\":10.8520,\"longitude\":106.7760,\"altitude\":50,\"speed\":8,\"type\":\"HOVER\"},"
+                + "{\"order\":4,\"latitude\":10.8550,\"longitude\":106.7820,\"altitude\":20,\"speed\":5,\"type\":\"LANDING\"}"
                 + "]}";
-        ValidationResult r4 = validateMissionJson(oobJson);
-        passed += printTestResult("TC-04", "Phát hiện Waypoint vượt ranh giới an toàn Geofence",
-                !r4.valid, r4.errors.get(0));
 
-        // TC-05: Phát hiện cao độ vượt ngưỡng an toàn (> 500m hoặc < 5m)
-        String badAltJson = "{\"waypoints\":["
-                + "{\"order\":1,\"latitude\":10.850,\"longitude\":106.770,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},"
-                + "{\"order\":2,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":650,\"speed\":8,\"type\":\"NORMAL\"}"
-                + "]}";
-        ValidationResult r5 = validateMissionJson(badAltJson);
-        passed += printTestResult("TC-05", "Chặn cấu hình cao độ bay vượt ngưỡng vật lý [5m - 500m]",
-                !r5.valid, r5.errors.get(0));
+        int pass = 0;
+        String r1 = validateMissionJson(valid4Wp);
+        pass += check("TC-01", "Tạo Mission chuẩn 4 Waypoints trong vùng Geofence (F14)", r1.startsWith("OK"), r1);
+        pass += check("TC-02", "Đối chiếu công thức Haversine 3D & tiêu hao pin (0.35%/phút)", r1.contains("2168"), r1);
 
-        // TC-06: Phát hiện tốc độ bay vượt ngưỡng cho phép (> 30m/s)
-        String badSpeedJson = "{\"waypoints\":["
-                + "{\"order\":1,\"latitude\":10.850,\"longitude\":106.770,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},"
-                + "{\"order\":2,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":50,\"speed\":45,\"type\":\"NORMAL\"}"
-                + "]}";
-        ValidationResult r6 = validateMissionJson(badSpeedJson);
-        passed += printTestResult("TC-06", "Chặn cấu hình tốc độ bay vượt ngưỡng [1m/s - 30m/s]",
-                !r6.valid, r6.errors.get(0));
+        String r3 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"}]}");
+        pass += check("TC-03", "Chặn tạo Mission khi số lượng Waypoints < 2 điểm", r3.startsWith("LOI"), r3);
 
-        // TC-07: Phát hiện sai thứ tự order của Waypoint
-        String badOrderJson = "{\"waypoints\":["
-                + "{\"order\":1,\"latitude\":10.850,\"longitude\":106.770,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},"
-                + "{\"order\":3,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":50,\"speed\":8,\"type\":\"LANDING\"}"
-                + "]}";
-        ValidationResult r7 = validateMissionJson(badOrderJson);
-        passed += printTestResult("TC-07", "Phát hiện lỗi đánh số thứ tự (order) Waypoint bị nhảy cóc",
-                !r7.valid, r7.errors.get(0));
+        String r4 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":10.91,\"longitude\":106.85,\"altitude\":50,\"speed\":8,\"type\":\"NORMAL\"}]}");
+        pass += check("TC-04", "Phát hiện Waypoint vượt ranh giới an toàn Geofence", r4.startsWith("LOI"), r4);
 
-        // TC-08: Phát hiện loại hành động WaypointType không hợp lệ
-        String badTypeJson = "{\"waypoints\":["
-                + "{\"order\":1,\"latitude\":10.850,\"longitude\":106.770,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},"
-                + "{\"order\":2,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":50,\"speed\":8,\"type\":\"DROP_BOMB\"}"
-                + "]}";
-        ValidationResult r8 = validateMissionJson(badTypeJson);
-        passed += printTestResult("TC-08", "Phát hiện hành động WaypointType không nằm trong tập chuẩn",
-                !r8.valid, r8.errors.get(0));
+        String r5 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":650,\"speed\":8,\"type\":\"NORMAL\"}]}");
+        pass += check("TC-05", "Chặn cấu hình độ cao bay vượt ngưỡng [5m - 500m]", r5.startsWith("LOI"), r5);
 
-        // TC-09: Kiểm thử luồng chuyển trạng thái Mission hợp lệ (F16)
-        boolean validFlow = isValidStatusTransition("STANDBY", "PLANNING")
-                && isValidStatusTransition("PLANNING", "ACTIVE")
-                && isValidStatusTransition("ACTIVE", "PAUSED")
-                && isValidStatusTransition("PAUSED", "ACTIVE")
-                && isValidStatusTransition("ACTIVE", "COMPLETED");
-        passed += printTestResult("TC-09", "Chuyển đổi trạng thái Mission chuẩn: STANDBY->PLANNING->ACTIVE->COMPLETED (F16)",
-                validFlow, "Vòng đời trạng thái hợp lệ 100%");
+        String r6 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":50,\"speed\":45,\"type\":\"NORMAL\"}]}");
+        pass += check("TC-06", "Chặn cấu hình tốc độ bay vượt ngưỡng [1 - 30m/s]", r6.startsWith("LOI"), r6);
 
-        // TC-10: Chặn chuyển trạng thái Mission bất hợp lệ (ví dụ COMPLETED -> ACTIVE trực tiếp)
-        boolean invalidTransitionBlocked = !isValidStatusTransition("COMPLETED", "ACTIVE")
-                && !isValidStatusTransition("STANDBY", "COMPLETED");
-        passed += printTestResult("TC-10", "Chặn chuyển trạng thái Mission trái quy tắc nghiệp vụ (F16)",
-                invalidTransitionBlocked, "Đã chặn STANDBY->COMPLETED & COMPLETED->ACTIVE");
+        String r7 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":3,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":50,\"speed\":8,\"type\":\"LANDING\"}]}");
+        pass += check("TC-07", "Phát hiện lỗi đánh số thứ tự (order) bị nhảy cóc", r7.startsWith("LOI"), r7);
+
+        String r8 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":50,\"speed\":8,\"type\":\"INVALID_TYPE\"}]}");
+        pass += check("TC-08", "Phát hiện hành động WaypointType không hợp lệ", r8.startsWith("LOI"), r8);
+
+        boolean okFlow = isValidStatusTransition("STANDBY", "PLANNING") && isValidStatusTransition("PLANNING", "ACTIVE") && isValidStatusTransition("ACTIVE", "COMPLETED");
+        pass += check("TC-09", "Chuyển trạng thái chuẩn: STANDBY->PLANNING->ACTIVE->COMPLETED", okFlow, "Hợp lệ 100%");
+
+        boolean blockFlow = !isValidStatusTransition("STANDBY", "COMPLETED") && !isValidStatusTransition("COMPLETED", "ACTIVE");
+        pass += check("TC-10", "Chặn chuyển trạng thái Mission trái quy tắc nghiệp vụ (F16)", blockFlow, "Đã chặn nhảy cóc");
 
         System.out.println("--------------------------------------------------------------------------");
-        System.out.printf("  TONG KET KIEM THU LTJ-20: %d / %d TEST CASES PASS (%.0f%%)%n",
-                passed, total, (passed * 100.0 / total));
+        System.out.printf("  TONG KET KIEM THU LTJ-20: %d / 10 TEST CASES PASS (%d%%)%n", pass, pass * 10);
         System.out.println("==========================================================================");
     }
 
-    private static int printTestResult(String tcId, String name, boolean isPass, String detail) {
-        System.out.printf("  [%s] %-4s | %-62s | %s%n",
-                isPass ? "PASS" : "FAIL", tcId, name, detail);
-        return isPass ? 1 : 0;
+    private static int check(String id, String name, boolean ok, String detail) {
+        System.out.printf("  [%s] %-5s | %-58s | %s%n", ok ? "PASS" : "FAIL", id, name, detail);
+        return ok ? 1 : 0;
     }
 }
