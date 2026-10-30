@@ -1,0 +1,414 @@
+{
+  "info": {
+    "_postman_id": "d4e5f6a7-8b9c-4d0e-9f1a-2b3c4d5e6f74",
+    "name": "SmartFarm IoT - Sprint 4 (Mission Waypoints & Dashboard API Test Suite)",
+    "description": "Bộ kịch bản kiểm thử tự động Sprint 4 (Task LTJ-20 - Dev 5):\n1. Review & Validate cấu trúc JSON Waypoints cho UAV (F14).\n2. Test luồng Tạo Mission & Chuyển đổi trạng thái Mission (F14, F16).\n3. Test tích hợp API Dashboard Summary & Lịch sử phân trang (F04, F06 - LTJ-16).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "missionId",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Auth & Dashboard Summary (Sprint 4 - F04, F06)",
+      "item": [
+        {
+          "name": "1.1 Login Admin (Lấy JWT Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('HTTP 200 OK - Đăng nhập thành công', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var json = pm.response.json();",
+                  "if (json.data && json.data.accessToken) {",
+                  "    pm.collectionVariables.set('accessToken', json.data.accessToken);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usernameOrEmail\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.2 GET Dashboard Summary Toàn Hệ Thống (LTJ-16)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('HTTP 200 OK - Lấy thống kê Dashboard thành công', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Cấu trúc dữ liệu chứa avgBatteryLevel và số lượng cảm biến', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.success).to.be.true;",
+                  "    pm.expect(json.data).to.have.property('totalSensors');",
+                  "    pm.expect(json.data).to.have.property('avgBatteryLevel');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sensor-data/dashboard/summary",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sensor-data",
+                "dashboard",
+                "summary"
+              ]
+            }
+          }
+        },
+        {
+          "name": "1.3 GET Lịch Sử Dữ Liệu Phân Trang (F06 - LTJ-16)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('HTTP 200 OK - Truy vấn lịch sử phân trang thành công', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('Cấu trúc PagedResponse chuẩn', function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.expect(json.data).to.have.property('content');",
+                  "    pm.expect(json.data).to.have.property('totalElements');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/sensor-data/history/paged?zoneId=1&page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "sensor-data",
+                "history",
+                "paged"
+              ],
+              "query": [
+                {
+                  "key": "zoneId",
+                  "value": "1"
+                },
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Review JSON Waypoints & Tạo Mission UAV (F14, F16 - LTJ-20)",
+      "item": [
+        {
+          "name": "2.1 POST Tạo Mission Chuẩn 4 Điểm Bay Waypoints (F14 - Valid)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "// Kiểm định trước cấu trúc JSON Waypoints theo chuẩn LTJ-20",
+                  "var body = JSON.parse(pm.request.body.raw);",
+                  "console.log('Validating Mission Payload:', body.missionName, 'Waypoints count:', body.waypoints.length);"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var reqBody = JSON.parse(pm.request.body.raw);",
+                  "pm.test('LTJ-20 Check 1: Số lượng điểm bay >= 2', function () {",
+                  "    pm.expect(reqBody.waypoints.length).to.be.at.least(2);",
+                  "});",
+                  "pm.test('LTJ-20 Check 2: Toàn bộ tọa độ nằm trong vùng an toàn Geofence [10.840..10.860, 106.760..106.790]', function () {",
+                  "    reqBody.waypoints.forEach(function(wp) {",
+                  "        pm.expect(wp.latitude).to.be.within(10.840, 10.860);",
+                  "        pm.expect(wp.longitude).to.be.within(106.760, 106.790);",
+                  "    });",
+                  "});",
+                  "pm.test('LTJ-20 Check 3: Độ cao [5m-500m], Tốc độ [1-30m/s] và Pin tiêu hao <= 80%', function () {",
+                  "    reqBody.waypoints.forEach(function(wp) {",
+                  "        pm.expect(wp.altitude).to.be.within(5, 500);",
+                  "        pm.expect(wp.speed).to.be.within(1, 30);",
+                  "    });",
+                  "    pm.expect(reqBody.estimatedBatteryDrain).to.be.below(80);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"missionName\": \"Khảo sát Khu A - Dâu Tây Thủy Canh\",\n  \"uavId\": 1,\n  \"zoneId\": 1,\n  \"waypoints\": [\n    {\n      \"order\": 1,\n      \"latitude\": 10.84500,\n      \"longitude\": 106.76500,\n      \"altitude\": 30,\n      \"speed\": 8,\n      \"type\": \"TAKEOFF\"\n    },\n    {\n      \"order\": 2,\n      \"latitude\": 10.84850,\n      \"longitude\": 106.77100,\n      \"altitude\": 50,\n      \"speed\": 10,\n      \"type\": \"NORMAL\"\n    },\n    {\n      \"order\": 3,\n      \"latitude\": 10.85200,\n      \"longitude\": 106.77600,\n      \"altitude\": 50,\n      \"speed\": 8,\n      \"type\": \"HOVER\"\n    },\n    {\n      \"order\": 4,\n      \"latitude\": 10.85500,\n      \"longitude\": 106.78200,\n      \"altitude\": 20,\n      \"speed\": 5,\n      \"type\": \"LANDING\"\n    }\n  ],\n  \"totalDistanceM\": 2168.78,\n  \"estimatedTimeSeconds\": 307,\n  \"estimatedBatteryDrain\": 1.79\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/missions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "missions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.2 POST Tạo Mission Lỗi: Vượt Ranh Giới Geofence (Negative Test)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var reqBody = JSON.parse(pm.request.body.raw);",
+                  "pm.test('LTJ-20 Geofence Guard: Phát hiện Waypoint #2 nằm ngoài ranh giới nông trại', function () {",
+                  "    var hasOOB = reqBody.waypoints.some(function(wp) {",
+                  "        return wp.latitude < 10.840 || wp.latitude > 10.860 || wp.longitude < 106.760 || wp.longitude > 106.790;",
+                  "    });",
+                  "    pm.expect(hasOOB).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"missionName\": \"Mission Lỗi Vượt Biên Giới\",\n  \"uavId\": 1,\n  \"zoneId\": 1,\n  \"waypoints\": [\n    {\n      \"order\": 1,\n      \"latitude\": 10.85000,\n      \"longitude\": 106.77000,\n      \"altitude\": 50,\n      \"speed\": 8,\n      \"type\": \"TAKEOFF\"\n    },\n    {\n      \"order\": 2,\n      \"latitude\": 10.91000,\n      \"longitude\": 106.85000,\n      \"altitude\": 50,\n      \"speed\": 8,\n      \"type\": \"NORMAL\"\n    }\n  ],\n  \"totalDistanceM\": 11050.25,\n  \"estimatedTimeSeconds\": 1381,\n  \"estimatedBatteryDrain\": 8.05\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/missions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "missions"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.3 PATCH Cập Nhật Trạng Thái Mission: PLANNING -> ACTIVE (F16)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var reqBody = JSON.parse(pm.request.body.raw);",
+                  "pm.test('LTJ-20 Status Check: Trạng thái chuyển sang ACTIVE hợp lệ', function () {",
+                  "    pm.expect(['STANDBY', 'PLANNING', 'ACTIVE', 'PAUSED', 'COMPLETED', 'ABORTED']).to.include(reqBody.status);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\",\n  \"note\": \"UAV bắt đầu cất cánh thực hiện lộ trình Waypoints\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/missions/{{missionId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "missions",
+                "{{missionId}}",
+                "status"
+              ]
+            }
+          }
+        },
+        {
+          "name": "2.4 PATCH Cập Nhật Trạng Thái Mission: ACTIVE -> COMPLETED (F16)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var reqBody = JSON.parse(pm.request.body.raw);",
+                  "pm.test('LTJ-20 Status Check: Hoàn tất nhiệm vụ COMPLETED', function () {",
+                  "    pm.expect(reqBody.status).to.eql('COMPLETED');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{accessToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\",\n  \"note\": \"UAV đã hạ cánh an toàn tại Waypoint #4\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/missions/{{missionId}}/status",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "missions",
+                "{{missionId}}",
+                "status"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
