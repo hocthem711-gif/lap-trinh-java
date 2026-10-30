@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Login from './components/Login'
 import SensorOverviewMap from './components/SensorOverviewMap'
+import FlightPathPlanner from './components/FlightPathPlanner'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -28,6 +29,7 @@ import {
   Signal,
   Cpu,
   MapPin,
+  Route,
 } from 'lucide-react'
 import DeviceManagement from './components/DeviceManagement'
 import SensorAssignment from './components/SensorAssignment'
@@ -52,6 +54,7 @@ const menuItems = [
   { label: 'Cảm biến & Zone', icon: Cpu },
   { label: 'Cảm biến Realtime', icon: Activity },
   { label: 'Bản đồ & Popup', icon: MapPin },
+  { label: 'Lộ trình bay', icon: Route },
   { label: 'Trạm điều khiển', icon: Radio },
   { label: 'Bản đồ & vị trí', icon: Map },
   { label: 'Nhiệm vụ', icon: ClipboardList },
@@ -581,6 +584,8 @@ function App() {
             <SensorRealtimeTable />
           ) : activePage === 'Bản đồ & Popup' ? (
             <SensorMapPopup />
+          ) : activePage === 'Lộ trình bay' ? (
+            <FlightPathPlanner />
           ) : activePage === 'Bản đồ & vị trí' ? (
            <SensorOverviewMap />
           ) : activePage === 'Quản lý người dùng' ? (
