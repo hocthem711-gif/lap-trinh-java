@@ -3,8 +3,13 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 
 /**
  * Mission Slice - Quản lý trạng thái nhiệm vụ bay của Drone/UAV
- * Task: LTJ-4 - Setup React Redux state management for Mission Dashboard
+ * Task: LTJ-4 (Sprint 1) → Nâng cấp LTJ-19 (Sprint 4)
  * Author: Quatrungvoon
+ *
+ * Sprint 4 Enhancements:
+ * - Mission now stores waypoint route data from FlightPathPlanner
+ * - Track mission creation timestamp and mission name
+ * - Save/load mission route for review or re-editing
  */
 
 // Các hằng số cho chế độ bay
@@ -17,6 +22,7 @@ export type FlightMode = (typeof FlightMode)[keyof typeof FlightMode];
 // Các hằng số cho trạng thái nhiệm vụ
 export const MissionStatus = {
   STANDBY: 'STANDBY',
+  PLANNING: 'PLANNING',
   ACTIVE: 'ACTIVE',
   PAUSED: 'PAUSED',
   COMPLETED: 'COMPLETED',
@@ -43,12 +49,23 @@ export interface DroneDetails {
   longitude: number;
 }
 
+/** Saved mission route data (Sprint 4) */
+export interface MissionRouteData {
+  missionName: string;
+  waypointCount: number;
+  totalDistanceM: number;
+  estimatedTimeSeconds: number;
+  estimatedBatteryDrain: number;
+  createdAt: string;
+  waypointsJson: string; // Serialized waypoints JSON for API payload
+}
+
 export interface MissionState {
-  currentMission: any | null;
+  currentMission: MissionRouteData | null;
   mode: FlightMode;
   status: MissionStatus;
   droneDetails: DroneDetails;
-  missionHistory: any[];
+  missionHistory: MissionRouteData[];
   error: string | null;
 }
 
@@ -73,7 +90,14 @@ const missionSlice = createSlice({
   name: 'mission',
   initialState,
   reducers: {
-    setMission: (state, action: PayloadAction<any>) => {
+    /** Save a planned mission route (from FlightPathPlanner) */
+    saveMissionRoute: (state, action: PayloadAction<MissionRouteData>) => {
+      state.currentMission = action.payload;
+      state.status = MissionStatus.PLANNING;
+      state.error = null;
+    },
+
+    setMission: (state, action: PayloadAction<MissionRouteData>) => {
       state.currentMission = action.payload;
       state.error = null;
     },
@@ -94,8 +118,6 @@ const missionSlice = createSlice({
       if (state.currentMission) {
         state.missionHistory.push({
           ...state.currentMission,
-          completedAt: new Date().toISOString(),
-          finalStatus: state.status,
         });
       }
       state.status = MissionStatus.COMPLETED;
@@ -113,6 +135,7 @@ const missionSlice = createSlice({
 });
 
 export const {
+  saveMissionRoute,
   setMission,
   setMode,
   updateDroneDetails,
