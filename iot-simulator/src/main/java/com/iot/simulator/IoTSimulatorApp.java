@@ -81,6 +81,12 @@ public class IoTSimulatorApp {
     }
 
     public static void main(String[] args) {
+        // Chế độ Sprint 4 (Task LTJ-20): Review JSON Waypoints & Test Tạo Mission
+        if (args.length > 0 && "--test-mission".equalsIgnoreCase(args[0])) {
+            WaypointMissionValidator.runAutomatedMissionTestSuite();
+            return;
+        }
+
         // Kiểm tra nếu chạy ở chế độ Load Test (--load-test)
         if (args.length > 0 && "--load-test".equalsIgnoreCase(args[0])) {
             int totalSensors = args.length > 1 ? Integer.parseInt(args[1]) : 20;

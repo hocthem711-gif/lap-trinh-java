@@ -3,7 +3,8 @@
 > **Task Jira**:
 > - `[LTJ-5]` `[Sprint 1][Dev 5] Giả lập IoT & Vẽ Use Case Diagram`
 > - `[LTJ-10]` `[Sprint 2][Dev 5] Test API Danh mục & Script MQTT Giả lập`
-> - `[LTJ-15]` `[Sprint 3][Dev 5] Script Giả lập Bắn MQTT & Test Tải Cảm biến`  
+> - `[LTJ-15]` `[Sprint 3][Dev 5] Script Giả lập Bắn MQTT & Test Tải Cảm biến`
+> - `[LTJ-20]` `[Sprint 4][Dev 5] Review JSON Waypoints & Test Tạo Mission`  
 > **Người thực hiện**: Trần Nguyễn Bảo Hoàng — Dev 5 (IoT / Testing)
 
 ---
@@ -80,6 +81,12 @@ Mỗi bản tin được sinh ra trên topic `iot/ltj/sensor/zone-{zoneId}/{devi
 .\gradlew.bat run --args="--load-test 20 1 10 http://localhost:8080/api/v1/sensor-data/simulator"
 ```
 
+### 4. Chế độ 3: Review JSON Waypoints & Kiểm thử Tạo Mission tự động (`Sprint 4 - LTJ-20`)
+```powershell
+# Chạy 10 kịch bản kiểm thử cấu trúc JSON Waypoints, Haversine 3D, Geofence & Trạng thái Mission
+.\gradlew.bat run --args="--test-mission" --console=plain
+```
+
 ---
 
 ## 📁 Cấu Trúc Thư Mục
@@ -91,8 +98,9 @@ iot-simulator/
 ├── gradlew & gradlew.bat                            # Gradle wrapper scripts
 ├── src/
 │   └── main/java/com/iot/simulator/
-│       ├── IoTSimulatorApp.java                     # Entry point: Online Stream (F20) & Load Tester
+│       ├── IoTSimulatorApp.java                     # Entry point: Online Stream (F20), Load Tester & Mission Tester
 │       ├── MqttPublisher.java                       # Xử lý kết nối bất đồng bộ MqttAsyncClient (QoS 1)
-│       └── SensorData.java                          # Mô hình dữ liệu đa chỉ số & Anomaly Injection (F19)
+│       ├── SensorData.java                          # Mô hình dữ liệu đa chỉ số & Anomaly Injection (F19)
+│       └── WaypointMissionValidator.java            # Bộ kiểm định JSON Waypoints, Geofence, Haversine 3D & Mission (F14, F16)
 └── README.md                                        # Hướng dẫn sử dụng
 ```
