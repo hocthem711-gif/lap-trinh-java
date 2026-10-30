@@ -4,8 +4,9 @@ Hệ thống Quản lý Trang trại Thông minh, Dữ liệu Cảm biến IoT v
 
 ## 📂 Cấu trúc Dự án
 - `backend/`: Source code Spring Boot 3.x Backend Core
-- `frontend/`: Source code React + TypeScript + Vite
-- `docs/`: Tài liệu dự án và Wireframe
+- `src/`: Source code Giao diện Web React + TypeScript + Vite + Leaflet Map
+- `iot-simulator/`: Bộ giả lập thiết bị cảm biến IoT (MQTT Online Stream, Load Test 10-20 sensors & Kiểm định lộ trình bay UAV Waypoints)
+- `docs/`: Tài liệu thiết kế kiến trúc UML (`UseCase`, `Sequence`, `Component Diagram`), kịch bản kiểm thử Postman (`Sprint 2`, `Sprint 4`), báo cáo Test & `USER_MANUAL.md`
 
 ## 👥 Thành viên nhóm & Phân công
 - Nguyễn Trần Đình Hiệu (Dev 1 — Backend Core)
