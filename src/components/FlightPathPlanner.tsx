@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   MapContainer,
@@ -57,6 +57,7 @@ import {
   selectMissionPayload,
   WaypointType,
   GEOFENCE_BOUNDS,
+  PRESET_DEMO_WAYPOINTS,
 } from '../store/slices/waypointSlice';
 import {
   saveMissionRoute,
@@ -82,8 +83,8 @@ import './FlightPathPlanner.css';
  * 6. Quản lý trạng thái Mission (Start / Pause / RTH Abort) & Export JSON payload (LTJ-17)
  */
 
-// ==================== Map Center (SmartFarm area) ====================
-const MAP_CENTER: [number, number] = [10.8505, 106.7730];
+// ==================== Map Center (SmartFarm Đà Lạt — đồng nhất Sprint 4/7/8) ====================
+const MAP_CENTER: [number, number] = [11.9418, 108.4596];
 const MAP_ZOOM = 15;
 
 const WAYPOINT_TYPE_LABELS: Record<WaypointType, string> = {
@@ -103,18 +104,26 @@ const MISSION_STATUS_LABELS: Record<MissionStatus, string> = {
   ABORTED: 'Khẩn cấp (RTH)',
 };
 
-// ==================== Custom Marker Icon ====================
+// ==================== Custom Marker Icon (Cached) ====================
+const waypointIconCache = new Map<string, L.DivIcon>();
+
 function createWaypointIcon(order: number, isSelected: boolean, isOutOfBounds: boolean): L.DivIcon {
+  const key = `${order}-${isSelected ? 1 : 0}-${isOutOfBounds ? 1 : 0}`;
+  const cached = waypointIconCache.get(key);
+  if (cached) return cached;
+
   let extraClass = '';
   if (isOutOfBounds) extraClass = ' out-of-bounds';
   else if (isSelected) extraClass = ' selected';
 
-  return L.divIcon({
+  const icon = L.divIcon({
     className: '',
     html: `<div class="wp-marker-icon${extraClass}">${order}</div>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
   });
+  waypointIconCache.set(key, icon);
+  return icon;
 }
 
 // ==================== Map Click Handler Sub-component ====================
@@ -156,6 +165,73 @@ export default function FlightPathPlanner() {
   const [copied, setCopied] = useState(false);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [mapRef, setMapRef] = useState<L.Map | null>(null);
+  const [defaultAltDraft, setDefaultAltDraft] = useState<string | null>(null);
+  const [defaultSpeedDraft, setDefaultSpeedDraft] = useState<string | null>(null);
+  const [wpEditDraft, setWpEditDraft] = useState<{
+    wpId: number;
+    alt?: string;
+    speed?: string;
+  } | null>(null);
+
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
+  const commitDefaultAltitude = useCallback(() => {
+    if (defaultAltDraft === null) return;
+    const parsed = Number(defaultAltDraft);
+    const clamped = Number.isFinite(parsed)
+      ? Math.max(5, Math.min(500, parsed))
+      : defaultAltitude;
+    dispatch(setDefaultAltitude(clamped));
+    setDefaultAltDraft(null);
+  }, [defaultAltDraft, defaultAltitude, dispatch]);
+
+  const commitDefaultSpeed = useCallback(() => {
+    if (defaultSpeedDraft === null) return;
+    const parsed = Number(defaultSpeedDraft);
+    const clamped = Number.isFinite(parsed)
+      ? Math.max(1, Math.min(30, parsed))
+      : defaultSpeed;
+    dispatch(setDefaultSpeed(clamped));
+    setDefaultSpeedDraft(null);
+  }, [defaultSpeedDraft, defaultSpeed, dispatch]);
+
+  const commitWaypointAltitude = useCallback(
+    (wpId: number, fallbackAlt: number) => {
+      if (!wpEditDraft || wpEditDraft.wpId !== wpId || wpEditDraft.alt === undefined) return;
+      const parsed = Number(wpEditDraft.alt);
+      const clamped = Number.isFinite(parsed)
+        ? Math.max(5, Math.min(500, parsed))
+        : fallbackAlt;
+      dispatch(updateWaypoint({ id: wpId, altitude: clamped }));
+      setWpEditDraft((prev) =>
+        prev && prev.wpId === wpId ? { ...prev, alt: undefined } : null,
+      );
+    },
+    [wpEditDraft, dispatch],
+  );
+
+  const commitWaypointSpeed = useCallback(
+    (wpId: number, fallbackSpeed: number) => {
+      if (!wpEditDraft || wpEditDraft.wpId !== wpId || wpEditDraft.speed === undefined) return;
+      const parsed = Number(wpEditDraft.speed);
+      const clamped = Number.isFinite(parsed)
+        ? Math.max(1, Math.min(30, parsed))
+        : fallbackSpeed;
+      dispatch(updateWaypoint({ id: wpId, speed: clamped }));
+      setWpEditDraft((prev) =>
+        prev && prev.wpId === wpId ? { ...prev, speed: undefined } : null,
+      );
+    },
+    [wpEditDraft, dispatch],
+  );
 
   // Polyline positions
   const polylinePositions: [number, number][] = useMemo(
@@ -179,14 +255,13 @@ export default function FlightPathPlanner() {
     }
   }, [mapRef, waypoints]);
 
-  // Load Preset Demo Route
+  // Load Preset Demo Route (Đà Lạt — khớp PRESET_DEMO_WAYPOINTS)
   const handleLoadPreset = useCallback(() => {
     dispatch(loadPresetWaypoints());
-    if (mapRef) {
-      const bounds = L.latLngBounds([
-        [10.8450, 106.7650],
-        [10.8550, 106.7820],
-      ]);
+    if (mapRef && PRESET_DEMO_WAYPOINTS.length > 0) {
+      const bounds = L.latLngBounds(
+        PRESET_DEMO_WAYPOINTS.map((wp) => [wp.latitude, wp.longitude] as [number, number]),
+      );
       mapRef.fitBounds(bounds, { padding: [60, 60] });
     }
   }, [dispatch, mapRef]);
@@ -223,14 +298,22 @@ export default function FlightPathPlanner() {
       waypointsJson: JSON.stringify(missionPayload),
     }));
     setSaveMessage(`Đã lưu nhiệm vụ "${missionName}" (${waypoints.length} WP · ${telemetry.totalDistanceM}m)`);
-    setTimeout(() => setSaveMessage(null), 4000);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => setSaveMessage(null), 4000);
   }, [dispatch, waypoints, telemetry, missionPayload, missionName]);
 
-  // Copy JSON
-  const handleCopyJson = useCallback(() => {
-    navigator.clipboard.writeText(JSON.stringify(missionPayload, null, 2));
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  // Copy JSON (an toàn với try/catch & cleanup timer)
+  const handleCopyJson = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(missionPayload, null, 2));
+      setCopied(true);
+      if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+      copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setSaveMessage('Không thể tự động sao chép vào Clipboard trên trình duyệt này.');
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => setSaveMessage(null), 3000);
+    }
   }, [missionPayload]);
 
   return (
@@ -506,8 +589,12 @@ export default function FlightPathPlanner() {
             <label><ArrowUpFromLine size={13} /> Cao độ</label>
             <input
               type="number"
-              value={defaultAltitude}
-              onChange={(e) => dispatch(setDefaultAltitude(Number(e.target.value)))}
+              value={defaultAltDraft ?? String(defaultAltitude)}
+              onChange={(e) => setDefaultAltDraft(e.target.value)}
+              onBlur={commitDefaultAltitude}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitDefaultAltitude();
+              }}
               min={5}
               max={500}
             />
@@ -518,8 +605,12 @@ export default function FlightPathPlanner() {
             <label><Gauge size={13} /> Tốc độ</label>
             <input
               type="number"
-              value={defaultSpeed}
-              onChange={(e) => dispatch(setDefaultSpeed(Number(e.target.value)))}
+              value={defaultSpeedDraft ?? String(defaultSpeed)}
+              onChange={(e) => setDefaultSpeedDraft(e.target.value)}
+              onBlur={commitDefaultSpeed}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitDefaultSpeed();
+              }}
               min={1}
               max={30}
             />
@@ -609,8 +700,22 @@ export default function FlightPathPlanner() {
                             type="number"
                             min={5}
                             max={500}
-                            value={wp.altitude}
-                            onChange={e => dispatch(updateWaypoint({ id: wp.id, altitude: Math.max(5, Math.min(500, Number(e.target.value))) }))}
+                            value={
+                              wpEditDraft?.wpId === wp.id && wpEditDraft.alt !== undefined
+                                ? wpEditDraft.alt
+                                : String(wp.altitude)
+                            }
+                            onChange={e =>
+                              setWpEditDraft((prev) => ({
+                                wpId: wp.id,
+                                speed: prev?.wpId === wp.id ? prev.speed : undefined,
+                                alt: e.target.value,
+                              }))
+                            }
+                            onBlur={() => commitWaypointAltitude(wp.id, wp.altitude)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') commitWaypointAltitude(wp.id, wp.altitude);
+                            }}
                           />
                         </div>
                         <div className="wp-inline-field">
@@ -619,8 +724,22 @@ export default function FlightPathPlanner() {
                             type="number"
                             min={1}
                             max={30}
-                            value={wp.speed}
-                            onChange={e => dispatch(updateWaypoint({ id: wp.id, speed: Math.max(1, Math.min(30, Number(e.target.value))) }))}
+                            value={
+                              wpEditDraft?.wpId === wp.id && wpEditDraft.speed !== undefined
+                                ? wpEditDraft.speed
+                                : String(wp.speed)
+                            }
+                            onChange={e =>
+                              setWpEditDraft((prev) => ({
+                                wpId: wp.id,
+                                alt: prev?.wpId === wp.id ? prev.alt : undefined,
+                                speed: e.target.value,
+                              }))
+                            }
+                            onBlur={() => commitWaypointSpeed(wp.id, wp.speed)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') commitWaypointSpeed(wp.id, wp.speed);
+                            }}
                           />
                         </div>
                       </div>

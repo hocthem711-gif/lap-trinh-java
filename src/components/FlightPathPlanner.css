@@ -897,6 +897,34 @@
   border-color: #a5b4fc;
 }
 
+.config-text-input,
+.wp-inline-field select,
+.wp-inline-field input {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+}
+
+.wp-list-info .coords {
+  color: #0f172a;
+}
+
+.wp-list-info .meta,
+.wp-inline-field label {
+  color: #475569;
+}
+
+.mc-btn {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.mc-btn:hover:not(:disabled) {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
 .flight-sidebar::-webkit-scrollbar-thumb {
   background: #cbd5e1;
 }

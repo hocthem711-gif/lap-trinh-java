@@ -271,7 +271,18 @@ const waypointSlice = createSlice({
     updateWaypoint: (state, action: PayloadAction<Partial<Waypoint> & { id: number }>) => {
       const index = state.waypoints.findIndex(wp => wp.id === action.payload.id);
       if (index !== -1) {
-        const updated = { ...state.waypoints[index], ...action.payload };
+        const sanitizedPayload = { ...action.payload };
+        if (sanitizedPayload.altitude !== undefined) {
+          sanitizedPayload.altitude = Number.isFinite(sanitizedPayload.altitude)
+            ? Math.max(5, Math.min(500, sanitizedPayload.altitude))
+            : state.waypoints[index].altitude;
+        }
+        if (sanitizedPayload.speed !== undefined) {
+          sanitizedPayload.speed = Number.isFinite(sanitizedPayload.speed)
+            ? Math.max(1, Math.min(30, sanitizedPayload.speed))
+            : state.waypoints[index].speed;
+        }
+        const updated = { ...state.waypoints[index], ...sanitizedPayload };
         // Re-check geofence if coordinates changed
         if (action.payload.latitude !== undefined || action.payload.longitude !== undefined) {
           updated.isOutOfBounds = !isWithinGeofence(updated.latitude, updated.longitude);
@@ -314,16 +325,19 @@ const waypointSlice = createSlice({
 
     /** Update default altitude for new waypoints */
     setDefaultAltitude: (state, action: PayloadAction<number>) => {
+      if (!Number.isFinite(action.payload)) return;
       state.defaultAltitude = Math.max(5, Math.min(500, action.payload));
     },
 
     /** Update default speed for new waypoints */
     setDefaultSpeed: (state, action: PayloadAction<number>) => {
+      if (!Number.isFinite(action.payload)) return;
       state.defaultSpeed = Math.max(1, Math.min(30, action.payload));
     },
 
     /** Batch update altitude for all waypoints */
     setAllAltitude: (state, action: PayloadAction<number>) => {
+      if (!Number.isFinite(action.payload)) return;
       const alt = Math.max(5, Math.min(500, action.payload));
       state.waypoints = state.waypoints.map(wp => ({ ...wp, altitude: alt }));
       state.defaultAltitude = alt;
@@ -332,6 +346,7 @@ const waypointSlice = createSlice({
 
     /** Batch update speed for all waypoints */
     setAllSpeed: (state, action: PayloadAction<number>) => {
+      if (!Number.isFinite(action.payload)) return;
       const spd = Math.max(1, Math.min(30, action.payload));
       state.waypoints = state.waypoints.map(wp => ({ ...wp, speed: spd }));
       state.defaultSpeed = spd;
