@@ -35,6 +35,7 @@ import {
   Plane,
 } from 'lucide-react';
 import type { RootState } from '../store';
+import { apiRequest } from '../services/api';
 import {
   setMissionMetadata,
   loadPresetWaypoints,
@@ -285,11 +286,12 @@ export default function FlightPathPlanner() {
     }
   }, [dispatch, mapRef]);
 
-  // Save mission
-  const handleSaveMission = useCallback(() => {
+  // Save mission (Hybrid: gửi POST /api/v1/missions lên Backend Dev 2 + lưu Redux local)
+  const handleSaveMission = useCallback(async () => {
     if (waypoints.length < 2) return;
+    const resolvedName = missionName || `Mission ${new Date().toLocaleDateString('vi-VN')}`;
     dispatch(saveMissionRoute({
-      missionName: missionName || `Mission ${new Date().toLocaleDateString('vi-VN')}`,
+      missionName: resolvedName,
       waypointCount: waypoints.length,
       totalDistanceM: telemetry.totalDistanceM,
       estimatedTimeSeconds: telemetry.estimatedTimeSeconds,
@@ -297,7 +299,27 @@ export default function FlightPathPlanner() {
       createdAt: new Date().toISOString(),
       waypointsJson: JSON.stringify(missionPayload),
     }));
-    setSaveMessage(`Đã lưu nhiệm vụ "${missionName}" (${waypoints.length} WP · ${telemetry.totalDistanceM}m)`);
+
+    let syncedBackend = false;
+    try {
+      await apiRequest('/missions', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...missionPayload,
+          name: resolvedName,
+          missionName: resolvedName,
+        }),
+      });
+      syncedBackend = true;
+    } catch {
+      // Hybrid fallback khi Backend chưa bật
+    }
+
+    setSaveMessage(
+      syncedBackend
+        ? `Đã lưu và đồng bộ nhiệm vụ "${resolvedName}" lên Backend (${waypoints.length} WP · ${telemetry.totalDistanceM}m)`
+        : `Đã lưu nhiệm vụ "${resolvedName}" (${waypoints.length} WP · ${telemetry.totalDistanceM}m)`,
+    );
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => setSaveMessage(null), 4000);
   }, [dispatch, waypoints, telemetry, missionPayload, missionName]);
