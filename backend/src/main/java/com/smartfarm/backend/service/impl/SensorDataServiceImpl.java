@@ -156,13 +156,16 @@ public class SensorDataServiceImpl implements SensorDataService {
         List<SensorData> toSave = new ArrayList<>();
         Set<String> seenKeys = new HashSet<>();
         Map<String, Sensor> sensorCache = new HashMap<>();
+        Map<Long, Zone> zoneCache = new HashMap<>();
 
         for (IoTSimulatorPayload item : records) {
             LocalDateTime recordedAt = item.getTimestamp() > 0
                     ? LocalDateTime.ofInstant(Instant.ofEpochSecond(item.getTimestamp()), ZoneId.systemDefault())
                     : LocalDateTime.now();
 
-            Zone zone = item.getZoneId() != null ? zoneRepository.findById(item.getZoneId()).orElse(null) : null;
+            Zone zone = item.getZoneId() != null
+                    ? zoneCache.computeIfAbsent(item.getZoneId(), id -> zoneRepository.findById(id).orElse(null))
+                    : null;
             String status = item.getStatus() != null ? item.getStatus() : "NORMAL";
 
             Object[][] metrics = {
