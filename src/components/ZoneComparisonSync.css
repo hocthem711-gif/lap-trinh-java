@@ -1,0 +1,955 @@
+/**
+ * ZoneComparisonSync.css — Styles cho Giao diện So sánh 2 Zone (F07) & Lịch sử Sync UAV
+ * Task: LTJ-24 - Sprint 5
+ * Author: Quatrungvoon (Nguyễn Trường An)
+ */
+
+.zcs-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-bottom: 24px;
+}
+
+/* ===== Toast thông báo ===== */
+.zcs-toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.16);
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  color: #6ee7b7;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.zcs-toast button {
+  margin-left: auto;
+  background: transparent;
+  border: none;
+  color: #6ee7b7;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+/* ===== Section Card ===== */
+.zcs-section {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.zcs-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.zcs-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.zcs-feature-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  background: rgba(99, 102, 241, 0.16);
+  color: #a5b4fc;
+}
+
+.zcs-source-badge,
+.zcs-mqtt-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.zcs-section-header h2 {
+  font-size: 19px;
+  font-weight: 700;
+  color: #f8fafc;
+  margin: 0 0 4px 0;
+}
+
+.zcs-section-header p {
+  font-size: 13.5px;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.zcs-section-header p code {
+  color: #a5b4fc;
+  background: rgba(99, 102, 241, 0.12);
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+/* ===== Chuyển đổi Line / Bar ===== */
+.zcs-chart-mode-group {
+  display: flex;
+  gap: 6px;
+  background: rgba(15, 23, 42, 0.6);
+  padding: 4px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.zcs-mode-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.zcs-mode-btn:hover {
+  color: #f1f5f9;
+}
+
+.zcs-mode-btn.active {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(99, 102, 241, 0.35);
+}
+
+/* ===== Thanh bộ lọc Zone A, Zone B, Chỉ số, Thời gian ===== */
+.zcs-controls-bar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.zcs-zone-pickers {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.zcs-metric-time-pickers {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.zcs-control-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.zcs-control-field.zone-a,
+.zcs-control-field.zone-b {
+  flex: 1;
+  min-width: 210px;
+}
+
+.zcs-control-field label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.zone-dot-indicator {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+
+.zone-dot-indicator.indigo {
+  background: #6366f1;
+  box-shadow: 0 0 8px rgba(99, 102, 241, 0.7);
+}
+
+.zone-dot-indicator.emerald {
+  background: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.7);
+}
+
+.zcs-control-field select {
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #1e293b;
+  color: #f1f5f9;
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+}
+
+.zcs-control-field select:focus {
+  border-color: #6366f1;
+}
+
+.zcs-swap-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.zcs-swap-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  color: #fff;
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.zcs-time-pills {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.zcs-time-pill {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.zcs-time-pill.active {
+  background: rgba(99, 102, 241, 0.25);
+  color: #c7d2fe;
+}
+
+/* ===== 3 Thẻ KPI Đối chiếu ===== */
+.zcs-compare-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+
+.zcs-compare-card {
+  padding: 16px 18px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.zcs-compare-card.zone-a-card {
+  border-left: 3px solid #6366f1;
+}
+
+.zcs-compare-card.zone-b-card {
+  border-left: 3px solid #10b981;
+}
+
+.zcs-compare-card.delta-card {
+  border-left: 3px solid #f59e0b;
+}
+
+.zcs-compare-card .card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.zone-pill {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.zone-pill.indigo {
+  background: rgba(99, 102, 241, 0.18);
+  color: #a5b4fc;
+}
+
+.zone-pill.emerald {
+  background: rgba(16, 185, 129, 0.18);
+  color: #6ee7b7;
+}
+
+.zone-pill.amber {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fcd34d;
+}
+
+.zcs-compare-card h4 {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zcs-compare-card .card-main-val {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.zcs-compare-card .card-main-val strong {
+  font-size: 24px;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.zcs-compare-card .card-main-val strong.pos {
+  color: #38bdf8;
+}
+
+.zcs-compare-card .card-main-val strong.neg {
+  color: #fbbf24;
+}
+
+.zcs-compare-card .card-main-val span {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.zcs-compare-card .card-sub-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.zcs-compare-card .card-sub-stats span {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+}
+
+.zcs-compare-card .card-sub-stats strong {
+  font-size: 12.5px;
+  color: #cbd5e1;
+}
+
+.trend-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #a5b4fc !important;
+}
+
+/* ===== Khung Biểu đồ ===== */
+.zcs-chart-box {
+  height: 340px;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.zcs-chart-loading {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+/* ===== PHẦN 2: LỊCH SỬ ĐỒNG BỘ UAV ===== */
+.zcs-btn-simulate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.3);
+}
+
+.zcs-btn-simulate:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(16, 185, 129, 0.45);
+}
+
+.zcs-sync-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.zcs-sync-kpi {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.zcs-sync-kpi .kpi-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.zcs-sync-kpi .kpi-icon.blue { background: rgba(59, 130, 246, 0.16); color: #60a5fa; }
+.zcs-sync-kpi .kpi-icon.green { background: rgba(16, 185, 129, 0.16); color: #34d399; }
+.zcs-sync-kpi .kpi-icon.purple { background: rgba(139, 92, 246, 0.16); color: #a78bfa; }
+.zcs-sync-kpi .kpi-icon.amber { background: rgba(245, 158, 11, 0.16); color: #fbbf24; }
+
+.zcs-sync-kpi strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.zcs-sync-kpi span {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* ===== Toolbar lọc bảng Sync ===== */
+.zcs-sync-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.zcs-sync-filters {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.zcs-sync-filters select {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #1e293b;
+  color: #f1f5f9;
+  font-size: 13px;
+  outline: none;
+}
+
+.zcs-btn-reset {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 12px;
+  border-radius: 9px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.zcs-sync-search {
+  position: relative;
+  min-width: 280px;
+}
+
+.zcs-sync-search svg {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #64748b;
+}
+
+.zcs-sync-search input {
+  width: 100%;
+  padding: 8px 12px 8px 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.6);
+  color: #f1f5f9;
+  font-size: 13px;
+  outline: none;
+}
+
+/* ===== Bảng Lịch sử Đồng bộ ===== */
+.zcs-table-wrap {
+  overflow-x: auto;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.zcs-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.zcs-table th {
+  padding: 12px 14px;
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.65);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  white-space: nowrap;
+}
+
+.zcs-table td {
+  padding: 13px 14px;
+  font-size: 13px;
+  color: #e2e8f0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  vertical-align: middle;
+}
+
+.zcs-clickable-row {
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.zcs-clickable-row:hover {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.zcs-session-code {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #a5b4fc;
+}
+
+.zcs-uav-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zcs-uav-cell strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #f8fafc;
+}
+
+.zcs-uav-cell span {
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.zcs-zone-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  font-size: 12px;
+  color: #cbd5e1;
+}
+
+.zcs-flight-time-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.zcs-flight-time-cell span {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+.zcs-progress-cell {
+  min-width: 170px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.zcs-progress-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.zcs-progress-top span {
+  color: #94a3b8;
+}
+
+.zcs-progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.zcs-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+.zcs-progress-fill.completed { background: linear-gradient(90deg, #10b981, #34d399); }
+.zcs-progress-fill.partial { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.zcs-progress-fill.failed { background: #ef4444; }
+
+.zcs-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.zcs-status-badge.completed {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
+.zcs-status-badge.partial {
+  background: rgba(245, 158, 11, 0.16);
+  color: #fbbf24;
+}
+
+.zcs-status-badge.failed {
+  background: rgba(239, 68, 68, 0.16);
+  color: #f87171;
+}
+
+.zcs-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.zcs-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.05);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.zcs-action-btn:hover {
+  background: rgba(99, 102, 241, 0.2);
+  color: #fff;
+  border-color: rgba(99, 102, 241, 0.4);
+}
+
+.zcs-action-btn.retry {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fcd34d;
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.zcs-action-btn.retry:hover {
+  background: rgba(245, 158, 11, 0.28);
+}
+
+.zcs-empty-row {
+  text-align: center;
+  padding: 36px !important;
+  color: #64748b !important;
+}
+
+/* ===== Modal Chi tiết Phiên Đồng bộ ===== */
+.zcs-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+}
+
+.zcs-modal {
+  width: 100%;
+  max-width: 820px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+}
+
+.zcs-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.zcs-modal-header h3 {
+  font-size: 18px;
+  color: #f8fafc;
+  margin: 4px 0 0 0;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.zcs-modal-close {
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  color: #94a3b8;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.zcs-mqtt-pipeline {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.pipeline-step {
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pipeline-step.done { border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.07); }
+.pipeline-step.warn { border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.07); }
+.pipeline-step.err  { border-color: rgba(239, 68, 68, 0.4);  background: rgba(239, 68, 68, 0.07); }
+
+.pipeline-step .step-num {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.pipeline-step code {
+  font-size: 11px;
+  color: #a5b4fc;
+}
+
+.pipeline-step span {
+  font-size: 11.5px;
+  color: #94a3b8;
+}
+
+.zcs-modal-alert {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #fde68a;
+  font-size: 12.5px;
+}
+
+.zcs-modal-alert span {
+  flex: 1;
+}
+
+.zcs-modal-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.zcs-batch-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.zcs-batch-btn {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd5e1;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.zcs-batch-btn.active {
+  background: #6366f1;
+  color: #fff;
+  border-color: #6366f1;
+}
+
+.zcs-view-switch {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 3px;
+  border-radius: 9px;
+}
+
+.zcs-view-switch button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.zcs-view-switch button.active {
+  background: rgba(99, 102, 241, 0.25);
+  color: #fff;
+}
+
+.zcs-modal-table-wrap {
+  max-height: 320px;
+  overflow-y: auto;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.zcs-rec-status {
+  padding: 2px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.zcs-rec-status.normal { background: rgba(16, 185, 129, 0.15); color: #34d399; }
+.zcs-rec-status.warning { background: rgba(245, 158, 11, 0.16); color: #fbbf24; }
+
+.zcs-json-box {
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.zcs-json-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.zcs-copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  border: none;
+  background: #6366f1;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.zcs-json-box pre {
+  margin: 0;
+  padding: 14px;
+  max-height: 300px;
+  overflow: auto;
+  font-size: 12px;
+  color: #a5b4fc;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+@media (max-width: 1024px) {
+  .zcs-compare-cards {
+    grid-template-columns: 1fr;
+  }
+  .zcs-sync-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .zcs-mqtt-pipeline {
+    grid-template-columns: 1fr;
+  }
+}
