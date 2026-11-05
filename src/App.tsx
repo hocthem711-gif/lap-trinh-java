@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Login from './components/Login'
+import { logout } from './services/authService'
 import SensorOverviewMap from './components/SensorOverviewMap'
 import FlightPathPlanner from './components/FlightPathPlanner'
 import {
@@ -198,8 +199,8 @@ const activityChartOptions = {
 
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false)
-  const [username, setUsername] = useState('')
+  const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(localStorage.getItem('accessToken')))
+  const [username, setUsername] = useState(() => localStorage.getItem('savedUsername') || '')
 
   const [activePage, setActivePage] = useState('Tổng quan')
   const [uavSearch, setUavSearch] = useState('')
@@ -340,6 +341,7 @@ function App() {
               type="button"
               className="logout-button"
               onClick={() => {
+                logout()
                 setIsLoggedIn(false)
                 setUsername('')
                 setActivePage('Tổng quan')
@@ -581,7 +583,7 @@ function App() {
           ) : activePage === 'Cảm biến & Zone' ? (
             <SensorAssignment />
           ) : activePage === 'Cảm biến Realtime' ? (
-            <SensorRealtimeTable />
+            <SensorRealtimeTable onViewOnMap={() => setActivePage('Bản đồ & Popup')} />
           ) : activePage === 'Bản đồ & Popup' ? (
             <SensorMapPopup />
           ) : activePage === 'Lộ trình bay' ? (

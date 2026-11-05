@@ -27,9 +27,17 @@ import {
   X,
   Copy,
   MapPin,
+  Sparkles,
+  Play,
+  Pause,
+  RotateCcw,
+  CheckCircle2,
+  Plane,
 } from 'lucide-react';
 import type { RootState } from '../store';
 import {
+  setMissionMetadata,
+  loadPresetWaypoints,
   addWaypoint,
   removeWaypoint,
   undoLastWaypoint,
@@ -47,9 +55,16 @@ import {
   selectSelectedWaypointId,
   selectHasOutOfBoundsWaypoints,
   selectMissionPayload,
+  WaypointType,
   GEOFENCE_BOUNDS,
 } from '../store/slices/waypointSlice';
-import { saveMissionRoute } from '../store/slices/missionSlice';
+import {
+  saveMissionRoute,
+  setStatus,
+  abortMission,
+  completeMission,
+  MissionStatus,
+} from '../store/slices/missionSlice';
 import 'leaflet/dist/leaflet.css';
 import './FlightPathPlanner.css';
 
@@ -60,15 +75,33 @@ import './FlightPathPlanner.css';
  *
  * Chức năng:
  * 1. Click trên Map thêm Waypoint → Polyline nối lộ trình bay
- * 2. Drag & drop Marker chỉnh tọa độ GPS
- * 3. Tính toán khoảng cách (Haversine), thời gian bay, pin tiêu hao
- * 4. Geofence validation (cảnh báo nếu điểm ra ngoài ranh giới Farm)
- * 5. Export JSON payload cho backend API (Dev 2 - LTJ-17)
+ * 2. Nạp lộ trình bay mẫu (Preset Demo) khớp kịch bản kiểm thử Khu A
+ * 3. Drag & drop Marker chỉnh tọa độ GPS + chỉnh từng điểm (Cao độ, Tốc độ, Loại điểm)
+ * 4. Tính toán khoảng cách 3D (Haversine), thời gian bay, pin tiêu hao
+ * 5. Geofence validation (cảnh báo nếu điểm ra ngoài ranh giới Farm)
+ * 6. Quản lý trạng thái Mission (Start / Pause / RTH Abort) & Export JSON payload (LTJ-17)
  */
 
 // ==================== Map Center (SmartFarm area) ====================
 const MAP_CENTER: [number, number] = [10.8505, 106.7730];
-const MAP_ZOOM = 16;
+const MAP_ZOOM = 15;
+
+const WAYPOINT_TYPE_LABELS: Record<WaypointType, string> = {
+  TAKEOFF: '🛫 Cất cánh (TAKEOFF)',
+  NORMAL: '✈️ Bay thường (NORMAL)',
+  HOVER: '🚁 Bay treo (HOVER)',
+  LANDING: '🛬 Hạ cánh (LANDING)',
+  RETURN_HOME: '🏠 Quay về (RTH)',
+};
+
+const MISSION_STATUS_LABELS: Record<MissionStatus, string> = {
+  STANDBY: 'Chờ lệnh',
+  PLANNING: 'Đã lập kế hoạch',
+  ACTIVE: 'Đang bay',
+  PAUSED: 'Tạm dừng',
+  COMPLETED: 'Hoàn thành',
+  ABORTED: 'Khẩn cấp (RTH)',
+};
 
 // ==================== Custom Marker Icon ====================
 function createWaypointIcon(order: number, isSelected: boolean, isOutOfBounds: boolean): L.DivIcon {
@@ -114,9 +147,14 @@ export default function FlightPathPlanner() {
   const missionPayload = useSelector(selectMissionPayload);
   const defaultAltitude = useSelector((state: RootState) => state.waypoint.defaultAltitude);
   const defaultSpeed = useSelector((state: RootState) => state.waypoint.defaultSpeed);
+  const missionName = useSelector((state: RootState) => state.waypoint.missionName);
+  const uavId = useSelector((state: RootState) => state.waypoint.uavId);
+  const zoneId = useSelector((state: RootState) => state.waypoint.zoneId);
+  const missionStatus = useSelector((state: RootState) => state.mission.status);
 
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const [mapRef, setMapRef] = useState<L.Map | null>(null);
 
   // Polyline positions
@@ -141,6 +179,18 @@ export default function FlightPathPlanner() {
     }
   }, [mapRef, waypoints]);
 
+  // Load Preset Demo Route
+  const handleLoadPreset = useCallback(() => {
+    dispatch(loadPresetWaypoints());
+    if (mapRef) {
+      const bounds = L.latLngBounds([
+        [10.8450, 106.7650],
+        [10.8550, 106.7820],
+      ]);
+      mapRef.fitBounds(bounds, { padding: [60, 60] });
+    }
+  }, [dispatch, mapRef]);
+
   // Handle marker drag end
   const handleDragEnd = useCallback((waypointId: number, e: L.DragEndEvent) => {
     const marker = e.target;
@@ -152,11 +202,19 @@ export default function FlightPathPlanner() {
     }));
   }, [dispatch]);
 
+  // Select waypoint in list and fly to it on map
+  const handleSelectWaypoint = useCallback((wp: { id: number; latitude: number; longitude: number }) => {
+    dispatch(selectWaypoint(wp.id));
+    if (mapRef) {
+      mapRef.flyTo([wp.latitude, wp.longitude], 16, { duration: 0.7 });
+    }
+  }, [dispatch, mapRef]);
+
   // Save mission
   const handleSaveMission = useCallback(() => {
     if (waypoints.length < 2) return;
     dispatch(saveMissionRoute({
-      missionName: `Mission ${new Date().toLocaleDateString('vi-VN')}`,
+      missionName: missionName || `Mission ${new Date().toLocaleDateString('vi-VN')}`,
       waypointCount: waypoints.length,
       totalDistanceM: telemetry.totalDistanceM,
       estimatedTimeSeconds: telemetry.estimatedTimeSeconds,
@@ -164,7 +222,9 @@ export default function FlightPathPlanner() {
       createdAt: new Date().toISOString(),
       waypointsJson: JSON.stringify(missionPayload),
     }));
-  }, [dispatch, waypoints, telemetry, missionPayload]);
+    setSaveMessage(`Đã lưu nhiệm vụ "${missionName}" (${waypoints.length} WP · ${telemetry.totalDistanceM}m)`);
+    setTimeout(() => setSaveMessage(null), 4000);
+  }, [dispatch, waypoints, telemetry, missionPayload, missionName]);
 
   // Copy JSON
   const handleCopyJson = useCallback(() => {
@@ -230,7 +290,7 @@ export default function FlightPathPlanner() {
             >
               <Popup className="wp-popup">
                 <div>
-                  <strong>Waypoint #{wp.order}</strong>
+                  <strong>Waypoint #{wp.order} ({wp.type})</strong>
                   <br />
                   Lat: {wp.latitude.toFixed(6)}
                   <br />
@@ -262,6 +322,16 @@ export default function FlightPathPlanner() {
 
           <button
             type="button"
+            className="preset-btn"
+            onClick={handleLoadPreset}
+            title="Nạp lộ trình bay mẫu 4 điểm tại Khu A"
+          >
+            <Sparkles size={15} />
+            Nạp lộ trình mẫu (Preset Demo)
+          </button>
+
+          <button
+            type="button"
             onClick={() => dispatch(undoLastWaypoint())}
             disabled={waypoints.length === 0}
           >
@@ -288,6 +358,14 @@ export default function FlightPathPlanner() {
             Fit View
           </button>
         </div>
+
+        {/* Save confirmation banner */}
+        {saveMessage && (
+          <div className="mission-save-banner">
+            <CheckCircle2 size={16} />
+            {saveMessage}
+          </div>
+        )}
 
         {/* Geofence warning */}
         {hasOOB && (
@@ -325,7 +403,7 @@ export default function FlightPathPlanner() {
           <div className={`telemetry-card${telemetry.estimatedBatteryDrain > 80 ? ' danger' : telemetry.estimatedBatteryDrain > 50 ? ' warning' : ''}`}>
             <div className="label"><Battery size={13} /> Pin tiêu hao</div>
             <div className="value">
-              {telemetry.estimatedBatteryDrain.toFixed(1)}
+              {telemetry.estimatedBatteryDrain.toFixed(2)}
               <span className="unit">%</span>
             </div>
           </div>
@@ -339,7 +417,88 @@ export default function FlightPathPlanner() {
           </div>
         </div>
 
-        {/* Flight config */}
+        {/* Mission Info & Flight Control Panel */}
+        <div className="config-panel">
+          <h3>
+            <Plane size={16} /> Thông tin & Điều khiển Mission
+            <span className={`mission-status-pill ${missionStatus.toLowerCase()}`}>
+              {MISSION_STATUS_LABELS[missionStatus]}
+            </span>
+          </h3>
+
+          <div className="config-row">
+            <label>Tên nhiệm vụ</label>
+            <input
+              type="text"
+              className="config-text-input"
+              value={missionName}
+              onChange={(e) => dispatch(setMissionMetadata({ missionName: e.target.value }))}
+              placeholder="VD: Tuần tra Khu A"
+            />
+          </div>
+
+          <div className="config-row">
+            <label>Thiết bị / Zone</label>
+            <div style={{ display: 'flex', gap: 6, flex: 1, justifyContent: 'flex-end' }}>
+              <select
+                className="config-select-input"
+                value={uavId}
+                onChange={(e) => dispatch(setMissionMetadata({ uavId: e.target.value }))}
+              >
+                <option value="UAV-001">UAV-001 (Agras T30)</option>
+                <option value="UAV-002">UAV-002 (Mavic 3M)</option>
+                <option value="UAV-005">UAV-005 (Phantom 4 RTK)</option>
+              </select>
+              <select
+                className="config-select-input"
+                value={zoneId}
+                onChange={(e) => dispatch(setMissionMetadata({ zoneId: Number(e.target.value) }))}
+              >
+                <option value={1}>Zone A1</option>
+                <option value={2}>Zone B1</option>
+                <option value={3}>Zone C1</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mission-control-btns">
+            <button
+              type="button"
+              className="mc-btn start"
+              disabled={waypoints.length < 2 || missionStatus === MissionStatus.ACTIVE}
+              onClick={() => dispatch(setStatus(MissionStatus.ACTIVE))}
+            >
+              <Play size={13} /> Bay
+            </button>
+            <button
+              type="button"
+              className="mc-btn pause"
+              disabled={missionStatus !== MissionStatus.ACTIVE}
+              onClick={() => dispatch(setStatus(MissionStatus.PAUSED))}
+            >
+              <Pause size={13} /> Tạm dừng
+            </button>
+            <button
+              type="button"
+              className="mc-btn complete"
+              disabled={missionStatus !== MissionStatus.ACTIVE && missionStatus !== MissionStatus.PAUSED}
+              onClick={() => dispatch(completeMission())}
+            >
+              <CheckCircle2 size={13} /> Hoàn tất
+            </button>
+            <button
+              type="button"
+              className="mc-btn abort"
+              disabled={waypoints.length === 0}
+              onClick={() => dispatch(abortMission())}
+              title="Hủy khẩn cấp & Quay về (Return To Home)"
+            >
+              <RotateCcw size={13} /> RTH
+            </button>
+          </div>
+        </div>
+
+        {/* Flight default config */}
         <div className="config-panel">
           <h3><Gauge size={16} /> Cấu hình bay mặc định</h3>
 
@@ -394,38 +553,82 @@ export default function FlightPathPlanner() {
               <div className="empty-icon">📍</div>
               Nhấn nút <strong>"Vẽ điểm"</strong> rồi click lên bản đồ
               <br />
-              để bắt đầu tạo lộ trình bay.
+              hoặc chọn <strong>"Nạp lộ trình mẫu"</strong> để bắt đầu.
             </div>
           ) : (
-            waypoints.map(wp => (
-              <div
-                key={wp.id}
-                className={`wp-list-item${wp.id === selectedId ? ' selected' : ''}${wp.isOutOfBounds ? ' out-of-bounds' : ''}`}
-                onClick={() => dispatch(selectWaypoint(wp.id))}
-              >
-                <div className="wp-order-badge">{wp.order}</div>
-                <div className="wp-list-info">
-                  <div className="coords">
-                    {wp.latitude.toFixed(5)}, {wp.longitude.toFixed(5)}
-                  </div>
-                  <div className="meta">
-                    Alt: {wp.altitude}m · Spd: {wp.speed}m/s · {wp.type}
-                    {wp.isOutOfBounds && ' · ⚠ OOB'}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="wp-delete-btn"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    dispatch(removeWaypoint(wp.id));
-                  }}
-                  title="Xóa điểm"
+            waypoints.map(wp => {
+              const isSelected = wp.id === selectedId;
+              return (
+                <div
+                  key={wp.id}
+                  className={`wp-list-item${isSelected ? ' selected' : ''}${wp.isOutOfBounds ? ' out-of-bounds' : ''}`}
+                  onClick={() => handleSelectWaypoint(wp)}
                 >
-                  <X size={14} />
-                </button>
-              </div>
-            ))
+                  <div className="wp-item-main">
+                    <div className="wp-order-badge">{wp.order}</div>
+                    <div className="wp-list-info">
+                      <div className="coords">
+                        {wp.latitude.toFixed(5)}, {wp.longitude.toFixed(5)}
+                      </div>
+                      <div className="meta">
+                        Alt: {wp.altitude}m · Spd: {wp.speed}m/s · {wp.type}
+                        {wp.isOutOfBounds && ' · ⚠ OOB'}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="wp-delete-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        dispatch(removeWaypoint(wp.id));
+                      }}
+                      title="Xóa điểm"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {/* Inline editor when waypoint is selected */}
+                  {isSelected && (
+                    <div className="wp-inline-editor" onClick={e => e.stopPropagation()}>
+                      <div className="wp-inline-field">
+                        <label>Loại điểm</label>
+                        <select
+                          value={wp.type}
+                          onChange={e => dispatch(updateWaypoint({ id: wp.id, type: e.target.value as WaypointType }))}
+                        >
+                          {Object.entries(WAYPOINT_TYPE_LABELS).map(([k, label]) => (
+                            <option key={k} value={k}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="wp-inline-row">
+                        <div className="wp-inline-field">
+                          <label>Cao độ (m)</label>
+                          <input
+                            type="number"
+                            min={5}
+                            max={500}
+                            value={wp.altitude}
+                            onChange={e => dispatch(updateWaypoint({ id: wp.id, altitude: Math.max(5, Math.min(500, Number(e.target.value))) }))}
+                          />
+                        </div>
+                        <div className="wp-inline-field">
+                          <label>Tốc độ (m/s)</label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={30}
+                            value={wp.speed}
+                            onChange={e => dispatch(updateWaypoint({ id: wp.id, speed: Math.max(1, Math.min(30, Number(e.target.value))) }))}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
 

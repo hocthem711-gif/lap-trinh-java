@@ -8,8 +8,8 @@ import type { PayloadAction } from '@reduxjs/toolkit';
  *
  * Sprint 4 Enhancements:
  * - Haversine formula for real GPS distance calculation
- * - Per-waypoint altitude & speed configuration
- * - Undo last waypoint / Clear all route
+ * - Per-waypoint altitude, speed & type configuration
+ * - Undo last waypoint / Clear all route / Load Preset Demo route
  * - Drag-and-drop GPS coordinate update
  * - Geofence boundary validation
  * - Estimated flight time & battery consumption
@@ -40,6 +40,14 @@ export const GEOFENCE_BOUNDS = {
   maxLng: 106.790,
 };
 
+/** Preset Demo Waypoints (Khu A — Khớp kịch bản kiểm thử LTJ-20 WaypointMissionValidator) */
+export const PRESET_DEMO_WAYPOINTS: Omit<Waypoint, 'id' | 'isOutOfBounds'>[] = [
+  { order: 1, latitude: 10.8450, longitude: 106.7650, altitude: 30, speed: 8, type: WaypointType.TAKEOFF },
+  { order: 2, latitude: 10.8485, longitude: 106.7710, altitude: 50, speed: 10, type: WaypointType.NORMAL },
+  { order: 3, latitude: 10.8520, longitude: 106.7760, altitude: 50, speed: 8, type: WaypointType.HOVER },
+  { order: 4, latitude: 10.8550, longitude: 106.7820, altitude: 20, speed: 5, type: WaypointType.LANDING },
+];
+
 // ==================== Interfaces ====================
 
 export interface Waypoint {
@@ -62,6 +70,9 @@ export interface FlightTelemetry {
 }
 
 interface WaypointState {
+  missionName: string;
+  uavId: string;
+  zoneId: number;
   waypoints: Waypoint[];
   selectedWaypointId: number | null;
   isDrawingMode: boolean;
@@ -160,6 +171,9 @@ const recalcTelemetry = (waypoints: Waypoint[]): FlightTelemetry => {
 let nextWaypointId = 1;
 
 const initialState: WaypointState = {
+  missionName: 'Tuần tra Khu A - Sáng',
+  uavId: 'UAV-001',
+  zoneId: 1,
   waypoints: [],
   selectedWaypointId: null,
   isDrawingMode: false,
@@ -178,6 +192,33 @@ const waypointSlice = createSlice({
   name: 'waypoint',
   initialState,
   reducers: {
+    /** Update mission metadata (missionName, uavId, zoneId) */
+    setMissionMetadata: (state, action: PayloadAction<{
+      missionName?: string;
+      uavId?: string;
+      zoneId?: number;
+    }>) => {
+      if (action.payload.missionName !== undefined) state.missionName = action.payload.missionName;
+      if (action.payload.uavId !== undefined) state.uavId = action.payload.uavId;
+      if (action.payload.zoneId !== undefined) state.zoneId = action.payload.zoneId;
+    },
+
+    /** Load the 4-waypoint Preset Demo route in Khu A */
+    loadPresetWaypoints: (state) => {
+      nextWaypointId = 1;
+      state.missionName = 'Tuần tra Khu A - Sáng';
+      state.uavId = 'UAV-001';
+      state.zoneId = 1;
+      state.waypoints = PRESET_DEMO_WAYPOINTS.map(wp => ({
+        ...wp,
+        id: nextWaypointId++,
+        isOutOfBounds: !isWithinGeofence(wp.latitude, wp.longitude),
+      }));
+      state.selectedWaypointId = state.waypoints[0]?.id ?? null;
+      state.isDrawingMode = false;
+      state.telemetry = recalcTelemetry(state.waypoints);
+    },
+
     /** Add a new waypoint from map click */
     addWaypoint: (state, action: PayloadAction<{
       latitude: number;
@@ -187,13 +228,14 @@ const waypointSlice = createSlice({
       type?: WaypointType;
     }>) => {
       const { latitude, longitude } = action.payload;
+      const defaultType = state.waypoints.length === 0 ? WaypointType.TAKEOFF : WaypointType.NORMAL;
       const newWaypoint: Waypoint = {
         id: nextWaypointId++,
         latitude,
         longitude,
         altitude: action.payload.altitude ?? state.defaultAltitude,
         speed: action.payload.speed ?? state.defaultSpeed,
-        type: action.payload.type ?? WaypointType.NORMAL,
+        type: action.payload.type ?? defaultType,
         order: state.waypoints.length + 1,
         isOutOfBounds: !isWithinGeofence(latitude, longitude),
       };
@@ -223,7 +265,7 @@ const waypointSlice = createSlice({
       }
     },
 
-    /** Update waypoint properties (e.g. after drag, edit altitude/speed) */
+    /** Update waypoint properties (e.g. after drag, edit altitude/speed/type) */
     updateWaypoint: (state, action: PayloadAction<Partial<Waypoint> & { id: number }>) => {
       const index = state.waypoints.findIndex(wp => wp.id === action.payload.id);
       if (index !== -1) {
@@ -297,6 +339,8 @@ const waypointSlice = createSlice({
 });
 
 export const {
+  setMissionMetadata,
+  loadPresetWaypoints,
   addWaypoint,
   removeWaypoint,
   undoLastWaypoint,
@@ -327,6 +371,9 @@ export const selectHasOutOfBoundsWaypoints = (state: { waypoint: WaypointState }
  * POST /api/v1/missions
  */
 export const selectMissionPayload = (state: { waypoint: WaypointState }) => ({
+  missionName: state.waypoint.missionName,
+  uavId: state.waypoint.uavId,
+  zoneId: state.waypoint.zoneId,
   waypoints: state.waypoint.waypoints.map(wp => ({
     order: wp.order,
     latitude: wp.latitude,

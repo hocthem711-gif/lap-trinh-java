@@ -20,8 +20,8 @@ interface SensorState {
 
 const initialState: SensorState = {
   sensors: [],
-  selectedFarmId: null,
-  selectedZoneId: null,
+  selectedFarmId: 1,
+  selectedZoneId: 1,
   typeFilter: 'ALL',
   loading: false,
   error: null,
@@ -41,7 +41,15 @@ export const fetchSensorsByZone = createAsyncThunk(
 
 export const addSensor = createAsyncThunk(
   'sensor/add',
-  async (sensor: { sensorCode: string; sensorType: SensorType; zoneId: number; zoneName: string }) => {
+  async (sensor: {
+    sensorCode: string;
+    name?: string;
+    sensorType: SensorType;
+    zoneId: number;
+    zoneName: string;
+    latitude?: number;
+    longitude?: number;
+  }) => {
     return await sensorApi.create({
       ...sensor,
       status: 'ACTIVE',

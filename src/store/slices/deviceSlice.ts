@@ -40,6 +40,20 @@ export const fetchGateways = createAsyncThunk('device/fetchGateways', async () =
   return await gatewayApi.getAll();
 });
 
+export const createUAV = createAsyncThunk(
+  'device/createUAV',
+  async (uav: Omit<UAV, 'id' | 'lastSeen'>) => {
+    return await uavApi.create(uav);
+  }
+);
+
+export const createGateway = createAsyncThunk(
+  'device/createGateway',
+  async (gw: Omit<Gateway, 'id' | 'lastPing'>) => {
+    return await gatewayApi.create(gw);
+  }
+);
+
 export const deleteUAV = createAsyncThunk('device/deleteUAV', async (id: string) => {
   await uavApi.delete(id);
   return id;
@@ -80,6 +94,14 @@ const deviceSlice = createSlice({
       .addCase(fetchGateways.pending, (state) => { state.loading = true; state.error = null; })
       .addCase(fetchGateways.fulfilled, (state, action) => { state.loading = false; state.gateways = action.payload; })
       .addCase(fetchGateways.rejected, (state, action) => { state.loading = false; state.error = action.error.message || 'Lỗi tải danh sách Gateway'; });
+    // Create UAV
+    builder.addCase(createUAV.fulfilled, (state, action) => {
+      state.uavs.push(action.payload);
+    });
+    // Create Gateway
+    builder.addCase(createGateway.fulfilled, (state, action) => {
+      state.gateways.push(action.payload);
+    });
     // Delete UAV
     builder.addCase(deleteUAV.fulfilled, (state, action) => {
       state.uavs = state.uavs.filter(u => u.id !== action.payload);

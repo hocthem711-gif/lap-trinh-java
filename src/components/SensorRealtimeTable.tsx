@@ -6,13 +6,13 @@
  * Hiển thị danh sách cảm biến với chỉ số thời gian thực:
  * - KPI Cards: Tổng hợp thống kê nhanh
  * - Toolbar: Bộ lọc Zone, Trạng thái, Loại, Tìm kiếm, Toggle Stream
- * - Table: Bảng dữ liệu realtime với badge trạng thái, thanh pin, chỉ số đo
+ * - Table: Bảng dữ liệu realtime với badge trạng thái, thanh pin, đầy đủ 6 chỉ số đo
  */
 
 import { useEffect, useRef, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
-  Activity, Thermometer, Droplets, Zap, Search,
+  Activity, Thermometer, Droplets, Zap, Search, Sun,
   Wifi, WifiOff, AlertTriangle, RefreshCw, Pause, Play,
   Filter, X, BatteryMedium, Signal,
 } from 'lucide-react';
@@ -39,7 +39,11 @@ import type { SensorType } from '../types';
 import { SENSOR_TYPE_LABELS } from '../types';
 import './SensorRealtimeTable.css';
 
-function SensorRealtimeTable() {
+interface SensorRealtimeTableProps {
+  onViewOnMap?: (sensorId: number) => void;
+}
+
+function SensorRealtimeTable({ onViewOnMap }: SensorRealtimeTableProps) {
   const dispatch = useDispatch<AppDispatch>();
   const sensors = useSelector(selectFilteredSensors);
   const allSensors = useSelector((state: RootState) => state.sensorRealtime.sensors);
@@ -88,6 +92,7 @@ function SensorRealtimeTable() {
       temperature: { min: 15, max: 40 },
       airHumidity: { min: 30, max: 90 },
       soilMoisture: { min: 20, max: 80 },
+      light: { min: 100, max: 80000 },
       co2: { min: 300, max: 1500 },
       ph: { min: 5.5, max: 7.5 },
     };
@@ -103,6 +108,13 @@ function SensorRealtimeTable() {
     return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   };
 
+  const handleViewOnMap = (sensorId: number) => {
+    dispatch(selectSensorForPopup(sensorId));
+    onViewOnMap?.(sensorId);
+  };
+
+  const lowBatteryCount = allSensors.filter(s => s.battery < 20).length;
+
   const hasActiveFilter = filter.zoneId !== null || filter.status !== 'ALL' ||
     filter.sensorType !== 'ALL' || filter.searchQuery !== '';
 
@@ -114,7 +126,7 @@ function SensorRealtimeTable() {
           <div className="rt-kpi-icon rt-kpi-total"><Activity size={20} /></div>
           <div className="rt-kpi-data">
             <span className="rt-kpi-value">{stats.totalSensors}</span>
-            <span className="rt-kpi-label">Tổng cảm biến</span>
+            <span className="rt-kpi-label">Tổng cảm biến ({lowBatteryCount} pin yếu)</span>
           </div>
         </div>
         <div className="rt-kpi-card">
@@ -128,7 +140,7 @@ function SensorRealtimeTable() {
           <div className="rt-kpi-icon rt-kpi-warn"><AlertTriangle size={20} /></div>
           <div className="rt-kpi-data">
             <span className="rt-kpi-value rt-text-amber">{stats.warningCount}</span>
-            <span className="rt-kpi-label">Cảnh báo</span>
+            <span className="rt-kpi-label">Cảnh báo ({stats.offlineCount} offline)</span>
           </div>
         </div>
         <div className="rt-kpi-card">
@@ -251,7 +263,9 @@ function SensorRealtimeTable() {
               <th><Thermometer size={13} /> Nhiệt độ</th>
               <th><Droplets size={13} /> Độ ẩm KK</th>
               <th>💧 Độ ẩm đất</th>
+              <th><Sun size={13} /> Ánh sáng</th>
               <th><Zap size={13} /> CO₂</th>
+              <th>🧪 pH đất</th>
               <th><BatteryMedium size={13} /> Pin</th>
               <th><Signal size={13} /> Tín hiệu</th>
               <th>Cập nhật</th>
@@ -286,8 +300,14 @@ function SensorRealtimeTable() {
                   <td className={getReadingClass(sensor.readings.soilMoisture, 'soilMoisture')}>
                     {sensor.readings.soilMoisture.toFixed(1)}%
                   </td>
+                  <td className={getReadingClass(sensor.readings.light, 'light')}>
+                    {Math.round(sensor.readings.light).toLocaleString('vi-VN')} lux
+                  </td>
                   <td className={getReadingClass(sensor.readings.co2, 'co2')}>
                     {Math.round(sensor.readings.co2)} ppm
+                  </td>
+                  <td className={getReadingClass(sensor.readings.ph, 'ph')}>
+                    {sensor.readings.ph.toFixed(1)} pH
                   </td>
                   <td>
                     <div className="rt-battery-cell">
@@ -307,8 +327,8 @@ function SensorRealtimeTable() {
                   <td>
                     <button
                       className="rt-btn-locate"
-                      onClick={() => dispatch(selectSensorForPopup(sensor.id))}
-                      title="Xem trên bản đồ"
+                      onClick={() => handleViewOnMap(sensor.id)}
+                      title="Xem vị trí và popup trên bản đồ"
                     >
                       📍 Xem
                     </button>
