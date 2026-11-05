@@ -15,7 +15,7 @@ import {
   Legend,
   Filler,
 } from 'chart.js'
-import { Line } from 'react-chartjs-2'
+import { Bar } from 'react-chartjs-2'
 import {
   LayoutDashboard,
   Plane,
@@ -68,33 +68,6 @@ const menuItems = [
   { label: 'Cài đặt', icon: Settings },
 ]
 
-const stats = [
-  {
-    label: 'Tổng số UAV',
-    value: '24',
-    note: 'Thiết bị trong hệ thống',
-    icon: Plane,
-  },
-  {
-    label: 'Đang hoạt động',
-    value: '18',
-    note: '75% tổng số thiết bị',
-    icon: Activity,
-  },
-  {
-    label: 'Mức pin trung bình',
-    value: '82%',
-    note: 'Trạng thái pin tốt',
-    icon: Battery,
-  },
-  {
-    label: 'Kết nối trực tuyến',
-    value: '21',
-    note: 'Thiết bị có tín hiệu',
-    icon: Signal,
-  },
-]
-
 const uavList = [
   {
     id: 'UAV-001',
@@ -102,6 +75,7 @@ const uavList = [
     model: 'DJI Matrice 300',
     battery: 92,
     signal: 98,
+    online: true,
     status: 'Đang hoạt động',
     location: 'Khu vực A',
   },
@@ -111,6 +85,7 @@ const uavList = [
     model: 'DJI Matrice 30',
     battery: 67,
     signal: 85,
+    online: true,
     status: 'Chờ nhiệm vụ',
     location: 'Khu vực B',
   },
@@ -120,6 +95,7 @@ const uavList = [
     model: 'Autel EVO II',
     battery: 24,
     signal: 42,
+    online: false,
     status: 'Pin thấp',
     location: 'Khu vực C',
   },
@@ -129,10 +105,71 @@ const uavList = [
     model: 'DJI Matrice 300',
     battery: 81,
     signal: 93,
+    online: true,
     status: 'Đang hoạt động',
     location: 'Khu vực D',
   },
 ]
+
+// Tổng số UAV
+const totalUavs = uavList.length;
+
+// Số UAV đang hoạt động
+const activeUavs = uavList.filter(
+  uav => uav.status === 'Đang hoạt động'
+).length;
+
+// Số UAV trực tuyến
+const onlineUavs = uavList.filter(
+  uav => uav.online
+).length;
+
+// Mức pin trung bình
+const lowBatteryUavs = uavList.filter(
+  uav => uav.battery <= 25
+).length;
+
+const averageBattery = totalUavs > 0
+  ? Math.round(
+      uavList.reduce(
+        (sum, uav) => sum + uav.battery,
+        0
+      ) / totalUavs
+    )
+  : 0;
+
+// Phần trăm thiết bị trực tuyến
+const onlinePercent = totalUavs > 0
+  ? Math.round((onlineUavs / totalUavs) * 100)
+  : 0;
+
+// Dữ liệu các thẻ Dashboard
+const stats = [
+  {
+    label: 'Tổng số UAV',
+    value: String(totalUavs),
+    note: 'Thiết bị trong hệ thống',
+    icon: Plane,
+  },
+  {
+    label: 'Đang hoạt động',
+    value: String(activeUavs),
+    note: 'UAV đang thực hiện nhiệm vụ',
+    icon: Activity,
+  },
+  {
+    label: 'Mức pin trung bình',
+    value: `${averageBattery}%`,
+    note: 'Pin trung bình của các UAV',
+    icon: Battery,
+  },
+  {
+    label: 'Kết nối trực tuyến',
+    value: String(onlineUavs),
+    note: `${onlinePercent}% tổng số UAV`,
+    icon: Signal,
+  },
+];
 
 type UserItem = {
   id: number
@@ -166,22 +203,25 @@ const initialUsers: UserItem[] = [
   },
 ]
 
+
 const activityChartData = {
-  labels: ['08:00', '09:00', '10:00', '11:00', '12:00', '13:00', '14:00'],
+  labels: ['Online', 'Offline'],
   datasets: [
     {
-      label: 'UAV đang hoạt động',
-      data: [8, 12, 10, 15, 13, 18, 16],
-      fill: true,
-      backgroundColor: 'rgba(59, 130, 246, 0.12)',
-      borderColor: '#3b82f6',
-      borderWidth: 2,
-      tension: 0.4,
-      pointRadius: 3,
-      pointHoverRadius: 5,
+      label: 'Số UAV',
+      data: [
+        onlineUavs,
+        totalUavs - onlineUavs,
+      ],
+      backgroundColor: [
+        '#22c55e',
+        '#ef4444',
+      ],
+      borderRadius: 8,
+      borderWidth: 0,
     },
   ],
-}
+};
 
 const activityChartOptions = {
   responsive: true,
@@ -256,7 +296,7 @@ function App() {
           </div>
         </div>
 
-                <p className="menu-heading">MENU CHÍNH</p>
+        <p className="menu-heading">MENU CHÍNH</p>
 
         <nav className="sidebar-nav">
           {menuItems.map((item) => {
@@ -317,7 +357,7 @@ function App() {
             </div>
           </div>
 
-                    <div className="topbar-actions">
+          <div className="topbar-actions">
             <label className="search-box">
               <Search size={18} />
               <input type="search" placeholder="Tìm kiếm..." />
@@ -426,16 +466,16 @@ function App() {
                   <div className="activity-placeholder">
                     <div className="chart-summary">
                       <div>
-                        <span>UAV đang hoạt động</span>
-                        <strong>16 thiết bị</strong>
+                        <span>UAV trực tuyến</span>
+                        <strong>{onlineUavs} thiết bị</strong>
                       </div>
                       <span className="chart-live-label">
                         Dữ liệu minh họa
                       </span>
                     </div>
 
-                                        <div className="activity-chart">
-                      <Line
+                    <div className="activity-chart">
+                      <Bar
                         data={activityChartData}
                         options={activityChartOptions}
                       />
@@ -459,7 +499,7 @@ function App() {
                       <strong>Thiết bị trực tuyến</strong>
                       <span>Kết nối bình thường</span>
                     </div>
-                    <strong className="connection-number">21</strong>
+                    <strong className="connection-number">{onlineUavs}</strong>
                   </div>
 
                   <div className="connection-row">
@@ -467,10 +507,10 @@ function App() {
                       <Plane size={19} />
                     </div>
                     <div className="connection-text">
-                      <strong>UAV đang bay</strong>
+                      <strong>UAV đang hoạt động</strong>
                       <span>Đang thực hiện nhiệm vụ</span>
                     </div>
-                    <strong className="connection-number">8</strong>
+                    <strong className="connection-number">{activeUavs}</strong>
                   </div>
 
                   <div className="connection-row">
@@ -481,7 +521,7 @@ function App() {
                       <strong>Cần kiểm tra pin</strong>
                       <span>Thiết bị pin thấp</span>
                     </div>
-                    <strong className="connection-number">2</strong>
+                    <strong className="connection-number">{lowBatteryUavs}</strong>
                   </div>
                 </section>
               </div>
