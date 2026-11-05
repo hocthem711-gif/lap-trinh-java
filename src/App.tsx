@@ -3,12 +3,14 @@ import Login from './components/Login'
 import { logout } from './services/authService'
 import SensorOverviewMap from './components/SensorOverviewMap'
 import FlightPathPlanner from './components/FlightPathPlanner'
+import ZoneComparisonSync from './components/ZoneComparisonSync'
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Tooltip,
   Legend,
   Filler,
@@ -31,6 +33,7 @@ import {
   Cpu,
   MapPin,
   Route,
+  ChartColumn,
 } from 'lucide-react'
 import DeviceManagement from './components/DeviceManagement'
 import SensorAssignment from './components/SensorAssignment'
@@ -43,6 +46,7 @@ ChartJS.register(
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   Tooltip,
   Legend,
   Filler,
@@ -56,6 +60,7 @@ const menuItems = [
   { label: 'Cảm biến Realtime', icon: Activity },
   { label: 'Bản đồ & Popup', icon: MapPin },
   { label: 'Lộ trình bay', icon: Route },
+  { label: 'So sánh & Đồng bộ UAV', icon: ChartColumn },
   { label: 'Trạm điều khiển', icon: Radio },
   { label: 'Bản đồ & vị trí', icon: Map },
   { label: 'Nhiệm vụ', icon: ClipboardList },
@@ -588,6 +593,8 @@ function App() {
             <SensorMapPopup />
           ) : activePage === 'Lộ trình bay' ? (
             <FlightPathPlanner />
+          ) : activePage === 'So sánh & Đồng bộ UAV' ? (
+            <ZoneComparisonSync />
           ) : activePage === 'Bản đồ & vị trí' ? (
            <SensorOverviewMap />
           ) : activePage === 'Quản lý người dùng' ? (

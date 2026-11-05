@@ -82,16 +82,13 @@ export default function SensorAssignment() {
   }, [dispatch]);
 
   useEffect(() => {
-    if (selectedFarmId) {
-      zoneApi.getByFarmId(selectedFarmId).then(data => {
-        setZones(data);
-        if (data.length > 0 && !data.some(z => z.id === selectedZoneId)) {
-          dispatch(setSelectedZoneId(data[0].id));
-        }
-      });
-    } else {
-      setZones([]);
-    }
+    if (!selectedFarmId) return;
+    zoneApi.getByFarmId(selectedFarmId).then(data => {
+      setZones(data);
+      if (data.length > 0 && !data.some(z => z.id === selectedZoneId)) {
+        dispatch(setSelectedZoneId(data[0].id));
+      }
+    });
   }, [selectedFarmId, selectedZoneId, dispatch]);
 
   const selectedZone = zones.find(z => z.id === selectedZoneId);
@@ -148,6 +145,9 @@ export default function SensorAssignment() {
             onChange={e => {
               const val = e.target.value ? Number(e.target.value) : null;
               dispatch(setSelectedFarmId(val));
+              if (!val) {
+                setZones([]);
+              }
             }}
           >
             <option value="">-- Chọn trang trại --</option>
