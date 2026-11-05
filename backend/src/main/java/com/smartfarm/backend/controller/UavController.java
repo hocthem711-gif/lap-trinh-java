@@ -62,8 +62,11 @@ public class UavController {
 
     @GetMapping({"/api/v1/uav-sync/sessions", "/uav-sync/sessions"})
     @Operation(summary = "Lấy danh sách các phiên đồng bộ UAV sắp giảm dần theo thời gian (LTJ-22, khớp analyticsService.ts)")
-    public ResponseEntity<ApiResponse<List<SyncLog>>> getSyncSessions() {
-        List<SyncLog> sessions = uavService.getSyncSessions();
+    public ResponseEntity<ApiResponse<List<SyncLog>>> getSyncSessions(
+            @RequestParam(required = false) String uavCode) {
+        List<SyncLog> sessions = (uavCode != null && !uavCode.isBlank())
+                ? uavService.getSyncSessionsByUavCode(uavCode)
+                : uavService.getSyncSessions();
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách phiên đồng bộ thành công", sessions));
     }
 }

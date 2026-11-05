@@ -54,14 +54,15 @@ public class UavService {
 
     @Transactional
     public HandshakeResponseDTO processHandshake(HandshakeRequestDTO request) {
-        if (request == null || request.getCode() == null) {
+        if (request == null || request.getCode() == null || request.getCode().isBlank()) {
             return new HandshakeResponseDTO(false, "Mã UAV không hợp lệ", null);
         }
 
-        Optional<Uav> uavOpt = uavRepository.findByCode(request.getCode());
+        String normalizedCode = request.getCode().trim();
+        Optional<Uav> uavOpt = uavRepository.findByCode(normalizedCode);
 
         SyncLog syncLog = new SyncLog();
-        syncLog.setUavCode(request.getCode());
+        syncLog.setUavCode(normalizedCode);
         syncLog.setSyncTime(LocalDateTime.now());
 
         if (uavOpt.isPresent()) {
@@ -93,11 +94,11 @@ public class UavService {
         // Tạo mới UAV nếu chưa có trong DB để đảm bảo tính sẵn sàng
         if (uavOpt.isEmpty()) {
             Uav newUav = new Uav();
-            newUav.setCode(request.getCode());
-            newUav.setName("Drone " + request.getCode());
+            newUav.setCode(normalizedCode);
+            newUav.setName("Drone " + normalizedCode);
             newUav.setModel("Quadcopter-Agri");
             newUav.setStatus("ACTIVE");
-            newUav.setToken(request.getToken() != null ? request.getToken() : "TOKEN-DEFAULT");
+            newUav.setToken(request.getToken() != null && !request.getToken().isBlank() ? request.getToken().trim() : "TOKEN-DEFAULT");
             newUav.setIsConnected(true);
             newUav.setLastSeenAt(LocalDateTime.now());
             uavRepository.save(newUav);
@@ -119,6 +120,13 @@ public class UavService {
 
     public List<SyncLog> getSyncSessions() {
         return syncLogRepository.findAllByOrderBySyncTimeDesc();
+    }
+
+    public List<SyncLog> getSyncSessionsByUavCode(String uavCode) {
+        if (uavCode == null || uavCode.isBlank()) {
+            return getSyncSessions();
+        }
+        return syncLogRepository.findByUavCodeOrderBySyncTimeDesc(uavCode.trim());
     }
 
     @Transactional
