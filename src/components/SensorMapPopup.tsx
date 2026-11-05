@@ -8,7 +8,7 @@
  * Component đóng gói độc lập, nhận dữ liệu từ Redux Store.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   MapContainer, TileLayer, Marker, Popup, useMap,
@@ -20,9 +20,12 @@ import {
 } from 'lucide-react';
 import type { RootState, AppDispatch } from '../store';
 import {
+  updateSensors,
+  addAlerts,
   selectSensorForPopup,
   selectSelectedSensor,
 } from '../store/slices/sensorRealtimeSlice';
+import { tickRealtimeUpdate } from '../services/realtimeStream';
 import { READING_LABELS } from '../types/realtime';
 import type { RealtimeSensorNode, RealtimeStatus } from '../types/realtime';
 import { SENSOR_TYPE_LABELS } from '../types';
@@ -172,8 +175,29 @@ function SensorPopupContent({ sensor }: { sensor: RealtimeSensorNode }) {
 function SensorMapPopup() {
   const dispatch = useDispatch<AppDispatch>();
   const sensors = useSelector((state: RootState) => state.sensorRealtime.sensors);
+  const isStreaming = useSelector((state: RootState) => state.sensorRealtime.isStreaming);
+  const streamInterval = useSelector((state: RootState) => state.sensorRealtime.streamIntervalMs);
   const selectedSensor = useSelector(selectSelectedSensor);
   const mapRef = useRef<L.Map | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Giữ luồng cập nhật realtime ngay cả khi đang mở trang Bản đồ & Popup
+  const doTick = useCallback(() => {
+    const { updatedSensors, newAlerts } = tickRealtimeUpdate(sensors);
+    dispatch(updateSensors(updatedSensors));
+    if (newAlerts.length > 0) {
+      dispatch(addAlerts(newAlerts));
+    }
+  }, [sensors, dispatch]);
+
+  useEffect(() => {
+    if (isStreaming) {
+      intervalRef.current = setInterval(doTick, streamInterval);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isStreaming, streamInterval, doTick]);
 
   // Trung tâm bản đồ (trung bình tọa độ các Zone)
   const defaultCenter: [number, number] = [10.8505, 106.7730];

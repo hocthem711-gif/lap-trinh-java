@@ -7,6 +7,7 @@ import {
 import type { RootState, AppDispatch } from '../store';
 import type { SensorType, Farm, Zone } from '../types';
 import { SENSOR_TYPE_LABELS } from '../types';
+import { farmApi, zoneApi } from '../services/api';
 import {
   fetchAllSensors, addSensor, removeSensor,
   setSelectedFarmId, setSelectedZoneId, setTypeFilter,
@@ -19,24 +20,6 @@ import './SensorAssignment.css';
  * Task: LTJ-9 - Sprint 2
  * Author: Quatrungvoon (Nguyễn Trường An)
  */
-
-// Mock farms/zones (sẵn sàng swap sang API thật khi Backend chạy)
-const MOCK_FARMS: Farm[] = [
-  { id: 1, name: 'Trang trại Lúa Vàng', location: 'Huyện Châu Thành, Long An', areaSquareMeters: 50000, ownerId: 1, ownerName: 'farmer', totalZones: 3, createdAt: '2026-09-01T00:00:00Z', updatedAt: '2026-09-01T00:00:00Z' },
-  { id: 2, name: 'Trang trại Rau Sạch Đà Lạt', location: 'Đà Lạt, Lâm Đồng', areaSquareMeters: 20000, ownerId: 1, ownerName: 'farmer', totalZones: 2, createdAt: '2026-09-05T00:00:00Z', updatedAt: '2026-09-05T00:00:00Z' },
-];
-
-const MOCK_ZONES: Record<number, Zone[]> = {
-  1: [
-    { id: 1, name: 'Lúa nước - Zone A1', cropType: 'Lúa', farmId: 1, farmName: 'Trang trại Lúa Vàng', totalSensors: 3, createdAt: '2026-09-02T00:00:00Z', updatedAt: '2026-09-02T00:00:00Z' },
-    { id: 2, name: 'Rau màu - Zone B1', cropType: 'Rau các loại', farmId: 1, farmName: 'Trang trại Lúa Vàng', totalSensors: 2, createdAt: '2026-09-02T00:00:00Z', updatedAt: '2026-09-02T00:00:00Z' },
-    { id: 3, name: 'Nhà kính - Zone C1', cropType: 'Cà chua', farmId: 1, farmName: 'Trang trại Lúa Vàng', totalSensors: 2, createdAt: '2026-09-03T00:00:00Z', updatedAt: '2026-09-03T00:00:00Z' },
-  ],
-  2: [
-    { id: 4, name: 'Cây ăn quả - Zone D1', cropType: 'Dâu tây', farmId: 2, farmName: 'Trang trại Rau Sạch Đà Lạt', totalSensors: 2, createdAt: '2026-09-06T00:00:00Z', updatedAt: '2026-09-06T00:00:00Z' },
-    { id: 5, name: 'Thí nghiệm - Zone E1', cropType: 'Hoa hồng', farmId: 2, farmName: 'Trang trại Rau Sạch Đà Lạt', totalSensors: 1, createdAt: '2026-09-06T00:00:00Z', updatedAt: '2026-09-06T00:00:00Z' },
-  ],
-};
 
 const SENSOR_TYPE_ICONS: Record<SensorType, typeof Thermometer> = {
   TEMPERATURE: Thermometer,
@@ -84,23 +67,32 @@ export default function SensorAssignment() {
   const { selectedFarmId, selectedZoneId, typeFilter, loading, sensors } = useSelector((s: RootState) => s.sensor);
   const filteredSensors = useSelector(selectFilteredSensors);
 
+  const [farms, setFarms] = useState<Farm[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newSensorCode, setNewSensorCode] = useState('');
+  const [newSensorName, setNewSensorName] = useState('');
   const [newSensorType, setNewSensorType] = useState<SensorType>('TEMPERATURE');
 
   useEffect(() => {
     dispatch(fetchAllSensors());
+    farmApi.getAll().then(data => {
+      setFarms(data);
+    });
   }, [dispatch]);
 
   useEffect(() => {
     if (selectedFarmId) {
-      // Mock: sẽ thay bằng zoneApi.getByFarmId(selectedFarmId) khi Backend chạy
-      setZones(MOCK_ZONES[selectedFarmId] || []);
+      zoneApi.getByFarmId(selectedFarmId).then(data => {
+        setZones(data);
+        if (data.length > 0 && !data.some(z => z.id === selectedZoneId)) {
+          dispatch(setSelectedZoneId(data[0].id));
+        }
+      });
     } else {
       setZones([]);
     }
-  }, [selectedFarmId]);
+  }, [selectedFarmId, selectedZoneId, dispatch]);
 
   const selectedZone = zones.find(z => z.id === selectedZoneId);
 
@@ -110,12 +102,16 @@ export default function SensorAssignment() {
   const handleAddSensor = async () => {
     if (!newSensorCode || !selectedZoneId || !selectedZone) return;
     await dispatch(addSensor({
-      sensorCode: newSensorCode,
+      sensorCode: newSensorCode.trim().toUpperCase(),
+      name: newSensorName.trim() || `Cảm biến ${newSensorCode.trim().toUpperCase()}`,
       sensorType: newSensorType,
       zoneId: selectedZoneId,
       zoneName: selectedZone.name,
+      latitude: 10.845,
+      longitude: 106.765,
     }));
     setNewSensorCode('');
+    setNewSensorName('');
     setShowAddForm(false);
   };
 
@@ -155,14 +151,14 @@ export default function SensorAssignment() {
             }}
           >
             <option value="">-- Chọn trang trại --</option>
-            {MOCK_FARMS.map(f => (
+            {farms.map(f => (
               <option key={f.id} value={f.id}>{f.name} ({f.location})</option>
             ))}
           </select>
           {selectedFarmId && (
             <div className="selected-info">
               <MapPin size={14} />
-              {MOCK_FARMS.find(f => f.id === selectedFarmId)?.location}
+              {farms.find(f => f.id === selectedFarmId)?.location}
             </div>
           )}
         </div>
@@ -177,7 +173,7 @@ export default function SensorAssignment() {
             }}
             disabled={!selectedFarmId}
           >
-            <option value="">-- Chọn zone --</option>
+            <option value="">-- Tất cả Zone trong trang trại --</option>
             {zones.map(z => (
               <option key={z.id} value={z.id}>{z.name} — {z.cropType}</option>
             ))}
@@ -185,7 +181,7 @@ export default function SensorAssignment() {
           {selectedZone && (
             <div className="selected-info">
               <Layers size={14} />
-              Loại cây trồng: {selectedZone.cropType} · {selectedZone.totalSensors} cảm biến
+              Loại cây trồng: {selectedZone.cropType} · {filteredSensors.length} cảm biến đang gán
             </div>
           )}
         </div>
@@ -239,6 +235,15 @@ export default function SensorAssignment() {
                   placeholder="VD: TEMP-004"
                   value={newSensorCode}
                   onChange={e => setNewSensorCode(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label>Tên hiển thị</label>
+                <input
+                  type="text"
+                  placeholder="VD: Cảm biến Nhiệt độ Khu A"
+                  value={newSensorName}
+                  onChange={e => setNewSensorName(e.target.value)}
                 />
               </div>
               <div className="form-group">

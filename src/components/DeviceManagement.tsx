@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   Plane, Radio, Search, Plus, Trash2, Eye, Signal,
-  Activity, WifiOff, Wrench, X, Server
+  Activity, WifiOff, Wrench, X, Server, MapPin, Clock, Battery, Cpu
 } from 'lucide-react';
 import type { RootState, AppDispatch } from '../store';
-import type { UAVStatus, GatewayStatus } from '../types';
+import type { UAV, Gateway, UAVStatus, GatewayStatus } from '../types';
 import {
-  fetchUAVs, fetchGateways, deleteUAV, deleteGateway,
+  fetchUAVs, fetchGateways, createUAV, createGateway, deleteUAV, deleteGateway,
   setActiveTab, setSearchQuery, setStatusFilter,
   selectFilteredUAVs, selectFilteredGateways,
   type DeviceTab,
@@ -63,6 +63,8 @@ export default function DeviceManagement() {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [selectedUAV, setSelectedUAV] = useState<UAV | null>(null);
+  const [selectedGateway, setSelectedGateway] = useState<Gateway | null>(null);
 
   useEffect(() => {
     dispatch(fetchUAVs());
@@ -270,7 +272,13 @@ export default function DeviceManagement() {
                         <td><span className="location-text">{formatTimeAgo(uav.lastSeen)}</span></td>
                         <td>
                           <div className="action-btns">
-                            <button className="action-btn" title="Chi tiết"><Eye size={16} /></button>
+                            <button
+                              className="action-btn"
+                              title="Chi tiết UAV"
+                              onClick={() => setSelectedUAV(uav)}
+                            >
+                              <Eye size={16} />
+                            </button>
                             <button
                               className="action-btn danger"
                               title="Xóa"
@@ -329,7 +337,13 @@ export default function DeviceManagement() {
                       <td><span className="location-text">{formatTimeAgo(gw.lastPing)}</span></td>
                       <td>
                         <div className="action-btns">
-                          <button className="action-btn" title="Chi tiết"><Eye size={16} /></button>
+                          <button
+                            className="action-btn"
+                            title="Chi tiết Gateway"
+                            onClick={() => setSelectedGateway(gw)}
+                          >
+                            <Eye size={16} />
+                          </button>
                           <button
                             className="action-btn danger"
                             title="Xóa"
@@ -347,6 +361,102 @@ export default function DeviceManagement() {
           )}
         </div>
       </div>
+
+      {/* UAV Detail Modal */}
+      {selectedUAV && (
+        <div className="modal-overlay" onClick={() => setSelectedUAV(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Chi tiết thiết bị UAV — {selectedUAV.id}</h3>
+              <button className="modal-close" onClick={() => setSelectedUAV(null)}><X size={16} /></button>
+            </div>
+            <div className="device-detail-grid">
+              <div className="device-detail-item">
+                <span className="detail-label"><Plane size={14} /> Tên thiết bị</span>
+                <span className="detail-value">{selectedUAV.name}</span>
+              </div>
+              <div className="device-detail-item">
+                <span className="detail-label"><Cpu size={14} /> Dòng máy (Model)</span>
+                <span className="detail-value">{selectedUAV.model}</span>
+              </div>
+              <div className="device-detail-item">
+                <span className="detail-label"><Activity size={14} /> Trạng thái</span>
+                <span className={`status-badge ${getStatusClass(selectedUAV.status)}`}>
+                  <span className="status-dot" />
+                  {UAV_STATUS_LABELS[selectedUAV.status]}
+                </span>
+              </div>
+              <div className="device-detail-item">
+                <span className="detail-label"><Battery size={14} /> Dung lượng Pin</span>
+                <span className={`detail-value battery-text ${getBatteryLevel(selectedUAV.battery)}`}>
+                  {selectedUAV.battery}%
+                </span>
+              </div>
+              <div className="device-detail-item">
+                <span className="detail-label"><Signal size={14} /> Cường độ tín hiệu</span>
+                <span className="detail-value">{selectedUAV.signal}%</span>
+              </div>
+              <div className="device-detail-item">
+                <span className="detail-label"><MapPin size={14} /> Vị trí hiện tại</span>
+                <span className="detail-value">{selectedUAV.location}</span>
+              </div>
+              <div className="device-detail-item full-width">
+                <span className="detail-label"><Clock size={14} /> Lần kết nối cuối</span>
+                <span className="detail-value">
+                  {new Date(selectedUAV.lastSeen).toLocaleString('vi-VN')} ({formatTimeAgo(selectedUAV.lastSeen)})
+                </span>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn-submit" onClick={() => setSelectedUAV(null)}>Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gateway Detail Modal */}
+      {selectedGateway && (
+        <div className="modal-overlay" onClick={() => setSelectedGateway(null)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Chi tiết Gateway — {selectedGateway.id}</h3>
+              <button className="modal-close" onClick={() => setSelectedGateway(null)}><X size={16} /></button>
+            </div>
+            <div className="device-detail-grid">
+              <div className="device-detail-item">
+                <span className="detail-label"><Server size={14} /> Tên Gateway</span>
+                <span className="detail-value">{selectedGateway.name}</span>
+              </div>
+              <div className="device-detail-item">
+                <span className="detail-label"><Radio size={14} /> Địa chỉ IP</span>
+                <span className="detail-value ip-address">{selectedGateway.ipAddress}</span>
+              </div>
+              <div className="device-detail-item">
+                <span className="detail-label"><Activity size={14} /> Trạng thái</span>
+                <span className={`status-badge ${getStatusClass(selectedGateway.status)}`}>
+                  <span className="status-dot" />
+                  {GW_STATUS_LABELS[selectedGateway.status]}
+                </span>
+              </div>
+              <div className="device-detail-item">
+                <span className="detail-label"><Signal size={14} /> Cảm biến kết nối</span>
+                <span className="detail-value sensor-count">{selectedGateway.connectedSensors} node</span>
+              </div>
+              <div className="device-detail-item">
+                <span className="detail-label"><Cpu size={14} /> Phiên bản Firmware</span>
+                <span className="detail-value firmware-tag">{selectedGateway.firmwareVersion}</span>
+              </div>
+              <div className="device-detail-item">
+                <span className="detail-label"><Clock size={14} /> Ping gần nhất</span>
+                <span className="detail-value">{formatTimeAgo(selectedGateway.lastPing)}</span>
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn-submit" onClick={() => setSelectedGateway(null)}>Đóng</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete Confirmation Modal */}
       {deleteConfirm && (
@@ -381,11 +491,7 @@ export default function DeviceManagement() {
         <AddDeviceModal
           type={activeTab}
           onClose={() => setShowAddModal(false)}
-          onAdded={() => {
-            setShowAddModal(false);
-            if (activeTab === 'uav') dispatch(fetchUAVs());
-            else dispatch(fetchGateways());
-          }}
+          onAdded={() => setShowAddModal(false)}
         />
       )}
     </div>
@@ -398,31 +504,36 @@ function AddDeviceModal({ type, onClose, onAdded }: {
   onClose: () => void;
   onAdded: () => void;
 }) {
+  const dispatch = useDispatch<AppDispatch>();
   const [formData, setFormData] = useState<Record<string, string>>({});
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (type === 'uav') {
-      const { uavApi } = await import('../services/api');
-      await uavApi.create({
-        name: formData.name || '',
-        model: formData.model || '',
-        battery: parseInt(formData.battery || '100'),
-        signal: parseInt(formData.signal || '90'),
-        status: (formData.status as any) || 'IDLE',
-        location: formData.location || '',
-      });
-    } else {
-      const { gatewayApi } = await import('../services/api');
-      await gatewayApi.create({
-        name: formData.name || '',
-        ipAddress: formData.ipAddress || '',
-        status: (formData.status as any) || 'ONLINE',
-        connectedSensors: parseInt(formData.connectedSensors || '0'),
-        firmwareVersion: formData.firmwareVersion || 'v1.0.0',
-      });
+    setSubmitting(true);
+    try {
+      if (type === 'uav') {
+        await dispatch(createUAV({
+          name: formData.name || '',
+          model: formData.model || 'DJI Agras T30',
+          battery: parseInt(formData.battery || '100', 10),
+          signal: parseInt(formData.signal || '95', 10),
+          status: (formData.status as UAVStatus) || 'IDLE',
+          location: formData.location || 'Khu A - Zone 1',
+        }));
+      } else {
+        await dispatch(createGateway({
+          name: formData.name || '',
+          ipAddress: formData.ipAddress || '',
+          status: (formData.status as GatewayStatus) || 'ONLINE',
+          connectedSensors: parseInt(formData.connectedSensors || '0', 10),
+          firmwareVersion: formData.firmwareVersion || 'v2.4.1',
+        }));
+      }
+      onAdded();
+    } finally {
+      setSubmitting(false);
     }
-    onAdded();
   };
 
   return (
@@ -491,7 +602,7 @@ function AddDeviceModal({ type, onClose, onAdded }: {
                 <label>Phiên bản Firmware</label>
                 <input
                   type="text"
-                  placeholder="VD: v2.1.0"
+                  placeholder="VD: v2.4.1"
                   value={formData.firmwareVersion || ''}
                   onChange={e => setFormData({ ...formData, firmwareVersion: e.target.value })}
                 />
@@ -510,8 +621,8 @@ function AddDeviceModal({ type, onClose, onAdded }: {
           )}
           <div className="modal-actions">
             <button type="button" className="btn-cancel" onClick={onClose}>Hủy</button>
-            <button type="submit" className="btn-submit">
-              <Plus size={16} /> Thêm thiết bị
+            <button type="submit" className="btn-submit" disabled={submitting}>
+              <Plus size={16} /> {submitting ? 'Đang thêm...' : 'Thêm thiết bị'}
             </button>
           </div>
         </form>
