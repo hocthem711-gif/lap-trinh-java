@@ -1,5 +1,6 @@
 package com.smartfarm.backend.service;
 
+import com.smartfarm.backend.dto.request.BulkSyncPayload;
 import com.smartfarm.backend.dto.request.IoTSimulatorPayload;
 import com.smartfarm.backend.dto.request.SensorDataIngestRequest;
 import com.smartfarm.backend.dto.response.*;
@@ -18,6 +19,11 @@ public interface SensorDataService {
      * Thu nạp gói tin tổng hợp từ IoT Simulator (Dev 5)
      */
     List<SensorDataResponse> ingestSimulatorPayload(IoTSimulatorPayload payload);
+
+    /**
+     * Đồng bộ dữ liệu hàng loạt từ Gateway/UAV và chống trùng lặp timestamp (F20 - Sprint 5)
+     */
+    BulkSyncResponse syncBulkData(BulkSyncPayload payload);
 
     /**
      * Dữ liệu viễn trắc mới nhất toàn bộ cảm biến cho Leaflet Map (Dev 3 & 4)
