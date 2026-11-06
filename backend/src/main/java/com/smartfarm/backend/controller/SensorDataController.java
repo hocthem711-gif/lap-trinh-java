@@ -1,6 +1,7 @@
 package com.smartfarm.backend.controller;
 
 import com.smartfarm.backend.common.ApiResponse;
+import com.smartfarm.backend.dto.request.BulkSyncPayload;
 import com.smartfarm.backend.dto.request.IoTSimulatorPayload;
 import com.smartfarm.backend.dto.request.SensorDataIngestRequest;
 import com.smartfarm.backend.dto.response.*;
@@ -18,7 +19,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/sensor-data")
-@Tag(name = "6. Sensor Data & Telemetry", description = "APIs Thu nạp & Truy vấn Dữ liệu Cảm biến Realtime (F04, F06, F19)")
+@Tag(name = "6. Sensor Data & Telemetry", description = "APIs Thu nạp & Truy vấn Dữ liệu Cảm biến Realtime (F04, F06, F19, F20)")
 public class SensorDataController {
 
     private final SensorDataService sensorDataService;
@@ -39,6 +40,14 @@ public class SensorDataController {
     public ResponseEntity<ApiResponse<List<SensorDataResponse>>> ingestSimulatorPayload(@Valid @RequestBody IoTSimulatorPayload payload) {
         List<SensorDataResponse> list = sensorDataService.ingestSimulatorPayload(payload);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Đã tiếp nhận telemetry thành công!", list));
+    }
+
+    @PostMapping("/sync/bulk")
+    @Operation(summary = "Đồng bộ dữ liệu hàng loạt từ UAV/Gateway & Chống trùng lặp (F20 - Sprint 5)",
+               description = "Tiếp nhận gói dữ liệu Bulk Sync từ UAV hoặc Gateway ngoại tuyến, kiểm định và chống trùng lặp theo Timestamp")
+    public ResponseEntity<ApiResponse<BulkSyncResponse>> syncBulkData(@Valid @RequestBody BulkSyncPayload payload) {
+        BulkSyncResponse response = sensorDataService.syncBulkData(payload);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success("Đồng bộ dữ liệu thành công!", response));
     }
 
     @GetMapping("/latest")

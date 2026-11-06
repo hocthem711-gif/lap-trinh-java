@@ -34,4 +34,8 @@ public class TimeSeriesPointDTO {
 
     public long getSampleCount() { return sampleCount; }
     public void setSampleCount(long sampleCount) { this.sampleCount = sampleCount; }
+
+    public Double getAvg() { return avgValue; }
+    public Double getMin() { return minValue; }
+    public Double getMax() { return maxValue; }
 }

@@ -1,5 +1,6 @@
 package com.smartfarm.backend.service.impl;
 
+import com.smartfarm.backend.dto.request.BulkSyncPayload;
 import com.smartfarm.backend.dto.request.IoTSimulatorPayload;
 import com.smartfarm.backend.dto.request.SensorDataIngestRequest;
 import com.smartfarm.backend.dto.response.*;
@@ -142,17 +143,79 @@ public class SensorDataServiceImpl implements SensorDataService {
         return responses;
     }
 
-    private Optional<SensorDataResponse> ingestSingleMetric(String sensorCode,
-                                                           SensorType sensorType,
-                                                           Double value,
-                                                           String unit,
-                                                           String status,
-                                                           LocalDateTime recordedAt,
-                                                           Zone zone) {
-        if (value == null) return Optional.empty();
+    @Override
+    @Transactional
+    public BulkSyncResponse syncBulkData(BulkSyncPayload payload) {
+        if (payload == null || payload.getRecords() == null || payload.getRecords().isEmpty()) {
+            return new BulkSyncResponse(payload != null ? payload.getSyncSessionId() : null, 0, 0, 0, "Dữ liệu trống");
+        }
 
+        List<IoTSimulatorPayload> records = payload.getRecords();
+        int totalReceived = records.size();
+        int totalDuplicatesSkipped = 0;
+        List<SensorData> toSave = new ArrayList<>();
+        Set<String> seenKeys = new HashSet<>();
+        Map<String, Sensor> sensorCache = new HashMap<>();
+
+        for (IoTSimulatorPayload item : records) {
+            LocalDateTime recordedAt = item.getTimestamp() > 0
+                    ? LocalDateTime.ofInstant(Instant.ofEpochSecond(item.getTimestamp()), ZoneId.systemDefault())
+                    : LocalDateTime.now();
+
+            Zone zone = item.getZoneId() != null ? zoneRepository.findById(item.getZoneId()).orElse(null) : null;
+            String status = item.getStatus() != null ? item.getStatus() : "NORMAL";
+
+            Object[][] metrics = {
+                    { item.getDeviceId() + "-TEMP", SensorType.TEMPERATURE, item.getTemperature(), "°C" },
+                    { item.getDeviceId() + "-HUM", SensorType.HUMIDITY, item.getHumidity(), "%" },
+                    { item.getDeviceId() + "-SOIL", SensorType.SOIL_MOISTURE, item.getSoilMoisture(), "%" },
+                    { item.getDeviceId() + "-LIGHT", SensorType.LIGHT, item.getLight(), "lux" }
+            };
+
+            for (Object[] m : metrics) {
+                String code = (String) m[0];
+                SensorType type = (SensorType) m[1];
+                Double val = (Double) m[2];
+                String unit = (String) m[3];
+
+                if (val == null) continue;
+
+                Sensor sensor = sensorCache.computeIfAbsent(code, c -> findOrCreateSensor(c, type, zone));
+                if (sensor == null) continue;
+
+                if (!sensorDataValidator.validateReading(type, val, null, recordedAt).isValid()) {
+                    continue;
+                }
+
+                String dedupKey = sensor.getId() + "_" + recordedAt;
+                if (seenKeys.contains(dedupKey) || sensorDataRepository.existsBySensorIdAndRecordedAt(sensor.getId(), recordedAt)) {
+                    totalDuplicatesSkipped++;
+                    continue;
+                }
+
+                seenKeys.add(dedupKey);
+                toSave.add(new SensorData(val, unit, 100.0, status, recordedAt, sensor));
+            }
+        }
+
+        if (!toSave.isEmpty()) {
+            sensorDataRepository.saveAll(toSave);
+        }
+
+        log.info("Bulk Sync [{}]: Nhận {} records, Lưu {} chỉ số, Bỏ qua {} trùng lặp",
+                payload.getSyncSessionId(), totalReceived, toSave.size(), totalDuplicatesSkipped);
+
+        return new BulkSyncResponse(
+                payload.getSyncSessionId(),
+                totalReceived,
+                toSave.size(),
+                totalDuplicatesSkipped,
+                "Đồng bộ hàng loạt thành công!"
+        );
+    }
+
+    private Sensor findOrCreateSensor(String sensorCode, SensorType sensorType, Zone zone) {
         Sensor sensor = sensorRepository.findBySensorCode(sensorCode).orElse(null);
-
         if (sensor == null && zone != null) {
             List<Sensor> existingInZone = sensorRepository.findByZoneId(zone.getId());
             sensor = existingInZone.stream()
@@ -165,7 +228,19 @@ public class SensorDataServiceImpl implements SensorDataService {
                 sensor = sensorRepository.save(sensor);
             }
         }
+        return sensor;
+    }
 
+    private Optional<SensorDataResponse> ingestSingleMetric(String sensorCode,
+                                                           SensorType sensorType,
+                                                           Double value,
+                                                           String unit,
+                                                           String status,
+                                                           LocalDateTime recordedAt,
+                                                           Zone zone) {
+        if (value == null) return Optional.empty();
+
+        Sensor sensor = findOrCreateSensor(sensorCode, sensorType, zone);
         if (sensor == null) return Optional.empty();
 
         SensorDataValidator.ValidationResult validation = sensorDataValidator.validateReading(
