@@ -12,12 +12,14 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 /**
- * Ứng dụng chính - Giả lập thiết bị IoT, Kiểm thử tải Cảm biến & Kiểm thử Mission UAV.
+ * Ứng dụng chính - Giả lập thiết bị IoT, Kiểm thử tải Cảm biến, Kiểm thử Mission UAV
+ * và Giả lập UAV Offline Sync (SQLite to MQTT).
  *
- * Hỗ trợ 3 chế độ chạy:
- *   1. Chạy bắn MQTT liên tục (F20 - Online):   gradlew run
- *   2. Chạy Load Test 10-20 sensors (LTJ-15):   gradlew run --args="--load-test 20 1 10"
- *   3. Chạy Test Mission & Waypoints (LTJ-20):  gradlew run --args="--test-mission"
+ * Hỗ trợ 4 chế độ chạy:
+ *   1. Chạy bắn MQTT liên tục (F20 - Online):        gradlew run
+ *   2. Chạy Load Test 10-20 sensors (LTJ-15):        gradlew run --args="--load-test 20 1 10"
+ *   3. Chạy Test Mission & Waypoints (LTJ-20):       gradlew run --args="--test-mission"
+ *   4. Chạy Test UAV Offline Sync SQLite (LTJ-25):   gradlew run --args="--test-offline-sync 30 10"
  */
 public class IoTSimulatorApp {
 
@@ -27,6 +29,11 @@ public class IoTSimulatorApp {
     private static final int DEFAULT_SENSORS = 15; // Mặc định 15 cảm biến (trong dải 10-20 sensors)
     private static final int DEFAULT_INTERVAL = 1; // Chu kỳ gửi: 1 giây/lần
     private static final int QOS = 1;              // QoS 1: Đảm bảo gửi tới Broker ít nhất 1 lần
+
+    // Cấu hình UAV Offline Sync (LTJ-25)
+    private static final String OFFLINE_DB = "iot_offline.db";
+    private static final String UAV_ID = "UAV-ALPHA-01";
+    private static final int SYNC_BATCH_SIZE = 10; // Số bản ghi mỗi lô khi đồng bộ
 
     // Thông tin 1 thiết bị cảm biến ảo
     public static class VirtualDevice {
@@ -46,6 +53,14 @@ public class IoTSimulatorApp {
     }
 
     public static void main(String[] args) {
+        // Chế độ 4 (Sprint 5 - LTJ-25): Kiểm thử Giả lập UAV Offline Sync (SQLite Local to MQTT)
+        if (args.length > 0 && "--test-offline-sync".equalsIgnoreCase(args[0])) {
+            int records = args.length > 1 ? Integer.parseInt(args[1]) : 30;
+            int batchSize = args.length > 2 ? Integer.parseInt(args[2]) : 10;
+            runOfflineSyncTestSuite(records, batchSize);
+            return;
+        }
+
         // Chế độ 3 (Sprint 4 - LTJ-20): Kiểm tra JSON Waypoints & Test Tạo Mission
         if (args.length > 0 && "--test-mission".equalsIgnoreCase(args[0])) {
             WaypointMissionValidator.runAutomatedMissionTestSuite();
@@ -109,8 +124,18 @@ public class IoTSimulatorApp {
             publisher.connect();
             isOnline = true;
         } catch (Exception e) {
-            System.err.println("!! Khong ket noi duoc MQTT Broker -> Chay che do OFFLINE cuc bo.");
+            System.err.println("!! Khong ket noi duoc MQTT Broker -> Chay che do OFFLINE, luu du lieu vao SQLite.");
         }
+
+        // LTJ-25: mất mạng thì lưu SQLite, có mạng lại thì tự đồng bộ
+        OfflineStorageManager storage;
+        try {
+            storage = new OfflineStorageManager(OFFLINE_DB);
+        } catch (Exception e) {
+            System.err.println("!! Khong mo duoc SQLite: " + e.getMessage());
+            return;
+        }
+        UavOfflineSyncManager syncManager = new UavOfflineSyncManager(UAV_ID, storage);
 
         // Tạo hồ luồng (ThreadPool) giúp 10-20 cảm biến bắn dữ liệu song song cùng lúc
         ExecutorService threadPool = Executors.newFixedThreadPool(Math.min(totalSensors, 20));
@@ -118,13 +143,27 @@ public class IoTSimulatorApp {
                 ? HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build() : null;
 
         int totalCycles = isLoadTest ? Math.max(1, durationSeconds / Math.max(1, intervalSeconds)) : Integer.MAX_VALUE;
-        int sentPackets = 0, successPackets = 0, anomalyCount = 0;
+        int sentPackets = 0, successPackets = 0, offlinePackets = 0, anomalyCount = 0;
         double sumLatency = 0, minLatency = Double.MAX_VALUE, maxLatency = 0;
         long startTimeMs = System.currentTimeMillis();
 
         for (int cycle = 1; cycle <= totalCycles; cycle++) {
             long cycleStartMs = System.currentTimeMillis();
             List<Future<Double>> tasks = new ArrayList<>();
+
+            // Chưa từng kết nối được (khởi động lúc mất mạng) -> thử kết nối lại mỗi 5 chu kỳ.
+            // Nếu đã từng kết nối thì Paho tự reconnect (AutomaticReconnect = true).
+            if (!isOnline && cycle % 5 == 0) {
+                try {
+                    publisher.connect();
+                    isOnline = true;
+                } catch (Exception ignored) {
+                    // Vẫn chưa có mạng
+                }
+            }
+
+            // LTJ-25: có mạng lại -> tự đẩy dữ liệu tồn trong SQLite lên trước
+            syncManager.syncIfOnline(publisher, SYNC_BATCH_SIZE);
 
             // Giao việc cho từng cảm biến ảo gửi dữ liệu song song trong ThreadPool
             for (VirtualDevice dev : devices) {
@@ -133,20 +172,21 @@ public class IoTSimulatorApp {
                 if ("ANOMALY".equals(data.getStatus())) {
                     anomalyCount++;
                 }
-                final boolean mqttReady = isOnline;
                 final int packetIndex = sentPackets;
 
                 tasks.add(threadPool.submit(() -> {
                     String json = data.toCompactJson();
-                    double latency = 0.5;
-                    if (mqttReady && publisher.isConnected()) {
-                        latency = publisher.publishWithLatency(dev.topic, json);
-                    }
+                    // Có mạng: gửi MQTT | Mất mạng: lưu SQLite (latency = -1)
+                    double latency = syncManager.sendOrStore(publisher, dev.topic, data);
                     if (httpClient != null) {
                         sendToBackendHttp(httpClient, backendApiUrl, json);
                     }
                     if (!isLoadTest) {
-                        System.out.printf("[#%04d][MQTT %.1fms] %s >> %s%n", packetIndex, latency, data, dev.topic);
+                        if (latency >= 0) {
+                            System.out.printf("[#%04d][MQTT %.1fms] %s >> %s%n", packetIndex, latency, data, dev.topic);
+                        } else {
+                            System.out.printf("[#%04d][OFFLINE -> SQLite] %s%n", packetIndex, data);
+                        }
                     }
                     return latency;
                 }));
@@ -156,6 +196,10 @@ public class IoTSimulatorApp {
             for (Future<Double> task : tasks) {
                 try {
                     double lat = task.get();
+                    if (lat < 0) {
+                        offlinePackets++;
+                        continue;
+                    }
                     successPackets++;
                     sumLatency += lat;
                     if (lat < minLatency) minLatency = lat;
@@ -166,7 +210,8 @@ public class IoTSimulatorApp {
             }
 
             long cycleElapsed = System.currentTimeMillis() - cycleStartMs;
-            System.out.printf("  [Chu ky %02d] Da gui dong thoi %d sensors trong %d ms%n", cycle, totalSensors, cycleElapsed);
+            System.out.printf("  [Chu ky %02d] %s - %d sensors trong %d ms%n", cycle,
+                    publisher.isConnected() ? "ONLINE" : "OFFLINE (dang luu SQLite)", totalSensors, cycleElapsed);
 
             // Nghỉ cho đủ chu kỳ (ví dụ 1000ms = 1 giây) trước khi sang chu kỳ tiếp theo
             long sleepMs = (intervalSeconds * 1000L) - cycleElapsed;
@@ -182,6 +227,12 @@ public class IoTSimulatorApp {
         // Đóng kết nối an toàn và in bảng tổng kết nếu ở chế độ Load Test
         threadPool.shutdown();
         publisher.disconnect();
+        try {
+            System.out.printf("  [SQLite] Con ton chua dong bo: %d ban ghi (se gui o lan chay sau)%n", storage.countPending());
+            storage.close();
+        } catch (Exception ignored) {
+            // Bỏ qua lỗi khi đóng
+        }
 
         if (isLoadTest) {
             double totalSec = Math.max(1.0, (System.currentTimeMillis() - startTimeMs) / 1000.0);
@@ -192,14 +243,47 @@ public class IoTSimulatorApp {
             System.out.println("                BAO CAO KET QUA LOAD TEST (LTJ-15 SUMMARY)                ");
             System.out.println("==========================================================================");
             System.out.printf("  1. So cam bien gia lap      : %d sensors (tren 3 Zones A, B, C)%n", totalSensors);
-            System.out.printf("  2. Goi tin thanh cong       : %d / %d (%.1f%%)%n",
-                    successPackets, sentPackets, (successPackets * 100.0 / sentPackets));
+            System.out.printf("  2. Goi tin thanh cong       : %d / %d (%.1f%%) | Luu offline SQLite: %d%n",
+                    successPackets, sentPackets, (successPackets * 100.0 / sentPackets), offlinePackets);
             System.out.printf("  3. Goi tin chen nhieu (F19) : %d packets (kiem thu bo loc rac)%n", anomalyCount);
             System.out.printf("  4. Thong luong (Throughput) : %.2f packets/s (~%.2f chi so/s)%n",
                     successPackets / totalSec, (successPackets * 4.0) / totalSec);
             System.out.printf("  5. Do tre MQTT (Min/Avg/Max): %.2f ms / %.2f ms / %.2f ms%n",
                     minLatency, avgLatency, maxLatency);
             System.out.println("==========================================================================");
+        }
+    }
+
+    /**
+     * Chế độ 4 (Sprint 5 - LTJ-25): Demo UAV Offline Sync.
+     * Mất mạng -> lưu SQLite -> có mạng lại -> đồng bộ lên MQTT.
+     */
+    public static void runOfflineSyncTestSuite(int totalRecords, int batchSize) {
+        System.out.println("=== KIEM THU UAV OFFLINE SYNC (LTJ-25) ===");
+
+        try (OfflineStorageManager storage = new OfflineStorageManager(OFFLINE_DB)) {
+            storage.clear();
+
+            // 1. Mất mạng: lưu dữ liệu vào SQLite
+            for (int i = 1; i <= totalRecords; i++) {
+                long zoneId = (i % 3) + 1;
+                storage.save(SensorData.generateRandom(1L, zoneId, String.format("DEV-Z%d-%03d", zoneId, i)));
+            }
+            System.out.println("[OFFLINE] Da luu " + storage.countPending() + " ban ghi vao SQLite.");
+
+            // 2. Có mạng lại: kết nối MQTT
+            MqttPublisher publisher = new MqttPublisher(DEFAULT_BROKER, "UAV_" + System.currentTimeMillis(), QOS);
+            publisher.connect();
+
+            // 3. Đồng bộ
+            int synced = new UavOfflineSyncManager(UAV_ID, storage).sync(publisher, batchSize);
+            publisher.disconnect();
+
+            System.out.printf("[KET QUA] Da dong bo %d/%d | Con ton: %d -> %s%n",
+                    synced, totalRecords, storage.countPending(),
+                    storage.countPending() == 0 ? "PASS" : "FAIL");
+        } catch (Exception e) {
+            System.err.println("!! Loi: " + e.getMessage() + " (du lieu van con trong SQLite, se gui lai lan sau)");
         }
     }
 
