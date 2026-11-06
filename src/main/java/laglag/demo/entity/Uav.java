@@ -21,4 +21,10 @@ public class Uav {
     private String name;
     private String model;
     private String status;
+
+    // Thêm 2 trường này cho tính năng Handshake
+    private String token;
+
+    @Column(columnDefinition = "boolean default false")
+    private Boolean isConnected = false;
 }
