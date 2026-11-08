@@ -15,7 +15,7 @@
  *    - Modal xem chi tiết từng lô dữ liệu cảm biến & JSON Bulk Payload
  */
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   Chart as ChartJS,
@@ -120,11 +120,17 @@ export default function ZoneComparisonSync() {
   const selectedSession = useSelector(selectSelectedSyncSession);
 
   const [simToast, setSimToast] = useState<string | null>(null);
+  const simToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Khởi tạo danh sách Zone/UAV và tải dữ liệu lần đầu
+  useEffect(() => {
+    return () => {
+      if (simToastTimerRef.current) clearTimeout(simToastTimerRef.current);
+    };
+  }, []);
+
+  // Khởi tạo danh sách Zone/UAV và tải dữ liệu lịch sử Sync lần đầu
   useEffect(() => {
     dispatch(initAnalyticsMetadata()).then(() => {
-      dispatch(loadComparisonSeries());
       dispatch(loadUavSyncSessions());
     });
   }, [dispatch]);
@@ -192,7 +198,7 @@ export default function ZoneComparisonSync() {
         display: true,
         position: 'top' as const,
         labels: {
-          color: '#cbd5e1',
+          color: '#334155',
           usePointStyle: true,
           padding: 18,
           font: { size: 12, weight: 600 as const },
@@ -216,13 +222,13 @@ export default function ZoneComparisonSync() {
     },
     scales: {
       x: {
-        grid: { color: 'rgba(255, 255, 255, 0.04)' },
-        ticks: { color: '#94a3b8', font: { size: 11 } },
+        grid: { color: 'rgba(15, 23, 42, 0.08)' },
+        ticks: { color: '#475569', font: { size: 11 } },
       },
       y: {
-        grid: { color: 'rgba(255, 255, 255, 0.06)' },
+        grid: { color: 'rgba(15, 23, 42, 0.08)' },
         ticks: {
-          color: '#94a3b8',
+          color: '#475569',
           font: { size: 11 },
           callback: (value: string | number) => `${value} ${metricCfg.unit}`,
         },
@@ -230,11 +236,19 @@ export default function ZoneComparisonSync() {
     },
   }), [metricCfg.unit]);
 
+  const showSimToast = (message: string, durationMs: number) => {
+    setSimToast(message);
+    if (simToastTimerRef.current) clearTimeout(simToastTimerRef.current);
+    simToastTimerRef.current = setTimeout(() => setSimToast(null), durationMs);
+  };
+
   // Xử lý giả lập phiên đồng bộ UAV mới
   const handleSimulateNewSync = () => {
     dispatch(simulateNewSyncSession({ totalRecords: 30 }));
-    setSimToast('Đã giả lập phiên đồng bộ UAV mới (30 bản ghi / 3 lô qua MQTT iot/ltj/sync/bulk)!');
-    setTimeout(() => setSimToast(null), 4500);
+    showSimToast(
+      'Đã giả lập phiên đồng bộ UAV mới (30 bản ghi / 3 lô qua MQTT iot/ltj/sync/bulk)!',
+      4500,
+    );
   };
 
   // Xử lý đồng bộ lại phiên gián đoạn
@@ -242,8 +256,10 @@ export default function ZoneComparisonSync() {
     e.stopPropagation();
     const remaining = session.totalRecords - session.syncedRecords;
     dispatch(retrySyncSession(session.id));
-    setSimToast(`Đã đồng bộ bù thành công ${remaining} bản ghi tồn trong SQLite của phiên ${session.syncSessionId}!`);
-    setTimeout(() => setSimToast(null), 4000);
+    showSimToast(
+      `Đã đồng bộ bù thành công ${remaining} bản ghi tồn trong SQLite của phiên ${session.syncSessionId}!`,
+      4000,
+    );
   };
 
   const hasSyncFilter =

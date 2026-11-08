@@ -4,7 +4,7 @@
  * Author: Quatrungvoon (Nguyễn Trường An)
  */
 
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, createSelector } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { zoneApi, uavApi } from '../../services/api';
 import {
@@ -285,54 +285,63 @@ export const {
   simulateNewSyncSession,
 } = analyticsSlice.actions;
 
-// ==================== SELECTORS ====================
+// ==================== SELECTORS (createSelector) ====================
 
-export const selectFilteredSyncSessions = (state: { analytics: AnalyticsState }): UavSyncSession[] => {
-  const { syncSessions, syncFilter } = state.analytics;
-  return syncSessions.filter(session => {
-    if (syncFilter.uavId !== 'ALL' && session.uavId !== syncFilter.uavId) return false;
-    if (syncFilter.status !== 'ALL' && session.status !== syncFilter.status) return false;
-    if (syncFilter.search.trim()) {
-      const q = syncFilter.search.trim().toLowerCase();
-      const matchSession = session.syncSessionId.toLowerCase().includes(q);
-      const matchUav = session.uavId.toLowerCase().includes(q) || session.uavName.toLowerCase().includes(q);
-      const matchZone = session.zoneName.toLowerCase().includes(q);
-      if (!matchSession && !matchUav && !matchZone) return false;
+const selectAnalyticsState = (state: { analytics: AnalyticsState }) => state.analytics;
+
+export const selectFilteredSyncSessions = createSelector(
+  [selectAnalyticsState],
+  ({ syncSessions, syncFilter }): UavSyncSession[] => {
+    const q = syncFilter.search.trim().toLowerCase();
+    return syncSessions.filter(session => {
+      if (syncFilter.uavId !== 'ALL' && session.uavId !== syncFilter.uavId) return false;
+      if (syncFilter.status !== 'ALL' && session.status !== syncFilter.status) return false;
+      if (q) {
+        const matchSession = String(session.syncSessionId ?? '').toLowerCase().includes(q);
+        const matchUav =
+          String(session.uavId ?? '').toLowerCase().includes(q) ||
+          String(session.uavName ?? '').toLowerCase().includes(q);
+        const matchZone = String(session.zoneName ?? '').toLowerCase().includes(q);
+        if (!matchSession && !matchUav && !matchZone) return false;
+      }
+      return true;
+    });
+  },
+);
+
+export const selectSyncStats = createSelector(
+  [selectAnalyticsState],
+  ({ syncSessions: sessions }): SyncStats => {
+    if (sessions.length === 0) {
+      return {
+        totalSessions: 0,
+        totalRecords: 0,
+        syncedRecords: 0,
+        pendingRecords: 0,
+        successRate: 0,
+        avgFlightSeconds: 0,
+      };
     }
-    return true;
-  });
-};
-
-export const selectSyncStats = (state: { analytics: AnalyticsState }): SyncStats => {
-  const sessions = state.analytics.syncSessions;
-  if (sessions.length === 0) {
+    const totalRecords = sessions.reduce((sum, s) => sum + (Number(s.totalRecords) || 0), 0);
+    const syncedRecords = sessions.reduce((sum, s) => sum + (Number(s.syncedRecords) || 0), 0);
+    const pendingRecords = Math.max(0, totalRecords - syncedRecords);
+    const totalFlight = sessions.reduce((sum, s) => sum + (Number(s.flightDurationSeconds) || 0), 0);
     return {
-      totalSessions: 0,
-      totalRecords: 0,
-      syncedRecords: 0,
-      pendingRecords: 0,
-      successRate: 0,
-      avgFlightSeconds: 0,
+      totalSessions: sessions.length,
+      totalRecords,
+      syncedRecords,
+      pendingRecords,
+      successRate: totalRecords > 0 ? Math.round((syncedRecords / totalRecords) * 1000) / 10 : 0,
+      avgFlightSeconds: Math.round(totalFlight / sessions.length),
     };
-  }
-  const totalRecords = sessions.reduce((sum, s) => sum + s.totalRecords, 0);
-  const syncedRecords = sessions.reduce((sum, s) => sum + s.syncedRecords, 0);
-  const pendingRecords = Math.max(0, totalRecords - syncedRecords);
-  const totalFlight = sessions.reduce((sum, s) => sum + s.flightDurationSeconds, 0);
-  return {
-    totalSessions: sessions.length,
-    totalRecords,
-    syncedRecords,
-    pendingRecords,
-    successRate: totalRecords > 0 ? Math.round((syncedRecords / totalRecords) * 1000) / 10 : 0,
-    avgFlightSeconds: Math.round(totalFlight / sessions.length),
-  };
-};
+  },
+);
 
-export const selectSelectedSyncSession = (state: { analytics: AnalyticsState }): UavSyncSession | undefined => {
-  const { syncSessions, selectedSessionId } = state.analytics;
-  return syncSessions.find(s => s.id === selectedSessionId);
-};
+export const selectSelectedSyncSession = createSelector(
+  [selectAnalyticsState],
+  ({ syncSessions, selectedSessionId }): UavSyncSession | undefined =>
+    syncSessions.find(s => s.id === selectedSessionId),
+);
 
 export { SYNC_BATCH_SIZE };
 export default analyticsSlice.reducer;
