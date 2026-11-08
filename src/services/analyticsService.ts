@@ -5,7 +5,7 @@
  *
  * Cơ chế Hybrid giống api.ts:
  * 1. So sánh Zone: gọi API thật của Dev 1 (LTJ-16)
- *      GET /sensor-data/history/paged?zoneId=&start=&end=&page=0&size=1000
+ *      GET /sensor-data/history/paged?zoneId=&start=&end=&page=0&size=100
  *    rồi lọc theo loại cảm biến, gom nhóm theo giờ/ngày và tính trung bình.
  *    Nếu Backend tắt / lỗi / không có dữ liệu → sinh dữ liệu mô phỏng có seed cố định.
  * 2. Lịch sử Sync UAV: gọi endpoint dự kiến GET /uav-sync/sessions (chờ Dev 2 - LTJ-22).
@@ -233,7 +233,7 @@ export async function fetchZoneSeries(
       start: toLocalDateTimeParam(plan.start),
       end: toLocalDateTimeParam(end),
       page: '0',
-      size: '1000',
+      size: '100',
     });
     const res = await apiRequest<PagedRows>(`/sensor-data/history/paged?${query.toString()}`);
     const rows = (res.data?.content ?? []).filter(r => r.sensorType === sensorType);
