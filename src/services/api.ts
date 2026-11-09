@@ -10,6 +10,7 @@
  */
 
 import type { UAV, Gateway, SensorNode, SensorType, Farm, Zone } from '../types';
+import { API_BASE_URL } from '../config/apiConfig';
 
 export interface ApiResponse<T> {
   status?: number;
@@ -18,8 +19,6 @@ export interface ApiResponse<T> {
   data: T;
   timestamp?: string;
 }
-
-const API_BASE_URL = 'http://localhost:8080/api/v1';
 
 export async function apiRequest<T>(
   path: string,

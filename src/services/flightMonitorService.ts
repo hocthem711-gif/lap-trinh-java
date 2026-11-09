@@ -17,8 +17,8 @@ import type {
   MissionNoteDraft,
   UavFlightSession,
 } from '../types/flightMonitor';
+import { API_BASE_URL } from '../config/apiConfig';
 
-const API_BASE_URL = 'http://localhost:8080/api/v1';
 const MISSION_API_URL = `${API_BASE_URL}/missions`;
 const SESSIONS_STORAGE_KEY = 'smartfarm_flight_sessions_v5';
 const NOTES_STORAGE_KEY = 'smartfarm_mission_notes_v1';

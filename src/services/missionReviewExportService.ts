@@ -26,8 +26,7 @@ import type {
   MissionNote,
   UavFlightSession,
 } from '../types/flightMonitor';
-
-const API_BASE_URL = 'http://localhost:8080/api/v1';
+import { API_BASE_URL } from '../config/apiConfig';
 
 const STORAGE_KEY_MISSION_REVIEWS = 'smartfarm_mission_reviews_v1';
 const STORAGE_KEY_EXPORT_HISTORY = 'smartfarm_excel_export_history_v1';
@@ -1434,12 +1433,12 @@ const FORMULA_INJECTION_PREFIX_REGEX = /^[=+\-@\t\r]/;
  * Chống CSV/Excel Formula Injection (CWE-1236):
  * Thêm dấu nháy đơn (') trước các ô bắt đầu bằng =, +, -, @, tab hoặc CR.
  */
-function sanitizeSpreadsheetCell(value: string | number | null | undefined): string {
+export function sanitizeSpreadsheetCell(value: string | number | null | undefined): string {
   const str = String(value ?? '');
   return FORMULA_INJECTION_PREFIX_REGEX.test(str) ? `'${str}` : str;
 }
 
-function escapeXml(value: string | number | null | undefined): string {
+export function escapeXml(value: string | number | null | undefined): string {
   const str = String(value ?? '');
   return str
     .replace(/&/g, '&amp;')

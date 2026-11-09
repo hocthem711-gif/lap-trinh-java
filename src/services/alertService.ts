@@ -19,9 +19,10 @@ import {
   type ThresholdUpdatePayload,
   type ThresholdValidationResult,
 } from '../types/alert';
+import { API_BASE_URL } from '../config/apiConfig';
 
 const apiClient = axios.create({
-  baseURL: 'http://localhost:8080/api/v1',
+  baseURL: API_BASE_URL,
   timeout: 3500,
   headers: { 'Content-Type': 'application/json' },
 });
