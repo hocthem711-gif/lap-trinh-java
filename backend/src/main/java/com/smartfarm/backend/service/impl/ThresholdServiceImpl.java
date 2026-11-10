@@ -28,6 +28,8 @@ public class ThresholdServiceImpl implements ThresholdService {
     @Override
     @Transactional
     public ThresholdResponse createThreshold(ThresholdRequest request) {
+        validateThresholdBands(request.getCriticalMin(), request.getMinValue(), request.getMaxValue(), request.getCriticalMax());
+
         Zone zone = zoneRepository.findById(request.getZoneId())
                 .orElseThrow(() -> new ResourceNotFoundException("Zone", "id", request.getZoneId()));
 
@@ -79,6 +81,12 @@ public class ThresholdServiceImpl implements ThresholdService {
         Threshold threshold = thresholdRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Threshold", "id", id));
 
+        Double newMin = request.getMinValue() != null ? request.getMinValue() : threshold.getMinValue();
+        Double newMax = request.getMaxValue() != null ? request.getMaxValue() : threshold.getMaxValue();
+        Double newCritMin = request.getCriticalMin() != null ? request.getCriticalMin() : threshold.getCriticalMin();
+        Double newCritMax = request.getCriticalMax() != null ? request.getCriticalMax() : threshold.getCriticalMax();
+        validateThresholdBands(newCritMin, newMin, newMax, newCritMax);
+
         if (request.getMinValue() != null) threshold.setMinValue(request.getMinValue());
         if (request.getMaxValue() != null) threshold.setMaxValue(request.getMaxValue());
 
@@ -92,6 +100,21 @@ public class ThresholdServiceImpl implements ThresholdService {
         Threshold threshold = thresholdRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Threshold", "id", id));
         thresholdRepository.delete(threshold);
+    }
+
+    private void validateThresholdBands(Double critMin, Double minVal, Double maxVal, Double critMax) {
+        if (minVal != null && maxVal != null && minVal > maxVal) {
+            throw new IllegalArgumentException(String.format(
+                    "Ngưỡng cảnh báo không hợp lệ: minValue (%.1f) không được lớn hơn maxValue (%.1f)", minVal, maxVal));
+        }
+        if (critMin != null && minVal != null && critMin > minVal) {
+            throw new IllegalArgumentException(String.format(
+                    "Ngưỡng nguy cấp dưới (criticalMin = %.1f) không được lớn hơn ngưỡng cảnh báo dưới (minValue = %.1f)", critMin, minVal));
+        }
+        if (critMax != null && maxVal != null && critMax < maxVal) {
+            throw new IllegalArgumentException(String.format(
+                    "Ngưỡng nguy cấp trên (criticalMax = %.1f) không được nhỏ hơn ngưỡng cảnh báo trên (maxValue = %.1f)", critMax, maxVal));
+        }
     }
 
     private ThresholdResponse toResponse(Threshold threshold) {
