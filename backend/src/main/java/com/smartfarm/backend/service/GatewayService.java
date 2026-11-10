@@ -3,6 +3,7 @@ package com.smartfarm.backend.service;
 import com.smartfarm.backend.entity.Gateway;
 import com.smartfarm.backend.entity.Sensor;
 import com.smartfarm.backend.entity.Zone;
+import com.smartfarm.backend.exception.ResourceNotFoundException;
 import com.smartfarm.backend.repository.GatewayRepository;
 import com.smartfarm.backend.repository.SensorRepository;
 import com.smartfarm.backend.repository.ZoneRepository;
@@ -26,7 +27,7 @@ public class GatewayService {
 
     public Gateway getGatewayByCode(String code) {
         return gatewayRepository.findByCode(code)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy Gateway với mã: " + code));
+                .orElseThrow(() -> new ResourceNotFoundException("Gateway", "code", code));
     }
 
     public Gateway createGateway(Gateway gateway) {
@@ -59,16 +60,16 @@ public class GatewayService {
     @Transactional
     public void deleteGatewayByCode(String code) {
         Gateway gateway = gatewayRepository.findByCode(code)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy Gateway với mã: " + code));
+                .orElseThrow(() -> new ResourceNotFoundException("Gateway", "code", code));
         gatewayRepository.delete(gateway);
     }
 
     @Transactional
     public Sensor assignSensorToZone(Long sensorId, Long zoneId) {
         Sensor sensor = sensorRepository.findById(sensorId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy Sensor với ID: " + sensorId));
+                .orElseThrow(() -> new ResourceNotFoundException("Sensor", "id", sensorId));
         Zone zone = zoneRepository.findById(zoneId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy Zone với ID: " + zoneId));
+                .orElseThrow(() -> new ResourceNotFoundException("Zone", "id", zoneId));
 
         sensor.setZone(zone);
         return sensorRepository.save(sensor);

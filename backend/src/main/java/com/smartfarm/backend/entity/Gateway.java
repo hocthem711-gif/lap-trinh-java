@@ -26,6 +26,6 @@ public class Gateway extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "zone_id")
-    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "sensors"})
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "sensors", "farm"})
     private Zone zone;
 }
