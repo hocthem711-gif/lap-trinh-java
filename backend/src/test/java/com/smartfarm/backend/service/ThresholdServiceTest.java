@@ -170,4 +170,56 @@ class ThresholdServiceTest {
         assertDoesNotThrow(() -> thresholdService.deleteThreshold(100L));
         verify(thresholdRepository, times(1)).delete(mockThreshold);
     }
+
+    @Test
+    @DisplayName("Tạo cấu hình ngưỡng 4 mốc (Critical/Warning) kèm cờ enabled thành công (F09)")
+    void testCreateThreshold_WithFourBandsAndEnabledToggle() {
+        ThresholdRequest req = new ThresholdRequest(10L, SensorType.HUMIDITY, 40.0, 80.0);
+        req.setCriticalMin(20.0);
+        req.setCriticalMax(95.0);
+        req.setEnabled(true);
+
+        when(zoneRepository.findById(10L)).thenReturn(Optional.of(mockZone));
+        when(thresholdRepository.findByZoneIdAndSensorType(10L, SensorType.HUMIDITY)).thenReturn(Optional.empty());
+        when(thresholdRepository.save(any(Threshold.class))).thenAnswer(invocation -> {
+            Threshold t = invocation.getArgument(0);
+            t.setId(200L);
+            return t;
+        });
+
+        ThresholdResponse response = thresholdService.createThreshold(req);
+
+        assertNotNull(response);
+        assertEquals(20.0, response.getCriticalMin());
+        assertEquals(40.0, response.getMinValue());
+        assertEquals(80.0, response.getMaxValue());
+        assertEquals(95.0, response.getCriticalMax());
+        assertTrue(response.getEnabled());
+    }
+
+    @Test
+    @DisplayName("Cập nhật ngưỡng 4 mốc và chuyển trạng thái enabled = false thành công")
+    void testUpdateThreshold_UpdateFourBandsAndDisable() {
+        mockThreshold.setCriticalMin(12.0);
+        mockThreshold.setCriticalMax(38.0);
+        mockThreshold.setEnabled(true);
+
+        ThresholdRequest updateReq = new ThresholdRequest(10L, SensorType.TEMPERATURE, 19.0, 31.0);
+        updateReq.setCriticalMin(10.0);
+        updateReq.setCriticalMax(40.0);
+        updateReq.setEnabled(false);
+
+        when(thresholdRepository.findById(100L)).thenReturn(Optional.of(mockThreshold));
+        when(thresholdRepository.save(any(Threshold.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        ThresholdResponse response = thresholdService.updateThreshold(100L, updateReq);
+
+        assertNotNull(response);
+        assertEquals(10.0, response.getCriticalMin());
+        assertEquals(19.0, response.getMinValue());
+        assertEquals(31.0, response.getMaxValue());
+        assertEquals(40.0, response.getCriticalMax());
+        assertFalse(response.getEnabled());
+        verify(thresholdRepository, times(1)).save(mockThreshold);
+    }
 }
