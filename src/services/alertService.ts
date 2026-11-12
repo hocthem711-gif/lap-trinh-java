@@ -555,20 +555,52 @@ export const thresholdApi = {
         sensorType: payload.sensorType,
         minValue: payload.minValue,
         maxValue: payload.maxValue,
+        criticalMin: payload.criticalMin,
+        criticalMax: payload.criticalMax,
+        enabled: payload.enabled,
       };
+      let savedRaw: BackendThresholdRaw | undefined;
       if (payload.id) {
-        const res = await apiClient.put<{ data?: BackendThresholdRaw }>(
-          `/thresholds/${payload.id}`,
-          backendBody
-        );
-        if (res.data?.data) {
-          return normalizeThresholdRule(res.data.data, zone, payload);
+        try {
+          const res = await apiClient.put<{ data?: BackendThresholdRaw }>(
+            `/thresholds/${payload.id}`,
+            backendBody
+          );
+          savedRaw = res.data?.data;
+        } catch (err) {
+          // Nếu ID chỉ mới nằm trên Mock (404 trên DB) thì chuyển sang POST tạo mới
+          if (axios.isAxiosError(err) && err.response?.status === 404) {
+            const created = await apiClient.post<{ data?: BackendThresholdRaw }>(
+              '/thresholds',
+              backendBody
+            );
+            savedRaw = created.data?.data;
+          } else {
+            throw err;
+          }
         }
       } else {
         const res = await apiClient.post<{ data?: BackendThresholdRaw }>('/thresholds', backendBody);
-        if (res.data?.data) {
-          return normalizeThresholdRule(res.data.data, zone, payload);
+        savedRaw = res.data?.data;
+      }
+
+      if (savedRaw) {
+        const normalized = normalizeThresholdRule(savedRaw, zone, payload);
+        const existingIdx = mockThresholds.findIndex(
+          (r) =>
+            r.id === normalized.id ||
+            (r.zoneId === normalized.zoneId && r.sensorType === normalized.sensorType)
+        );
+        if (existingIdx !== -1) {
+          mockThresholds = [
+            ...mockThresholds.slice(0, existingIdx),
+            normalized,
+            ...mockThresholds.slice(existingIdx + 1),
+          ];
+        } else {
+          mockThresholds = [...mockThresholds, normalized];
         }
+        return normalized;
       }
     } catch {
       // Fallback cập nhật vào bộ nhớ nội bộ
@@ -622,11 +654,52 @@ export const thresholdApi = {
 
   async resetZoneToDefaults(zone: Zone): Promise<ThresholdRule[]> {
     try {
-      const res = await apiClient.post<{ data?: ThresholdRule[] }>(
-        `/thresholds/zone/${zone.id}/reset`
+      const existingRes = await apiClient.get<{ data?: BackendThresholdRaw[] }>(
+        `/thresholds/zone/${zone.id}`
       );
-      if (res.data?.data && Array.isArray(res.data.data)) {
-        return res.data.data;
+      const existingByType = new Map<SensorType, BackendThresholdRaw>();
+      if (Array.isArray(existingRes.data?.data)) {
+        for (const item of existingRes.data.data) {
+          existingByType.set(item.sensorType, item);
+        }
+      }
+
+      const settled = await Promise.allSettled(
+        ALL_SENSOR_TYPES.map(async (sensorType) => {
+          const preset = SENSOR_THRESHOLD_PRESETS[sensorType];
+          const body = {
+            zoneId: zone.id,
+            sensorType,
+            minValue: preset.minValue,
+            maxValue: preset.maxValue,
+            criticalMin: preset.criticalMin,
+            criticalMax: preset.criticalMax,
+            enabled: true,
+          };
+          const existing = existingByType.get(sensorType);
+          const res = existing
+            ? await apiClient.put<{ data?: BackendThresholdRaw }>(`/thresholds/${existing.id}`, body)
+            : await apiClient.post<{ data?: BackendThresholdRaw }>('/thresholds', body);
+          if (!res.data?.data) {
+            throw new Error(`Không nhận được dữ liệu ngưỡng mặc định cho ${sensorType}`);
+          }
+          return normalizeThresholdRule(res.data.data, zone, body);
+        })
+      );
+
+      const savedRules = settled
+        .filter((r): r is PromiseFulfilledResult<ThresholdRule> => r.status === 'fulfilled')
+        .map((r) => r.value);
+
+      if (savedRules.length > 0) {
+        const savedByType = new Map(savedRules.map((r) => [r.sensorType, r]));
+        mockThresholds = [
+          ...mockThresholds.filter((r) => r.zoneId !== zone.id),
+          ...savedRules,
+        ];
+        return ALL_SENSOR_TYPES.map((t) => savedByType.get(t)).filter(
+          (r): r is ThresholdRule => Boolean(r)
+        );
       }
     } catch {
       // Fallback
