@@ -5,6 +5,7 @@ import deviceReducer from './slices/deviceSlice';
 import sensorReducer from './slices/sensorSlice';
 import sensorRealtimeReducer from './slices/sensorRealtimeSlice';
 import analyticsReducer from './slices/analyticsSlice';
+import alertReducer from './slices/alertSlice';
 
 export const store = configureStore({
   reducer: {
@@ -14,6 +15,7 @@ export const store = configureStore({
     sensor: sensorReducer,
     sensorRealtime: sensorRealtimeReducer,
     analytics: analyticsReducer,
+    alert: alertReducer,
   },
   devTools: import.meta.env.DEV,
 });
