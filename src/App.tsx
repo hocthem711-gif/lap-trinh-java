@@ -5,6 +5,7 @@ import { logout } from './services/authService'
 import SensorOverviewMap from './components/SensorOverviewMap'
 import FlightPathPlanner from './components/FlightPathPlanner'
 import ZoneComparisonSync from './components/ZoneComparisonSync'
+import ThresholdAlertManagement from './components/ThresholdAlertManagement'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -35,6 +36,7 @@ import {
   MapPin,
   Route,
   ChartColumn,
+  ShieldAlert,
 } from 'lucide-react'
 import DeviceManagement from './components/DeviceManagement'
 import SensorAssignment from './components/SensorAssignment'
@@ -62,6 +64,7 @@ const menuItems = [
   { label: 'Bản đồ & Popup', icon: MapPin },
   { label: 'Lộ trình bay', icon: Route },
   { label: 'So sánh & Đồng bộ UAV', icon: ChartColumn },
+  { label: 'Ngưỡng & Cảnh báo', icon: ShieldAlert },
   { label: 'Trạm điều khiển', icon: Radio },
   { label: 'Bản đồ & vị trí', icon: Map },
   { label: 'Nhiệm vụ', icon: ClipboardList },
@@ -368,6 +371,8 @@ function App() {
               type="button"
               className="icon-button"
               aria-label="Thông báo"
+              onClick={() => setActivePage('Ngưỡng & Cảnh báo')}
+              title="Mở trang Ngưỡng & Cảnh báo (LTJ-29)"
             >
               <Bell size={20} />
               <span className="notification-dot" />
@@ -638,6 +643,8 @@ function App() {
             <FlightPathPlanner />
           ) : activePage === 'So sánh & Đồng bộ UAV' ? (
             <ZoneComparisonSync />
+          ) : activePage === 'Ngưỡng & Cảnh báo' ? (
+            <ThresholdAlertManagement />
           ) : activePage === 'Bản đồ & vị trí' ? (
            <SensorOverviewMap />
           ) : activePage === 'Quản lý người dùng' ? (
