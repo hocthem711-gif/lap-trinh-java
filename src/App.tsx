@@ -1,3 +1,4 @@
+import HistoryChart from './components/HistoryChart'
 import { useState } from 'react'
 import Login from './components/Login'
 import { logout } from './services/authService'
@@ -447,6 +448,7 @@ function App() {
                     </article>
                   )
                 })}
+                <HistoryChart />
               </div>
 
               {/* Biểu đồ và trạng thái kết nối */}
@@ -525,6 +527,7 @@ function App() {
                   </div>
                 </section>
               </div>
+               <HistoryChart />
             </>
                       ) : activePage === 'Quản lý UAV' ? (
             /* Trang quản lý UAV */
