@@ -49,7 +49,11 @@ public class SecurityConfig {
                                 "/h2-console/**",
                                 "/health",
                                 "/sensors/**",
-                                "/sensor-data/**"
+                                "/sensor-data/**",
+                                "/thresholds/**",
+                                "/alerts/**",
+                                "/ws-telemetry/**",
+                                "/realtime/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 );
