@@ -20,6 +20,15 @@ public class Threshold extends BaseEntity {
     @Column(name = "max_value")
     private Double maxValue;
 
+    @Column(name = "critical_min")
+    private Double criticalMin;
+
+    @Column(name = "critical_max")
+    private Double criticalMax;
+
+    @Column(name = "enabled", nullable = false)
+    private Boolean enabled = true;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "zone_id", nullable = false)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "sensors"})
@@ -42,6 +51,15 @@ public class Threshold extends BaseEntity {
 
     public Double getMaxValue() { return maxValue; }
     public void setMaxValue(Double maxValue) { this.maxValue = maxValue; }
+
+    public Double getCriticalMin() { return criticalMin; }
+    public void setCriticalMin(Double criticalMin) { this.criticalMin = criticalMin; }
+
+    public Double getCriticalMax() { return criticalMax; }
+    public void setCriticalMax(Double criticalMax) { this.criticalMax = criticalMax; }
+
+    public Boolean getEnabled() { return enabled != null ? enabled : true; }
+    public void setEnabled(Boolean enabled) { this.enabled = enabled; }
 
     public Zone getZone() { return zone; }
     public void setZone(Zone zone) { this.zone = zone; }

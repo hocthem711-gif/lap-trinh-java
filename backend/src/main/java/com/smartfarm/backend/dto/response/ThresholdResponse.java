@@ -10,6 +10,9 @@ public class ThresholdResponse {
     private SensorType sensorType;
     private Double minValue;
     private Double maxValue;
+    private Double criticalMin;
+    private Double criticalMax;
+    private Boolean enabled = true;
     private Long zoneId;
     private String zoneName;
     private LocalDateTime createdAt;
@@ -40,6 +43,15 @@ public class ThresholdResponse {
 
     public Double getMaxValue() { return maxValue; }
     public void setMaxValue(Double maxValue) { this.maxValue = maxValue; }
+
+    public Double getCriticalMin() { return criticalMin; }
+    public void setCriticalMin(Double criticalMin) { this.criticalMin = criticalMin; }
+
+    public Double getCriticalMax() { return criticalMax; }
+    public void setCriticalMax(Double criticalMax) { this.criticalMax = criticalMax; }
+
+    public Boolean getEnabled() { return enabled != null ? enabled : true; }
+    public void setEnabled(Boolean enabled) { this.enabled = enabled; }
 
     public Long getZoneId() { return zoneId; }
     public void setZoneId(Long zoneId) { this.zoneId = zoneId; }

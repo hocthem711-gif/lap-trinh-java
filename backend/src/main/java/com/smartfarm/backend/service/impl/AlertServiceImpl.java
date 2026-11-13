@@ -25,14 +25,23 @@ public class AlertServiceImpl implements AlertService {
     private final ZoneRepository zoneRepository;
     private final SensorRepository sensorRepository;
     private final com.smartfarm.backend.service.EmailAlertService emailAlertService;
+    private final com.smartfarm.backend.service.TelemetryRealtimeService telemetryRealtimeService;
 
     public AlertServiceImpl(AlertRepository alertRepository, ZoneRepository zoneRepository,
                             SensorRepository sensorRepository,
                             com.smartfarm.backend.service.EmailAlertService emailAlertService) {
+        this(alertRepository, zoneRepository, sensorRepository, emailAlertService, null);
+    }
+
+    public AlertServiceImpl(AlertRepository alertRepository, ZoneRepository zoneRepository,
+                            SensorRepository sensorRepository,
+                            com.smartfarm.backend.service.EmailAlertService emailAlertService,
+                            com.smartfarm.backend.service.TelemetryRealtimeService telemetryRealtimeService) {
         this.alertRepository = alertRepository;
         this.zoneRepository = zoneRepository;
         this.sensorRepository = sensorRepository;
         this.emailAlertService = emailAlertService;
+        this.telemetryRealtimeService = telemetryRealtimeService;
     }
 
     @Override
@@ -55,7 +64,16 @@ public class AlertServiceImpl implements AlertService {
             emailAlertService.sendAlertEmail(saved);
         }
 
-        return toResponse(saved);
+        AlertResponse response = toResponse(saved);
+        if (telemetryRealtimeService != null) {
+            try {
+                telemetryRealtimeService.broadcastAlert(response);
+            } catch (Exception ex) {
+                // Log debug if realtime broadcast fails
+            }
+        }
+
+        return response;
     }
 
     @Override

@@ -43,17 +43,28 @@ public class SensorDataServiceImpl implements SensorDataService {
     private final ZoneRepository zoneRepository;
     private final AlertRepository alertRepository;
     private final SensorDataValidator sensorDataValidator;
+    private final com.smartfarm.backend.service.TelemetryRealtimeService telemetryRealtimeService;
 
     public SensorDataServiceImpl(SensorRepository sensorRepository,
                                  SensorDataRepository sensorDataRepository,
                                  ZoneRepository zoneRepository,
                                  AlertRepository alertRepository,
                                  SensorDataValidator sensorDataValidator) {
+        this(sensorRepository, sensorDataRepository, zoneRepository, alertRepository, sensorDataValidator, null);
+    }
+
+    public SensorDataServiceImpl(SensorRepository sensorRepository,
+                                 SensorDataRepository sensorDataRepository,
+                                 ZoneRepository zoneRepository,
+                                 AlertRepository alertRepository,
+                                 SensorDataValidator sensorDataValidator,
+                                 com.smartfarm.backend.service.TelemetryRealtimeService telemetryRealtimeService) {
         this.sensorRepository = sensorRepository;
         this.sensorDataRepository = sensorDataRepository;
         this.zoneRepository = zoneRepository;
         this.alertRepository = alertRepository;
         this.sensorDataValidator = sensorDataValidator;
+        this.telemetryRealtimeService = telemetryRealtimeService;
     }
 
     @Override
@@ -106,7 +117,15 @@ public class SensorDataServiceImpl implements SensorDataService {
         log.info("Thu nạp thành công: {} = {}{} ({})",
                 sensor.getSensorCode(), savedData.getValue(), savedData.getUnit(), savedData.getStatus());
 
-        return toResponse(savedData);
+        SensorDataResponse response = toResponse(savedData);
+        if (telemetryRealtimeService != null) {
+            try {
+                telemetryRealtimeService.broadcastTelemetry(response);
+            } catch (Exception ex) {
+                log.debug("Không thể broadcast telemetry qua WebSocket/SSE: {}", ex.getMessage());
+            }
+        }
+        return response;
     }
 
     @Override
@@ -140,6 +159,17 @@ public class SensorDataServiceImpl implements SensorDataService {
                 .ifPresent(responses::add);
 
         log.info("Đã xử lý telemetry simulator từ device '{}' ({} chỉ số)", deviceId, responses.size());
+
+        if (telemetryRealtimeService != null) {
+            for (SensorDataResponse resp : responses) {
+                try {
+                    telemetryRealtimeService.broadcastTelemetry(resp);
+                } catch (Exception ex) {
+                    log.debug("Không thể broadcast telemetry qua WebSocket/SSE: {}", ex.getMessage());
+                }
+            }
+        }
+
         return responses;
     }
 

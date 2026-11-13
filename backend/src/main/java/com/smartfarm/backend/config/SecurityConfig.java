@@ -60,30 +60,53 @@ public class SecurityConfig {
                                 "/thresholds/**",
                                 "/alerts/**",
                                 "/uavs/**",
+                                "/uav/**",
                                 "/gateways/**",
                                 "/missions/**",
                                 "/uav-sync/**",
                                 "/reports/**"
                         ).permitAll()
-                        // Cho phép cổng Ingestion dữ liệu tự động từ UAV / IoT Simulator / Gateway
+                        // Cho phép cổng Ingestion dữ liệu tự động, cấu hình ngưỡng và tạo cảnh báo
                         .requestMatchers(org.springframework.http.HttpMethod.POST,
                                 "/sensor-data/ingest",
                                 "/sensor-data/simulator",
                                 "/sensor-data/sync/bulk",
-                                "/alerts",
+                                "/thresholds/**",
+                                "/alerts/**",
                                 "/uavs/**",
+                                "/uav/**",
                                 "/gateways/**",
                                 "/missions/**",
                                 "/uav-sync/**",
                                 "/reports/**"
                         ).permitAll()
-                        // Thắt chặt bảo mật: Chỉ ADMIN mới được thực thi thao tác xóa dữ liệu (DELETE)
+                        // Cho phép cập nhật cấu hình ngưỡng, nhiệm vụ bay và review
+                        .requestMatchers(org.springframework.http.HttpMethod.PUT,
+                                "/thresholds/**",
+                                "/missions/**",
+                                "/uav/**",
+                                "/gateways/**",
+                                "/sensors/**"
+                        ).permitAll()
+                        // Cho phép xử lý trạng thái cảnh báo, gateway và nhiệm vụ bay
+                        .requestMatchers(org.springframework.http.HttpMethod.PATCH,
+                                "/alerts/**",
+                                "/gateways/**",
+                                "/missions/**",
+                                "/uavs/**"
+                        ).permitAll()
+                        // Cho phép xóa các đối tượng dữ liệu vận hành (ngưỡng, cảnh báo, note nhiệm vụ)
+                        .requestMatchers(org.springframework.http.HttpMethod.DELETE,
+                                "/thresholds/**",
+                                "/alerts/**",
+                                "/missions/**",
+                                "/gateways/**",
+                                "/uavs/**"
+                        ).permitAll()
+                        // Thắt chặt bảo mật cấp cao: Chỉ ADMIN mới được thực thi thao tác xóa nông trại & khu vực
                         .requestMatchers(org.springframework.http.HttpMethod.DELETE,
                                 "/farms/**",
-                                "/zones/**",
-                                "/sensors/**",
-                                "/thresholds/**",
-                                "/alerts/**"
+                                "/zones/**"
                         ).hasRole("ADMIN")
                         .anyRequest().authenticated()
                 );

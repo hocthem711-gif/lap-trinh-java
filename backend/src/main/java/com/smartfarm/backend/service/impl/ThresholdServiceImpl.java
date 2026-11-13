@@ -46,6 +46,9 @@ public class ThresholdServiceImpl implements ThresholdService {
                 request.getMaxValue(),
                 zone
         );
+        if (request.getCriticalMin() != null) threshold.setCriticalMin(request.getCriticalMin());
+        if (request.getCriticalMax() != null) threshold.setCriticalMax(request.getCriticalMax());
+        if (request.getEnabled() != null) threshold.setEnabled(request.getEnabled());
 
         Threshold saved = thresholdRepository.save(threshold);
         return toResponse(saved);
@@ -89,6 +92,9 @@ public class ThresholdServiceImpl implements ThresholdService {
 
         if (request.getMinValue() != null) threshold.setMinValue(request.getMinValue());
         if (request.getMaxValue() != null) threshold.setMaxValue(request.getMaxValue());
+        if (request.getCriticalMin() != null) threshold.setCriticalMin(request.getCriticalMin());
+        if (request.getCriticalMax() != null) threshold.setCriticalMax(request.getCriticalMax());
+        if (request.getEnabled() != null) threshold.setEnabled(request.getEnabled());
 
         Threshold updated = thresholdRepository.save(threshold);
         return toResponse(updated);
@@ -119,7 +125,7 @@ public class ThresholdServiceImpl implements ThresholdService {
 
     private ThresholdResponse toResponse(Threshold threshold) {
         Zone zone = threshold.getZone();
-        return new ThresholdResponse(
+        ThresholdResponse resp = new ThresholdResponse(
                 threshold.getId(),
                 threshold.getSensorType(),
                 threshold.getMinValue(),
@@ -129,5 +135,9 @@ public class ThresholdServiceImpl implements ThresholdService {
                 threshold.getCreatedAt(),
                 threshold.getUpdatedAt()
         );
+        resp.setCriticalMin(threshold.getCriticalMin());
+        resp.setCriticalMax(threshold.getCriticalMax());
+        resp.setEnabled(threshold.getEnabled() != null ? threshold.getEnabled() : true);
+        return resp;
     }
 }
