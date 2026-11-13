@@ -822,6 +822,23 @@ export const alertApi = {
 
   async resolveAllOpen(zoneId?: number | 'ALL'): Promise<AlertItem[]> {
     const nowIso = new Date().toISOString();
+    const defaultNote = 'Đóng hàng loạt sau khi kiểm tra hệ thống an toàn.';
+    const targets = mockAlerts.filter((item) => {
+      const matchZone = !zoneId || zoneId === 'ALL' || item.zoneId === zoneId;
+      return matchZone && item.status !== 'RESOLVED';
+    });
+
+    if (targets.length > 0) {
+      await Promise.allSettled(
+        targets.map((item) =>
+          apiClient.patch(`/alerts/${item.id}/resolve`, {
+            resolvedNote: item.resolvedNote || defaultNote,
+            status: 'RESOLVED',
+          })
+        )
+      );
+    }
+
     mockAlerts = mockAlerts.map((item) => {
       const matchZone = !zoneId || zoneId === 'ALL' || item.zoneId === zoneId;
       if (matchZone && item.status !== 'RESOLVED') {
@@ -829,8 +846,7 @@ export const alertApi = {
           ...item,
           status: 'RESOLVED',
           isRead: true,
-          resolvedNote:
-            item.resolvedNote || 'Đóng hàng loạt sau khi kiểm tra hệ thống an toàn.',
+          resolvedNote: item.resolvedNote || defaultNote,
           resolvedAt: nowIso,
         };
       }
@@ -912,7 +928,34 @@ export const alertApi = {
       createdAt: new Date(now + 500).toISOString(),
     };
 
-    mockAlerts = [batteryAlert, tempAlert, ...mockAlerts];
-    return [batteryAlert, tempAlert];
+    const persistAlertToBackend = async (fallbackAlert: AlertItem): Promise<AlertItem> => {
+      try {
+        const res = await apiClient.post<{ data?: BackendAlertRaw }>('/alerts', {
+          zoneId: zone.id,
+          sensorId: null,
+          alertLevel: fallbackAlert.alertLevel,
+          message: fallbackAlert.message,
+        });
+        if (res.data?.data) {
+          return normalizeAlertItem(res.data.data, fallbackAlert);
+        }
+      } catch {
+        // Fallback cục bộ khi Backend offline
+      }
+      return fallbackAlert;
+    };
+
+    const [persistedTempAlert, persistedBatteryAlert] = await Promise.all([
+      persistAlertToBackend(tempAlert),
+      persistAlertToBackend(batteryAlert),
+    ]);
+
+    const createdIds = new Set([persistedBatteryAlert.id, persistedTempAlert.id]);
+    mockAlerts = [
+      persistedBatteryAlert,
+      persistedTempAlert,
+      ...mockAlerts.filter((a) => !createdIds.has(a.id)),
+    ];
+    return [persistedBatteryAlert, persistedTempAlert];
   },
 };
