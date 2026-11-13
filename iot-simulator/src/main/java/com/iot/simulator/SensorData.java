@@ -13,6 +13,8 @@ import java.util.Random;
  * Tích hợp Sprint 2 (LTJ-10): Hỗ trợ định danh theo Farm ID, Zone ID và chỉ số Soil Moisture (Độ ẩm đất).
  * Nâng cấp Sprint 3 (LTJ-15): Hỗ trợ sinh dữ liệu liên tục (F20), Compact JSON cho Load Test (10-20 sensors @ 1s)
  * và giả lập dữ liệu nhiễu/ngoài ngưỡng vật lý (Anomaly Injection) để kiểm thử bộ lọc dữ liệu rác F19.
+ * Nâng cấp Sprint 6 (LTJ-30): Hỗ trợ trường mức pin (batteryLevel) và kịch bản bắn số liệu cực đoan
+ * (Nhiệt độ 60°C, Pin 5%) kích hoạt Alert Engine mà không bị F19 loại bỏ.
  */
 public class SensorData {
 
@@ -23,7 +25,8 @@ public class SensorData {
     private double humidity;      // Độ ẩm không khí (%RH)
     private double soilMoisture;  // Độ ẩm đất (%)
     private double light;         // Cường độ ánh sáng (lux)
-    private String status;        // Trạng thái vận hành: NORMAL, WARNING, hoặc ANOMALY
+    private Double batteryLevel;  // Mức pin (%) - Thêm cho Sprint 6 (LTJ-30)
+    private String status;        // Trạng thái vận hành: NORMAL, WARNING, ANOMALY, hoặc CRITICAL
     private long timestamp;       // Thời gian Unix epoch (seconds)
 
     private static final Random random = new Random();
@@ -32,7 +35,8 @@ public class SensorData {
 
     public SensorData() {}
 
-    public SensorData(String deviceId, Long farmId, Long zoneId, double temperature, double humidity, double soilMoisture, double light, String status) {
+    public SensorData(String deviceId, Long farmId, Long zoneId, double temperature, double humidity,
+                      double soilMoisture, double light, Double batteryLevel, String status) {
         this.deviceId = deviceId;
         this.farmId = farmId;
         this.zoneId = zoneId;
@@ -40,12 +44,18 @@ public class SensorData {
         this.humidity = humidity;
         this.soilMoisture = soilMoisture;
         this.light = light;
+        this.batteryLevel = (batteryLevel != null) ? batteryLevel : 100.0;
         this.status = status;
         this.timestamp = Instant.now().getEpochSecond();
     }
 
+    public SensorData(String deviceId, Long farmId, Long zoneId, double temperature, double humidity,
+                      double soilMoisture, double light, String status) {
+        this(deviceId, farmId, zoneId, temperature, humidity, soilMoisture, light, 100.0, status);
+    }
+
     public SensorData(String deviceId, double temperature, double humidity, double light) {
-        this(deviceId, 1L, 1L, temperature, humidity, 60.0, light, "NORMAL");
+        this(deviceId, 1L, 1L, temperature, humidity, 60.0, light, 100.0, "NORMAL");
     }
 
     /**
@@ -73,10 +83,14 @@ public class SensorData {
         double lux = 150.0 + (random.nextDouble() * 1050.0);
         lux = Math.round(lux * 10.0) / 10.0;
 
+        // Mức pin ngẫu nhiên: 70.0 - 100.0 %
+        double battery = 70.0 + (random.nextDouble() * 30.0);
+        battery = Math.round(battery * 10.0) / 10.0;
+
         // Cảnh báo nếu nhiệt độ quá cao (> 34°C) hoặc độ ẩm đất quá thấp (< 55%)
         String status = (temp > 34.0 || soil < 55.0) ? "WARNING" : "NORMAL";
 
-        return new SensorData(deviceId, farmId, zoneId, temp, hum, soil, lux, status);
+        return new SensorData(deviceId, farmId, zoneId, temp, hum, soil, lux, battery, status);
     }
 
     /**
@@ -103,6 +117,43 @@ public class SensorData {
             data.setStatus("ANOMALY");
         }
         return data;
+    }
+
+    /**
+     * Sinh dữ liệu cực đoan có chủ đích (LTJ-30 - Sprint 6).
+     * Dữ liệu nằm trong dải vật lý hợp lệ [-10°C, 60°C] được Backend F19 chấp nhận,
+     * nhưng vượt ngưỡng cấu hình cảnh báo an toàn để kích hoạt Alert Engine (CRITICAL/WARNING).
+     *
+     * @param farmId      Mã trang trại
+     * @param zoneId      Mã vùng canh tác
+     * @param deviceId    Mã thiết bị
+     * @param extremeType Loại cực đoan ("TEMP_60C", "BATTERY_5PCT", "DUAL_CRITICAL")
+     * @return SensorData đối tượng dữ liệu cực đoan
+     */
+    public static SensorData generateExtremeAlertData(Long farmId, Long zoneId, String deviceId, String extremeType) {
+        double temp = 28.0;
+        double hum = 60.0;
+        double soil = 65.0;
+        double lux = 500.0;
+        double battery = 85.0;
+        String status = "CRITICAL";
+
+        if ("TEMP_60C".equalsIgnoreCase(extremeType)) {
+            temp = 60.0;          // Cực đoan: Chạm trần vật lý 60.0°C (vượt ngưỡng an toàn 35°C)
+            battery = 80.0;
+            status = "CRITICAL";
+        } else if ("BATTERY_5PCT".equalsIgnoreCase(extremeType)) {
+            temp = 28.5;
+            battery = 5.0;        // Cực đoan: Pin sụt còn 5.0% (mức khẩn cấp <= 10%)
+            status = "CRITICAL";
+        } else if ("DUAL_CRITICAL".equalsIgnoreCase(extremeType)) {
+            temp = 60.0;          // Cực đoan kép: Cả nhiệt độ 60°C và pin 5% cùng lúc
+            battery = 5.0;
+            soil = 25.0;          // Hạn hán
+            status = "CRITICAL";
+        }
+
+        return new SensorData(deviceId, farmId, zoneId, temp, hum, soil, lux, battery, status);
     }
 
     /**
@@ -147,6 +198,9 @@ public class SensorData {
     public double getLight() { return light; }
     public void setLight(double light) { this.light = light; }
 
+    public Double getBatteryLevel() { return batteryLevel; }
+    public void setBatteryLevel(Double batteryLevel) { this.batteryLevel = batteryLevel; }
+
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
 
@@ -155,7 +209,8 @@ public class SensorData {
 
     @Override
     public String toString() {
-        return String.format("[Farm: %d | Zone: %d | Device: %s] Temp: %.1f°C | Hum: %.1f%% | Soil: %.1f%% | Lux: %.0f | Status: %s",
-                farmId, zoneId, deviceId, temperature, humidity, soilMoisture, light, status);
+        return String.format("[Farm: %d | Zone: %d | Device: %s] Temp: %.1f C | Hum: %.1f%% | Soil: %.1f%% | Lux: %.0f | Pin: %.1f%% | Status: %s",
+                farmId, zoneId, deviceId, temperature, humidity, soilMoisture, light,
+                (batteryLevel != null ? batteryLevel : 100.0), status);
     }
 }

@@ -1,0 +1,77 @@
+@startuml Activity_Diagram_Alert
+!theme plain
+skinparam RoundCorner 8
+skinparam Shadowing false
+skinparam ArrowColor #2C3E50
+skinparam ActivityBorderColor #2C3E50
+skinparam ActivityBackgroundColor #F8F9FA
+skinparam ActivityDiamondBorderColor #2C3E50
+skinparam ActivityDiamondBackgroundColor #FFF3CD
+
+title [Sprint 6][Dev 5] Sơ Đồ Hoạt Động (Activity Diagram) - Luồng Dữ Liệu Cực Đoan & Kích Hoạt Cảnh Báo Alert Engine (F08, F09, F19)
+
+|#E8F4FD|Thiết Bị IoT & UAV (Dev 5)|
+|#E8F8F5|Backend Ingestion & F19 (Dev 1 & Dev 2)|
+|#FEF9E7|Alert Engine & Persistence (Dev 1 & Dev 2)|
+|#FDEDEC|Frontend Dashboard & Operator (Dev 3 & Dev 4)|
+
+|Thiết Bị IoT & UAV (Dev 5)|
+start
+:Cảm biến đo lường định kỳ / UAV quét khu vực;
+if (Kịch bản đo lường?) then (Bình thường)
+    :Đóng gói số liệu thông thường\n(Temp 20-36°C, Pin 70-100%);
+else (Kịch bản cực đoan / Khẩn cấp [LTJ-30])
+    :Đóng gói số liệu cực đoan có chủ đích:\n- Nhiệt độ chạm ngưỡng trần 60.0°C\n- Hoặc mức pin sụt giảm khẩn cấp 5.0%\n- Status: CRITICAL;
+endif
+:Serialize gói tin SensorData JSON;\n- Gồm: deviceId, zoneId, temp, batteryLevel, timestamp;
+:Publish qua MQTT QoS 1\n(Topic: iot/ltj/sensor/zone-{id}/{deviceId})\nhoặc POST REST Ingest API;
+
+|Backend Ingestion & F19 (Dev 1 & Dev 2)|
+:MQTT Subscriber / Ingest Controller tiếp nhận gói tin;
+:Gọi SensorDataValidator kiểm tra giới hạn vật lý (F19);
+
+if (Số liệu nằm trong biên độ vật lý?\n[-10°C <= Temp <= 60°C] VÀ [0% <= Pin <= 100%]) then (Không hợp lệ / Nhiễu)
+    :Đánh dấu ANOMALY / Lỗi cảm biến;
+    :Ghi log cảnh báo dữ liệu rác vào hệ thống;
+    :HỦY GÓI TIN (Discard)\nKhông lưu DB, không kích hoạt Alert giả;
+    stop
+else (Hợp lệ về mặt vật lý)
+    :Chống ghi trùng lặp (Deduplication) theo (sensorId + timestamp);
+    :Lưu bản ghi SensorData vào Database;
+endif
+
+|Alert Engine & Persistence (Dev 1 & Dev 2)|
+:Alert Engine Worker truy vấn ngưỡng cấu hình (Threshold) theo Zone & SensorType;
+
+if (Giá trị đo vượt ngưỡng cấu hình cảnh báo?\n[Temp > MaxThreshold (35°C)] HOẶC [Pin <= 10%]) then (Vượt ngưỡng)
+    :Khởi tạo đối tượng Alert mới:\n- alertLevel: CRITICAL\n- message: "Nhiệt độ 60.0°C vượt ngưỡng cho phép (Max 35.0°C)"\n- isRead: false;
+    :Lưu bản ghi Alert vào Database (AlertRepository);
+    :Kích hoạt TelemetryRealtimeService;\n- Broadcast Alert Event qua WebSocket / SSE;
+else (Trong ngưỡng an toàn)
+    :Không phát sinh cảnh báo;
+endif
+
+|Frontend Dashboard & Operator (Dev 3 & Dev 4)|
+:WebSocket STOMP Client nhận sự kiện Alert tức thì;
+fork
+    :Kích hoạt Toast Notification màu đỏ góc màn hình (LTJ-28);
+fork again
+    :Đổi màu Marker cảm biến trên bản đồ Leaflet Map sang ĐỎ (F05);
+fork again
+    :Tăng số đếm Badge cảnh báo chưa đọc trên Header (F08);
+fork again
+    :Cập nhật danh sách bảng quản lý cảnh báo ThresholdAlertManagement (LTJ-29);
+end fork
+
+:Chuyên viên nông nghiệp / Operator kiểm tra chi tiết Alert;
+:Xác minh tình trạng thực tế tại khu vực canh tác;
+:Nhấn nút [Đánh dấu đã đọc / Xử lý] (PATCH /api/v1/alerts/{id}/read);
+
+|Alert Engine & Persistence (Dev 1 & Dev 2)|
+:Cập nhật Alert.isRead = true trong Database;
+
+|Frontend Dashboard & Operator (Dev 3 & Dev 4)|
+:Tắt thông báo khẩn cấp, đưa trạng thái hệ thống về Ổn Định;
+stop
+
+@enduml

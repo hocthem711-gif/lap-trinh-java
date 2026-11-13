@@ -56,7 +56,7 @@ public class WaypointMissionValidator {
     public static String validateMissionJson(String jsonString) {
         MissionPayload payload = GSON.fromJson(jsonString, MissionPayload.class);
         if (payload == null || payload.waypoints == null || payload.waypoints.size() < 2) {
-            return "LOI: Lộ trình bay phải có tối thiểu từ 2 điểm Waypoints trở lên.";
+            return "LOI: Lo trinh bay phai co toi thieu tu 2 diem Waypoints tro len.";
         }
 
         double totalDistM = 0.0;
@@ -67,24 +67,24 @@ public class WaypointMissionValidator {
 
             // Kiểm tra 1: Số thứ tự order phải tăng dần liên tục 1, 2, 3...
             if (wp.order != i + 1) {
-                return "LOI: Điểm bay thứ " + (i + 1) + " bị sai thứ tự order=" + wp.order;
+                return "LOI: Diem bay thu " + (i + 1) + " bi sai thu tu order=" + wp.order;
             }
             // Kiểm tra 2: Tọa độ GPS phải nằm trong vùng an toàn Geofence của nông trại
             if (wp.latitude < MIN_LAT || wp.latitude > MAX_LAT || wp.longitude < MIN_LNG || wp.longitude > MAX_LNG) {
-                return "LOI: Waypoint #" + wp.order + " nằm ngoài ranh giới an toàn Geofence.";
+                return "LOI: Waypoint #" + wp.order + " nam ngoai ranh gioi an toan Geofence.";
             }
             // Kiểm tra 3: Độ cao bay an toàn [5m - 500m]
             if (wp.altitude < MIN_ALT || wp.altitude > MAX_ALT) {
-                return "LOI: Waypoint #" + wp.order + " có độ cao " + wp.altitude + "m vượt ngưỡng [5m - 500m].";
+                return "LOI: Waypoint #" + wp.order + " co do cao " + wp.altitude + "m vuot nguong [5m - 500m].";
             }
             // Kiểm tra 4: Tốc độ bay an toàn [1m/s - 30m/s]
             if (wp.speed < MIN_SPD || wp.speed > MAX_SPD) {
-                return "LOI: Waypoint #" + wp.order + " có tốc độ " + wp.speed + "m/s vượt ngưỡng [1 - 30m/s].";
+                return "LOI: Waypoint #" + wp.order + " co toc do " + wp.speed + "m/s vuot nguong [1 - 30m/s].";
             }
             // Kiểm tra 5: Loại hành động tại điểm bay
             if (!"TAKEOFF".equals(wp.type) && !"NORMAL".equals(wp.type) && !"HOVER".equals(wp.type)
                     && !"LANDING".equals(wp.type) && !"RETURN_HOME".equals(wp.type)) {
-                return "LOI: Waypoint #" + wp.order + " có loại hành động '" + wp.type + "' không hợp lệ.";
+                return "LOI: Waypoint #" + wp.order + " co loai hanh dong '" + wp.type + "' khong hop le.";
             }
 
             // Tính quãng đường 3D (Pythagoras của khoảng cách ngang Haversine và chênh lệch độ cao)
@@ -137,32 +137,32 @@ public class WaypointMissionValidator {
 
         int pass = 0;
         String r1 = validateMissionJson(valid4Wp);
-        pass += check("TC-01", "Tạo Mission chuẩn 4 Waypoints trong vùng Geofence (F14)", r1.startsWith("OK"), r1);
-        pass += check("TC-02", "Đối chiếu công thức Haversine 3D & tiêu hao pin (0.35%/phút)", r1.contains("2168"), r1);
+        pass += check("TC-01", "Tao Mission chuan 4 Waypoints trong vung Geofence (F14)", r1.startsWith("OK"), r1);
+        pass += check("TC-02", "Doi chieu cong thuc Haversine 3D & tieu hao pin (0.35%/phut)", r1.contains("2168"), r1);
 
         String r3 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"}]}");
-        pass += check("TC-03", "Chặn tạo Mission khi số lượng Waypoints < 2 điểm", r3.startsWith("LOI"), r3);
+        pass += check("TC-03", "Chan tao Mission khi so luong Waypoints < 2 diem", r3.startsWith("LOI"), r3);
 
         String r4 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":10.91,\"longitude\":106.85,\"altitude\":50,\"speed\":8,\"type\":\"NORMAL\"}]}");
-        pass += check("TC-04", "Phát hiện Waypoint vượt ranh giới an toàn Geofence", r4.startsWith("LOI"), r4);
+        pass += check("TC-04", "Phat hien Waypoint vuot ranh gioi an toan Geofence", r4.startsWith("LOI"), r4);
 
         String r5 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":650,\"speed\":8,\"type\":\"NORMAL\"}]}");
-        pass += check("TC-05", "Chặn cấu hình độ cao bay vượt ngưỡng [5m - 500m]", r5.startsWith("LOI"), r5);
+        pass += check("TC-05", "Chan cau hinh do cao bay vuot nguong [5m - 500m]", r5.startsWith("LOI"), r5);
 
         String r6 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":50,\"speed\":45,\"type\":\"NORMAL\"}]}");
-        pass += check("TC-06", "Chặn cấu hình tốc độ bay vượt ngưỡng [1 - 30m/s]", r6.startsWith("LOI"), r6);
+        pass += check("TC-06", "Chan cau hinh toc do bay vuot nguong [1 - 30m/s]", r6.startsWith("LOI"), r6);
 
         String r7 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":3,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":50,\"speed\":8,\"type\":\"LANDING\"}]}");
-        pass += check("TC-07", "Phát hiện lỗi đánh số thứ tự (order) bị nhảy cóc", r7.startsWith("LOI"), r7);
+        pass += check("TC-07", "Phat hien loi danh so thu tu (order) bi nhay coc", r7.startsWith("LOI"), r7);
 
         String r8 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":50,\"speed\":8,\"type\":\"INVALID_TYPE\"}]}");
-        pass += check("TC-08", "Phát hiện hành động WaypointType không hợp lệ", r8.startsWith("LOI"), r8);
+        pass += check("TC-08", "Phat hien hanh dong WaypointType khong hop le", r8.startsWith("LOI"), r8);
 
         boolean okFlow = isValidStatusTransition("STANDBY", "PLANNING") && isValidStatusTransition("PLANNING", "ACTIVE") && isValidStatusTransition("ACTIVE", "COMPLETED");
-        pass += check("TC-09", "Chuyển trạng thái chuẩn: STANDBY->PLANNING->ACTIVE->COMPLETED", okFlow, "Hợp lệ 100%");
+        pass += check("TC-09", "Chuyen trang thai chuan: STANDBY->PLANNING->ACTIVE->COMPLETED", okFlow, "Hop le 100%");
 
         boolean blockFlow = !isValidStatusTransition("STANDBY", "COMPLETED") && !isValidStatusTransition("COMPLETED", "ACTIVE");
-        pass += check("TC-10", "Chặn chuyển trạng thái Mission trái quy tắc nghiệp vụ (F16)", blockFlow, "Đã chặn nhảy cóc");
+        pass += check("TC-10", "Chan chuyen trang thai Mission trai quy tac nghiep vu (F16)", blockFlow, "Da chan nhay coc");
 
         System.out.println("--------------------------------------------------------------------------");
         System.out.printf("  TONG KET KIEM THU LTJ-20: %d / 10 TEST CASES PASS (%d%%)%n", pass, pass * 10);

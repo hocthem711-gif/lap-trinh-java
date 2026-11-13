@@ -100,10 +100,10 @@ public class MqttPublisher {
             if (client != null && client.isConnected()) {
                 IMqttToken disconnectToken = client.disconnect();
                 disconnectToken.waitForCompletion(5_000);
-                System.out.println(">> Đã ngắt kết nối khỏi Broker.");
+                System.out.println(">> Da ngat ket noi khoi Broker.");
             }
         } catch (MqttException e) {
-            System.err.println("Lỗi khi ngắt kết nối: " + e.getMessage());
+            System.err.println("Loi khi ngat ket noi: " + e.getMessage());
         }
     }
 

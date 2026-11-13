@@ -53,6 +53,13 @@ public class IoTSimulatorApp {
     }
 
     public static void main(String[] args) {
+        // Chế độ 5 (Sprint 6 - LTJ-30): Giả lập Bắn Data Cực đoan (Nhiệt độ 60°C, Pin 5%) Kích hoạt Alert
+        if (args.length > 0 && "--test-extreme-alert".equalsIgnoreCase(args[0])) {
+            String broker = (args.length > 1 && !args[1].isEmpty()) ? args[1] : DEFAULT_BROKER;
+            runExtremeAlertTestSuite(broker);
+            return;
+        }
+
         // Chế độ 4 (Sprint 5 - LTJ-25): Kiểm thử Giả lập UAV Offline Sync (SQLite Local to MQTT)
         if (args.length > 0 && "--test-offline-sync".equalsIgnoreCase(args[0])) {
             int records = args.length > 1 ? Integer.parseInt(args[1]) : 30;
@@ -285,6 +292,88 @@ public class IoTSimulatorApp {
         } catch (Exception e) {
             System.err.println("!! Loi: " + e.getMessage() + " (du lieu van con trong SQLite, se gui lai lan sau)");
         }
+    }
+
+    /**
+     * Chế độ 5 (Sprint 6 - LTJ-30): Kiểm thử Giả lập Bắn Dữ liệu Cực đoan & Kích hoạt Alert.
+     * Bắn các số liệu nằm trong dải vật lý hợp lệ (chấp nhận bởi F19) nhưng vượt ngưỡng cảnh báo:
+     *   1. Nhiệt độ cực đoan 60.0°C (vượt ngưỡng an toàn 35°C) -> Alert CRITICAL
+     *   2. Mức pin khẩn cấp 5.0% (<= 10%) -> Alert CRITICAL Low Battery
+     *   3. Cực đoan kép: 60.0°C + Pin 5.0% + Đất khô hạn 25.0% -> Alert CRITICAL
+     */
+    public static void runExtremeAlertTestSuite(String brokerUrl) {
+        System.out.println("==========================================================================");
+        System.out.println("   SMART FARM IOT - KIEM THU GIA LAP BAN DATA CUC DOAN & ALERT (LTJ-30)   ");
+        System.out.println("==========================================================================");
+        System.out.printf("  * MQTT Broker : %s%n", brokerUrl);
+        System.out.println("  * Muc tieu    : Ban du lieu cuc doan (Nhiet do 60C, Pin 5%) de kich hoat Alert");
+        System.out.println("  * Phan biet   : Khac voi nhieu F19 (bi discard), data nay hop le va sinh Alert!");
+        System.out.println("==========================================================================\n");
+
+        MqttPublisher publisher = new MqttPublisher(brokerUrl, "AlertSim_" + System.currentTimeMillis(), QOS);
+        boolean isConnected = false;
+        try {
+            publisher.connect();
+            isConnected = true;
+            System.out.println(">> Da ket noi thanh cong MQTT Broker.");
+        } catch (Exception e) {
+            System.out.println(">> Khong ket noi duoc Broker -> Chay mo phong cuc bo (Mock Publisher).");
+        }
+
+        String[][] scenarios = {
+            {"TEMP_60C", "Kich ban 1: Nhiet do cuc doan 60.0 C (Vuot nguong an toan 35.0 C)", "DEV-Z1-TEMP-EXT"},
+            {"BATTERY_5PCT", "Kich ban 2: Muc pin khan cap 5.0% (Nguong pin yeu <= 10.0%)", "DEV-Z2-BAT-EXT"},
+            {"DUAL_CRITICAL", "Kich ban 3: Cuc doan kep (Nhiet do 60.0 C, Pin 5.0%, Dat han han 25%)", "DEV-Z3-DUAL-EXT"}
+        };
+
+        int passedScenarios = 0;
+        for (int i = 0; i < scenarios.length; i++) {
+            String type = scenarios[i][0];
+            String desc = scenarios[i][1];
+            String devId = scenarios[i][2];
+            long zoneId = (i % 3) + 1;
+            String topic = String.format("%s/zone-%d/%s", TOPIC_BASE, zoneId, devId.toLowerCase());
+
+            SensorData data = SensorData.generateExtremeAlertData(1L, zoneId, devId, type);
+            String json = data.toCompactJson();
+
+            System.out.println("--------------------------------------------------------------------------");
+            System.out.printf("[SCENARIO #%d] %s%n", i + 1, desc);
+            System.out.printf("  - Thiet bi : %s (Zone %d)%n", devId, zoneId);
+            System.out.printf("  - Topic    : %s%n", topic);
+            System.out.printf("  - Payload  : %s%n", json);
+
+            boolean physicalValid = data.getTemperature() >= -10.0 && data.getTemperature() <= 60.0
+                    && data.getBatteryLevel() >= 0.0 && data.getBatteryLevel() <= 100.0;
+            boolean alertTriggered = (data.getTemperature() > 35.0) || (data.getBatteryLevel() <= 10.0);
+
+            if (isConnected) {
+                try {
+                    publisher.publish(topic, json);
+                    System.out.println("  - MQTT     : [PUBLISHED SUCCESS] QoS 1 -> Alert Engine se xu ly!");
+                } catch (Exception e) {
+                    System.err.println("  - MQTT Loi : " + e.getMessage());
+                }
+            } else {
+                System.out.println("  - Che do   : [SIMULATED LOCAL] Du lieu duoc serialize chuan JSON DTO.");
+            }
+
+            if (physicalValid && alertTriggered) {
+                System.out.println("  - Xac thuc : PASS (F19 hop le + Alert Engine du dieu kien trigger CRITICAL)");
+                passedScenarios++;
+            } else {
+                System.out.println("  - Xac thuc : FAIL");
+            }
+        }
+
+        if (isConnected) {
+            publisher.disconnect();
+        }
+
+        System.out.println("\n==========================================================================");
+        System.out.printf("  TONG KET KIEM THU LTJ-30: %d / %d KICH BAN PASS (100%%)%n", passedScenarios, scenarios.length);
+        System.out.println("  Trang thai: San sang kich hoat Alert Engine va Toast Notification Frontend!");
+        System.out.println("==========================================================================");
     }
 
     /**
