@@ -6,6 +6,7 @@ import SensorOverviewMap from './components/SensorOverviewMap'
 import FlightPathPlanner from './components/FlightPathPlanner'
 import ZoneComparisonSync from './components/ZoneComparisonSync'
 import ThresholdAlertManagement from './components/ThresholdAlertManagement'
+import FlightMonitoringNote from './components/FlightMonitoringNote'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -65,6 +66,7 @@ const menuItems = [
   { label: 'Lộ trình bay', icon: Route },
   { label: 'So sánh & Đồng bộ UAV', icon: ChartColumn },
   { label: 'Ngưỡng & Cảnh báo', icon: ShieldAlert },
+  { label: 'Giám sát & Note Mission', icon: ClipboardList },
   { label: 'Trạm điều khiển', icon: Radio },
   { label: 'Bản đồ & vị trí', icon: Map },
   { label: 'Nhiệm vụ', icon: ClipboardList },
@@ -645,6 +647,10 @@ function App() {
             <ZoneComparisonSync />
           ) : activePage === 'Ngưỡng & Cảnh báo' ? (
             <ThresholdAlertManagement />
+          ) : activePage === 'Giám sát & Note Mission' ||
+            activePage === 'Nhiệm vụ' ||
+            activePage === 'Trạm điều khiển' ? (
+            <FlightMonitoringNote />
           ) : activePage === 'Bản đồ & vị trí' ? (
            <SensorOverviewMap />
           ) : activePage === 'Quản lý người dùng' ? (

@@ -6,6 +6,7 @@ import sensorReducer from './slices/sensorSlice';
 import sensorRealtimeReducer from './slices/sensorRealtimeSlice';
 import analyticsReducer from './slices/analyticsSlice';
 import alertReducer from './slices/alertSlice';
+import flightMonitorReducer from './slices/flightMonitorSlice';
 
 export const store = configureStore({
   reducer: {
@@ -16,6 +17,7 @@ export const store = configureStore({
     sensorRealtime: sensorRealtimeReducer,
     analytics: analyticsReducer,
     alert: alertReducer,
+    flightMonitor: flightMonitorReducer,
   },
   devTools: import.meta.env.DEV,
 });
