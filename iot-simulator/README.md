@@ -6,7 +6,8 @@
 > - `[LTJ-15]` `[Sprint 3][Dev 5] Script Giả lập Bắn MQTT & Test Tải Cảm biến`
 > - `[LTJ-20]` `[Sprint 4][Dev 5] Review JSON Waypoints & Test Tạo Mission`  
 > - `[LTJ-25]` `[Sprint 5][Dev 5] Giả lập UAV Offline Sync (SQLite Local to MQTT)`  
-> **Người thực hiện**: Trần Nguyễn Bảo Hoàng — Dev 5 (IoT / Testing)
+> - `[LTJ-30]` `[Sprint 6][Dev 5] Giả lập Bắn Data Cực đoan & Activity Diagram`  
+> **Người thực hiện**: Trần Nguyễn Bảo Hoàng — Dev 5 (IoT, System Architecture & QA Specialist)
 
 ---
 
@@ -93,6 +94,11 @@ Mỗi bản tin được sinh ra trên topic `iot/ltj/sensor/zone-{zoneId}/{devi
 # Cú pháp: --test-offline-sync [tong_so_ban_ghi] [kich_thuoc_lo_batch]
 # Mặc định: Giả lập lưu 30 bản ghi SQLite khi mất mạng -> Bật mạng -> Handshake -> Bulk Sync 10 bản ghi/lô
 .\gradlew.bat run --args="--test-offline-sync 30 10" --console=plain
+```
+
+### 6. Chế độ 5: Kiểm thử Bắn Data Cực đoan Kích hoạt Alert (`Sprint 6 - LTJ-30`)
+```powershell
+.\gradlew.bat run --args="--test-extreme-alert" --console=plain
 ```
 
 ---
