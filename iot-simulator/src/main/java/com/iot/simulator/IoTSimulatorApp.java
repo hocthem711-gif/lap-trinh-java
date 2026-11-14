@@ -12,14 +12,17 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 /**
- * Ứng dụng chính - Giả lập thiết bị IoT, Kiểm thử tải Cảm biến, Kiểm thử Mission UAV
- * và Giả lập UAV Offline Sync (SQLite to MQTT).
+ * Ứng dụng chính - Giả lập thiết bị IoT, Kiểm thử tải Cảm biến, Kiểm thử Mission UAV,
+ * Giả lập UAV Offline Sync (SQLite to MQTT), Giả lập Bắn Data Cực đoan (Alert Trigger)
+ * và Giả lập UAV Bay Realtime Telemetry.
  *
- * Hỗ trợ 4 chế độ chạy:
+ * Hỗ trợ 6 chế độ chạy:
  *   1. Chạy bắn MQTT liên tục (F20 - Online):        gradlew run
  *   2. Chạy Load Test 10-20 sensors (LTJ-15):        gradlew run --args="--load-test 20 1 10"
  *   3. Chạy Test Mission & Waypoints (LTJ-20):       gradlew run --args="--test-mission"
  *   4. Chạy Test UAV Offline Sync SQLite (LTJ-25):   gradlew run --args="--test-offline-sync 30 10"
+ *   5. Chạy Test Bắn Data Cực đoan Alert (LTJ-30):   gradlew run --args="--test-extreme-alert"
+ *   6. Chạy Test UAV Realtime Telemetry (LTJ-35):    gradlew run --args="--test-uav-flight" (hoặc --flight-sim)
  */
 public class IoTSimulatorApp {
 
@@ -53,6 +56,13 @@ public class IoTSimulatorApp {
     }
 
     public static void main(String[] args) {
+        // Chế độ 6 (Sprint 7 - LTJ-35): Giả lập UAV Bay Realtime Telemetry (Nội suy GPS LERP qua MQTT)
+        if (args.length > 0 && ("--test-uav-flight".equalsIgnoreCase(args[0]) || "--flight-sim".equalsIgnoreCase(args[0]))) {
+            boolean isFastMode = "--test-uav-flight".equalsIgnoreCase(args[0]);
+            String broker = (args.length > 1 && !args[1].isEmpty()) ? args[1] : DEFAULT_BROKER;
+            runUavFlightSimulation(broker, isFastMode);
+            return;
+        }
         // Chế độ 5 (Sprint 6 - LTJ-30): Giả lập Bắn Data Cực đoan (Nhiệt độ 60°C, Pin 5%) Kích hoạt Alert
         if (args.length > 0 && "--test-extreme-alert".equalsIgnoreCase(args[0])) {
             String broker = (args.length > 1 && !args[1].isEmpty()) ? args[1] : DEFAULT_BROKER;
@@ -159,7 +169,6 @@ public class IoTSimulatorApp {
             List<Future<Double>> tasks = new ArrayList<>();
 
             // Chưa từng kết nối được (khởi động lúc mất mạng) -> thử kết nối lại mỗi 5 chu kỳ.
-            // Nếu đã từng kết nối thì Paho tự reconnect (AutomaticReconnect = true).
             if (!isOnline && cycle % 5 == 0) {
                 try {
                     publisher.connect();
@@ -343,6 +352,7 @@ public class IoTSimulatorApp {
             System.out.printf("  - Topic    : %s%n", topic);
             System.out.printf("  - Payload  : %s%n", json);
 
+            // Kiểm chứng tiêu chí vật lý Backend (F19)
             boolean physicalValid = data.getTemperature() >= -10.0 && data.getTemperature() <= 60.0
                     && data.getBatteryLevel() >= 0.0 && data.getBatteryLevel() <= 100.0;
             boolean alertTriggered = (data.getTemperature() > 35.0) || (data.getBatteryLevel() <= 10.0);
@@ -377,6 +387,56 @@ public class IoTSimulatorApp {
     }
 
     /**
+     * Chế độ 6 (Sprint 7 - LTJ-35): Giả lập UAV Bay Realtime Telemetry (Nội suy GPS LERP qua MQTT).
+     *
+     * @param brokerUrl  Địa chỉ Broker MQTT
+     * @param isFastMode True nếu chạy test nhanh (vài giây), False nếu chạy realtime (1 giây/bước)
+     */
+    public static void runUavFlightSimulation(String brokerUrl, boolean isFastMode) {
+        System.out.println("==========================================================================");
+        System.out.println("   SMART FARM IOT - GIA LAP UAV BAY REALTIME TELEMETRY (LTJ-35)           ");
+        System.out.println("==========================================================================");
+        System.out.printf("  * MQTT Broker : %s%n", brokerUrl);
+        System.out.printf("  * Che do chay : %s%n", isFastMode ? "TEST NHANH (Fast Mode)" : "REALTIME (1 giay/buoc)");
+        System.out.printf("  * Topic       : %s%n", UavFlightSimulator.TELEMETRY_TOPIC);
+        System.out.println("  * Thuat toan  : Noi suy tuyen tinh LERP 3D (Kinh do, Vi do, Cao do) + Hao pin 0.35%/phut");
+        System.out.println("==========================================================================\n");
+
+        MqttPublisher publisher = new MqttPublisher(brokerUrl, "UavFlightSim_" + System.currentTimeMillis(), 1);
+        boolean isConnected = false;
+        try {
+            publisher.connect();
+            isConnected = true;
+            System.out.println(">> Da ket noi thanh cong MQTT Broker.");
+        } catch (Exception e) {
+            System.out.println(">> Khong ket noi duoc Broker -> Chay mo phong noi bo (Local Emulation).");
+        }
+
+        UavFlightSimulator sim = new UavFlightSimulator();
+        System.out.printf(">> Khoi chay Mission: '%s' gom %d Waypoints (Khu A)%n%n",
+                sim.getMissionName(), sim.getWaypoints().size());
+
+        final boolean conn = isConnected;
+        int[] packetCount = {0};
+
+        sim.simulateFlight(isConnected ? publisher : null, UavFlightSimulator.TELEMETRY_TOPIC, isFastMode, telem -> {
+            packetCount[0]++;
+            System.out.printf("[#%03d][UAV-TELEM] %s >> %s%n",
+                    packetCount[0], telem, conn ? "MQTT SENT" : "LOCAL EMULATED");
+        });
+
+        if (isConnected) {
+            publisher.disconnect();
+        }
+
+        System.out.println("\n==========================================================================");
+        System.out.printf("  TONG KET CHUYEN BAY LTJ-35: %d GOI TIN TELEMETRY HOAN TAT (100%%)%n", packetCount[0]);
+        System.out.println("  Trang thai: Chuyen bay mo phong an toan, dong bo day du voi Map Leaflet!");
+        System.out.println("==========================================================================");
+    }
+
+    /**
+>>>>>>> dcf948f (feat(LTJ-35): implement UAV realtime telemetry flight simulator with LERP GPS interpolation)
      * Gửi gói tin JSON sang Backend REST API (/api/v1/sensor-data/simulator).
      */
     private static int sendToBackendHttp(HttpClient httpClient, String apiUrl, String jsonPayload) {
