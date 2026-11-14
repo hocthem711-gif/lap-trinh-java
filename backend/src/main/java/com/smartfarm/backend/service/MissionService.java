@@ -9,6 +9,7 @@ import com.smartfarm.backend.entity.Mission;
 import com.smartfarm.backend.entity.MissionNote;
 import com.smartfarm.backend.entity.Uav;
 import com.smartfarm.backend.entity.Waypoint;
+import com.smartfarm.backend.exception.ResourceNotFoundException;
 import com.smartfarm.backend.repository.MissionNoteRepository;
 import com.smartfarm.backend.repository.MissionRepository;
 import com.smartfarm.backend.repository.UavRepository;
@@ -28,8 +29,8 @@ import java.util.Set;
 public class MissionService {
 
     private static final Set<String> ALLOWED_MISSION_STATUSES = Set.of(
-            "CREATED", "PENDING", "READY", "ACTIVE", "IN_PROGRESS",
-            "FLYING", "PAUSED", "RETURNING", "COMPLETED", "ABORTED", "CANCELLED", "FAILED"
+            "CREATED", "PENDING", "STANDBY", "READY", "ACTIVE", "IN_PROGRESS",
+            "FLYING", "PAUSED", "RETURNING", "COMPLETED", "ABORTED", "CANCELLED", "FAILED", "COLLECTION_ERROR"
     );
 
     private final MissionRepository missionRepository;
@@ -103,7 +104,7 @@ public class MissionService {
 
     public Mission getMissionById(Long id) {
         return missionRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy Mission với ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Mission", "id", id));
     }
 
     @Transactional
@@ -134,7 +135,7 @@ public class MissionService {
         // Tìm Mission theo tên hoặc mission gần nhất đang hoạt động
         Mission mission = null;
         if (payload.getMissionName() != null && !payload.getMissionName().isBlank()) {
-            mission = missionRepository.findByName(payload.getMissionName()).orElse(null);
+            mission = missionRepository.findFirstByNameOrderByIdDesc(payload.getMissionName()).orElse(null);
         }
 
         if (mission == null) {
@@ -272,7 +273,7 @@ public class MissionService {
     public MissionNote updateMissionNote(Long noteId, MissionNote updates) {
         if (missionNoteRepository == null) return updates;
         MissionNote note = missionNoteRepository.findById(noteId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ghi chú với ID: " + noteId));
+                .orElseThrow(() -> new ResourceNotFoundException("MissionNote", "id", noteId));
 
         if (updates.getTitle() != null && !updates.getTitle().isBlank()) {
             note.setTitle(updates.getTitle().trim());

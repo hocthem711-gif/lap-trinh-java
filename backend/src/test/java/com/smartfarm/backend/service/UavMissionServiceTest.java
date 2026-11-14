@@ -159,7 +159,7 @@ class UavMissionServiceTest {
 
         when(uavRepository.findByCode("UAV-ALPHA-01")).thenReturn(Optional.of(mockUav));
         when(uavRepository.save(any(Uav.class))).thenReturn(mockUav);
-        when(missionRepository.findByName("Mission-KhuA-Demo")).thenReturn(Optional.of(mockMission));
+        when(missionRepository.findFirstByNameOrderByIdDesc("Mission-KhuA-Demo")).thenReturn(Optional.of(mockMission));
         when(missionRepository.save(any(Mission.class))).thenAnswer(i -> i.getArgument(0));
 
         MissionProgressResponse progress = uavService.ingestRealtimeTelemetry(payload);
@@ -194,7 +194,7 @@ class UavMissionServiceTest {
 
         when(uavRepository.findByCode("UAV-ALPHA-01")).thenReturn(Optional.of(mockUav));
         when(uavRepository.save(any(Uav.class))).thenReturn(mockUav);
-        when(missionRepository.findByName("Mission-KhuA-Demo")).thenReturn(Optional.of(mockMission));
+        when(missionRepository.findFirstByNameOrderByIdDesc("Mission-KhuA-Demo")).thenReturn(Optional.of(mockMission));
         when(missionRepository.save(any(Mission.class))).thenAnswer(i -> i.getArgument(0));
 
         MissionProgressResponse progress = uavService.ingestRealtimeTelemetry(payload);
@@ -218,7 +218,7 @@ class UavMissionServiceTest {
 
         when(uavRepository.findByCode("UAV-ALPHA-01")).thenReturn(Optional.of(mockUav));
         when(uavRepository.save(any(Uav.class))).thenReturn(mockUav);
-        when(missionRepository.findByName("Mission-KhuA-Demo")).thenReturn(Optional.of(mockMission));
+        when(missionRepository.findFirstByNameOrderByIdDesc("Mission-KhuA-Demo")).thenReturn(Optional.of(mockMission));
         when(missionRepository.save(any(Mission.class))).thenAnswer(i -> i.getArgument(0));
 
         MissionProgressResponse progress = uavService.ingestRealtimeTelemetry(payload);

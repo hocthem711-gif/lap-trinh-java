@@ -9,4 +9,5 @@ import java.util.Optional;
 @Repository
 public interface MissionRepository extends JpaRepository<Mission, Long> {
     Optional<Mission> findByName(String name);
+    Optional<Mission> findFirstByNameOrderByIdDesc(String name);
 }
