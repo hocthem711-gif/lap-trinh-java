@@ -19,10 +19,15 @@ public class TelemetryRealtimeServiceImpl implements TelemetryRealtimeService {
     private static final Logger log = LoggerFactory.getLogger(TelemetryRealtimeServiceImpl.class);
 
     private final SimpMessagingTemplate messagingTemplate;
+    private static final int MAX_SSE_EMITTERS = 100;
     private final List<SseEmitter> sseEmitters = new CopyOnWriteArrayList<>();
 
     public TelemetryRealtimeServiceImpl(SimpMessagingTemplate messagingTemplate) {
         this.messagingTemplate = messagingTemplate;
+    }
+
+    public int getActiveSseEmittersCount() {
+        return sseEmitters.size();
     }
 
     @Override
@@ -65,6 +70,14 @@ public class TelemetryRealtimeServiceImpl implements TelemetryRealtimeService {
 
     @Override
     public SseEmitter subscribeStream() {
+        if (sseEmitters.size() >= MAX_SSE_EMITTERS) {
+            log.warn("Đã đạt giới hạn kết nối SSE tối đa ({}). Tự động dọn dẹp kết nối cũ nhất.", MAX_SSE_EMITTERS);
+            if (!sseEmitters.isEmpty()) {
+                SseEmitter oldest = sseEmitters.remove(0);
+                oldest.complete();
+            }
+        }
+
         // Timeout 30 phút cho mỗi kết nối SSE
         SseEmitter emitter = new SseEmitter(30 * 60 * 1000L);
         sseEmitters.add(emitter);
