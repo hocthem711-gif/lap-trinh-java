@@ -1,6 +1,7 @@
 package com.smartfarm.backend.entity;
 
 import jakarta.persistence.*;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "alerts")
@@ -16,6 +17,18 @@ public class Alert extends BaseEntity {
     @Column(name = "is_read", nullable = false)
     private Boolean isRead = false;
 
+    // --- CÁC TRƯỜNG MỚI CHO TASK LTJ-27 ---
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private AlertStatus status = AlertStatus.OPEN;
+
+    @Column(name = "resolved_note", length = 500)
+    private String resolvedNote;
+
+    @Column(name = "resolved_at")
+    private LocalDateTime resolvedAt;
+    // --------------------------------------
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "zone_id")
     private Zone zone;
@@ -30,6 +43,7 @@ public class Alert extends BaseEntity {
         this.message = message;
         this.alertLevel = alertLevel;
         this.isRead = false;
+        this.status = AlertStatus.OPEN;
         this.zone = zone;
         this.sensor = sensor;
     }
@@ -42,6 +56,15 @@ public class Alert extends BaseEntity {
 
     public Boolean getIsRead() { return isRead; }
     public void setIsRead(Boolean isRead) { this.isRead = isRead; }
+
+    public AlertStatus getStatus() { return status; }
+    public void setStatus(AlertStatus status) { this.status = status; }
+
+    public String getResolvedNote() { return resolvedNote; }
+    public void setResolvedNote(String resolvedNote) { this.resolvedNote = resolvedNote; }
+
+    public LocalDateTime getResolvedAt() { return resolvedAt; }
+    public void setResolvedAt(LocalDateTime resolvedAt) { this.resolvedAt = resolvedAt; }
 
     public Zone getZone() { return zone; }
     public void setZone(Zone zone) { this.zone = zone; }

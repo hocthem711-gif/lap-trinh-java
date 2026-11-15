@@ -1,7 +1,7 @@
 package com.smartfarm.backend.dto.response;
 
 import com.smartfarm.backend.entity.AlertLevel;
-
+import com.smartfarm.backend.entity.AlertStatus;
 import java.time.LocalDateTime;
 
 public class AlertResponse {
@@ -10,6 +10,9 @@ public class AlertResponse {
     private String message;
     private AlertLevel alertLevel;
     private Boolean isRead;
+    private AlertStatus status;
+    private String resolvedNote;
+    private LocalDateTime resolvedAt;
     private Long zoneId;
     private String zoneName;
     private Long sensorId;
@@ -19,12 +22,16 @@ public class AlertResponse {
     public AlertResponse() {}
 
     public AlertResponse(Long id, String message, AlertLevel alertLevel, Boolean isRead,
+                         AlertStatus status, String resolvedNote, LocalDateTime resolvedAt,
                          Long zoneId, String zoneName, Long sensorId, String sensorName,
                          LocalDateTime createdAt) {
         this.id = id;
         this.message = message;
         this.alertLevel = alertLevel;
         this.isRead = isRead;
+        this.status = status;
+        this.resolvedNote = resolvedNote;
+        this.resolvedAt = resolvedAt;
         this.zoneId = zoneId;
         this.zoneName = zoneName;
         this.sensorId = sensorId;
@@ -32,6 +39,7 @@ public class AlertResponse {
         this.createdAt = createdAt;
     }
 
+    // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -43,6 +51,15 @@ public class AlertResponse {
 
     public Boolean getIsRead() { return isRead; }
     public void setIsRead(Boolean isRead) { this.isRead = isRead; }
+
+    public AlertStatus getStatus() { return status; }
+    public void setStatus(AlertStatus status) { this.status = status; }
+
+    public String getResolvedNote() { return resolvedNote; }
+    public void setResolvedNote(String resolvedNote) { this.resolvedNote = resolvedNote; }
+
+    public LocalDateTime getResolvedAt() { return resolvedAt; }
+    public void setResolvedAt(LocalDateTime resolvedAt) { this.resolvedAt = resolvedAt; }
 
     public Long getZoneId() { return zoneId; }
     public void setZoneId(Long zoneId) { this.zoneId = zoneId; }

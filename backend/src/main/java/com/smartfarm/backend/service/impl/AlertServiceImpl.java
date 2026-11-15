@@ -3,6 +3,7 @@ package com.smartfarm.backend.service.impl;
 import com.smartfarm.backend.dto.request.AlertCreateRequest;
 import com.smartfarm.backend.dto.response.AlertResponse;
 import com.smartfarm.backend.entity.Alert;
+import com.smartfarm.backend.entity.AlertStatus;
 import com.smartfarm.backend.entity.Sensor;
 import com.smartfarm.backend.entity.Zone;
 import com.smartfarm.backend.exception.ResourceNotFoundException;
@@ -13,6 +14,7 @@ import com.smartfarm.backend.service.AlertService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -92,6 +94,9 @@ public class AlertServiceImpl implements AlertService {
     public AlertResponse resolveAlert(Long id, String resolvedNote) {
         Alert alert = alertRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Alert", "id", id));
+        alert.setStatus(AlertStatus.RESOLVED);
+        alert.setResolvedNote(resolvedNote != null ? resolvedNote : "Đã xử lý cảnh báo thủ công");
+        alert.setResolvedAt(LocalDateTime.now());
         alert.setIsRead(true);
         Alert updated = alertRepository.save(alert);
         return toResponse(updated);
@@ -113,6 +118,9 @@ public class AlertServiceImpl implements AlertService {
                 alert.getMessage(),
                 alert.getAlertLevel(),
                 alert.getIsRead(),
+                alert.getStatus(),
+                alert.getResolvedNote(),
+                alert.getResolvedAt(),
                 zone != null ? zone.getId() : null,
                 zone != null ? zone.getName() : null,
                 sensor != null ? sensor.getId() : null,
