@@ -1546,3 +1546,14 @@
 .fm-loading-state {
   color: #64748b;
 }
+
+/* --- Toast Banner (đảm bảo độ tương phản cao trên nền sáng #f5f7fb) --- */
+.fm-toast-banner {
+  background: #dcfce7;
+  border: 1px solid #86efac;
+  color: #166534;
+}
+
+.fm-toast-close {
+  color: #166534;
+}

@@ -646,9 +646,10 @@ function loadStoredNotes(): MissionNote[] {
     const raw = localStorage.getItem(NOTES_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as MissionNote[];
+      // Chấp nhận cả mảng rỗng: người dùng đã xóa hết Note thì KHÔNG tự nạp lại dữ liệu mẫu
+      // (tránh lỗi Note đã xóa "sống lại" sau F5). Chỉ reset khi còn bản lưu tọa độ TP.HCM cũ.
       if (
         Array.isArray(parsed) &&
-        parsed.length > 0 &&
         parsed.every((n) => n.latitude >= 11.5)
       ) {
         return parsed;

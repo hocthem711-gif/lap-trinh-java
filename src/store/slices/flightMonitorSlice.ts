@@ -327,9 +327,61 @@ const flightMonitorSlice = createSlice({
       })
       .addCase(changeUavFlightStatus.fulfilled, (state, action) => {
         const { missionId, newStatus, customErrorReason } = action.payload;
+        let restartedNote = '';
         state.sessions = state.sessions.map((s) => {
           if (s.missionId !== missionId) return s;
 
+          // Khi bấm "Đang bay" (FLYING) trên chuyến bay đã COMPLETED hoặc đã chạm WP cuối,
+          // tự động reset lộ trình về Waypoint #1 -> #2 để không bị advanceFlightSessionTick giật ngược về RETURNING sau 2s.
+          const isRouteFinished =
+            s.status === 'COMPLETED' ||
+            s.completedWaypoints >= s.totalWaypoints ||
+            (s.currentWaypointOrder >= s.totalWaypoints && s.segmentProgress >= 1);
+          const shouldRestartRoute = newStatus === 'FLYING' && isRouteFinished;
+          const needsSafeBattery = newStatus === 'FLYING' && s.batteryPercent <= 20;
+
+          if (shouldRestartRoute || needsSafeBattery) {
+            restartedNote = needsSafeBattery
+              ? ' (Đã nạp pin an toàn 85% & khởi hành lại từ WP #1)'
+              : ' (Đã khởi hành lại lộ trình từ WP #1)';
+          }
+
+          if (shouldRestartRoute) {
+            const firstWp = s.waypoints[0];
+            const nextOrder = s.waypoints.length > 1 ? 2 : 1;
+            const nextBattery = needsSafeBattery ? 85 : s.batteryPercent;
+            const resetWaypoints = s.waypoints.map((wp, idx) => ({
+              ...wp,
+              visitState:
+                idx === 0
+                  ? ('COMPLETED' as const)
+                  : idx === 1
+                    ? ('ACTIVE' as const)
+                    : ('PENDING' as const),
+              reachedAt: idx === 0 ? new Date().toTimeString().slice(0, 8) : null,
+            }));
+
+            return {
+              ...s,
+              status: 'FLYING',
+              latitude: firstWp ? firstWp.latitude : s.homeLatitude,
+              longitude: firstWp ? firstWp.longitude : s.homeLongitude,
+              altitudeM: firstWp ? firstWp.altitudeM : 30,
+              speedMs: firstWp ? firstWp.targetSpeedMs : 8.5,
+              batteryPercent: nextBattery,
+              batteryVoltageV: Number((42 + (nextBattery / 100) * 10.4).toFixed(1)),
+              currentWaypointOrder: nextOrder,
+              completedWaypoints: 1,
+              segmentProgress: 0,
+              progressPercent: 0,
+              distanceTraveledM: 0,
+              errorReason: null,
+              lastTelemetryAt: new Date().toISOString(),
+              waypoints: resetWaypoints,
+            };
+          }
+
+          const nextBattery = needsSafeBattery ? 85 : s.batteryPercent;
           const updatedWaypoints = s.waypoints.map((wp) => {
             if (wp.order === s.currentWaypointOrder) {
               return {
@@ -350,6 +402,8 @@ const flightMonitorSlice = createSlice({
           return {
             ...s,
             status: newStatus,
+            batteryPercent: nextBattery,
+            batteryVoltageV: Number((42 + (nextBattery / 100) * 10.4).toFixed(1)),
             // Bắt đầu chặng RTH mới luôn từ alpha = 0 tại vị trí hiện tại (tránh teleport về Home)
             segmentProgress:
               newStatus === 'RETURNING' && s.status !== 'RETURNING'
@@ -378,7 +432,7 @@ const flightMonitorSlice = createSlice({
         });
         saveStoredSessions(state.sessions);
         const label = FLIGHT_STATUS_CONFIG[newStatus].label;
-        state.lastActionMessage = `Đã chuyển trạng thái nhiệm vụ #${missionId} sang "${label}".`;
+        state.lastActionMessage = `Đã chuyển trạng thái nhiệm vụ #${missionId} sang "${label}"${restartedNote}.`;
       })
       .addCase(addManualMissionNote.fulfilled, (state, action) => {
         state.notes = [action.payload, ...state.notes];
