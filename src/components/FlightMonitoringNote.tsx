@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   MapContainer,
@@ -25,6 +25,7 @@ import {
   X,
   Download,
   ExternalLink,
+  LocateFixed,
 } from 'lucide-react';
 import type { AppDispatch, RootState } from '../store';
 import {
@@ -159,6 +160,7 @@ export default function FlightMonitoringNote({
 }: FlightMonitoringNoteProps) {
   const dispatch = useDispatch<AppDispatch>();
   const [downloadingExcel, setDownloadingExcel] = useState(false);
+  const monitorMapRef = useRef<L.Map | null>(null);
 
   const handleDownloadCompletedFlightExcel = async () => {
     if (!activeSession || downloadingExcel) return;
@@ -628,6 +630,7 @@ export default function FlightMonitoringNote({
           <div className="fm-clean-map-box">
             <MapContainer
               key={`${activeSession.uavId}-${activeSession.startedAt}`}
+              ref={monitorMapRef}
               center={[activeSession.latitude, activeSession.longitude]}
               zoom={15}
               scrollWheelZoom={true}
@@ -706,6 +709,31 @@ export default function FlightMonitoringNote({
                 </Popup>
               </Marker>
             </MapContainer>
+
+            {/* Nút quay nhanh về vùng trang trại & UAV đang giám sát */}
+            <button
+              type="button"
+              className="fm-recenter-btn"
+              onClick={() => {
+                const map = monitorMapRef.current;
+                if (!map) return;
+                const zBox =
+                  ZONE_GEOFENCE_BOUNDS[activeSession.zoneId] ?? ZONE_GEOFENCE_BOUNDS[1];
+                const bounds = L.latLngBounds([
+                  [zBox.minLat, zBox.minLng],
+                  [zBox.maxLat, zBox.maxLng],
+                ]);
+                activeSession.waypoints.forEach((w) =>
+                  bounds.extend([w.latitude, w.longitude]),
+                );
+                bounds.extend([activeSession.latitude, activeSession.longitude]);
+                map.flyToBounds(bounds, { padding: [36, 36], maxZoom: 16, duration: 0.9 });
+              }}
+              title={`Quay về vị trí ${activeSession.uavId} & ${activeSession.zoneName}`}
+            >
+              <LocateFixed size={16} />
+              <span>Về trang trại</span>
+            </button>
           </div>
         </section>
       </div>
