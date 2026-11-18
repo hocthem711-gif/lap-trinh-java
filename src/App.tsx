@@ -7,6 +7,7 @@ import FlightPathPlanner from './components/FlightPathPlanner'
 import ZoneComparisonSync from './components/ZoneComparisonSync'
 import ThresholdAlertManagement from './components/ThresholdAlertManagement'
 import FlightMonitoringNote from './components/FlightMonitoringNote'
+import ExcelExportMissionReview from './components/ExcelExportMissionReview'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -38,6 +39,7 @@ import {
   Route,
   ChartColumn,
   ShieldAlert,
+  FileSpreadsheet,
 } from 'lucide-react'
 import DeviceManagement from './components/DeviceManagement'
 import SensorAssignment from './components/SensorAssignment'
@@ -67,9 +69,8 @@ const menuItems = [
   { label: 'So sánh & Đồng bộ UAV', icon: ChartColumn },
   { label: 'Ngưỡng & Cảnh báo', icon: ShieldAlert },
   { label: 'Giám sát & Note Mission', icon: ClipboardList },
-  { label: 'Trạm điều khiển', icon: Radio },
+  { label: 'Xuất Excel & Review Mission', icon: FileSpreadsheet },
   { label: 'Bản đồ & vị trí', icon: Map },
-  { label: 'Nhiệm vụ', icon: ClipboardList },
   { label: 'Quản lý người dùng', icon: Users },
   { label: 'Cài đặt', icon: Settings },
 ]
@@ -455,7 +456,6 @@ function App() {
                     </article>
                   )
                 })}
-                <HistoryChart />
               </div>
 
               {/* Biểu đồ và trạng thái kết nối */}
@@ -647,12 +647,12 @@ function App() {
             <ZoneComparisonSync />
           ) : activePage === 'Ngưỡng & Cảnh báo' ? (
             <ThresholdAlertManagement />
-          ) : activePage === 'Giám sát & Note Mission' ||
-            activePage === 'Nhiệm vụ' ||
-            activePage === 'Trạm điều khiển' ? (
+          ) : activePage === 'Giám sát & Note Mission' ? (
             <FlightMonitoringNote />
+          ) : activePage === 'Xuất Excel & Review Mission' ? (
+            <ExcelExportMissionReview />
           ) : activePage === 'Bản đồ & vị trí' ? (
-           <SensorOverviewMap />
+            <SensorOverviewMap />
           ) : activePage === 'Quản lý người dùng' ? (
   <div className="uav-page">
     <div className="section-title">
@@ -876,15 +876,7 @@ function App() {
 ) : (
   <div className="panel page-placeholder">
     <div className="stat-icon">
-      {activePage === 'Trạm điều khiển' ? (
-        <Radio size={24} />
-      ) : activePage === 'Bản đồ & vị trí' || activePage === 'Bản đồ & Popup' ? (
-        <Map size={24} />
-      ) : activePage === 'Nhiệm vụ' ? (
-        <ClipboardList size={24} />
-      ) : (
-        <Settings size={24} />
-      )}
+      <Settings size={24} />
     </div>
 
     <h2>{activePage}</h2>

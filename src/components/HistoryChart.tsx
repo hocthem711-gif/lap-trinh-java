@@ -76,7 +76,11 @@ export default function HistoryChart() {
       .then((list) => {
         if (!isActive) return
         setSensors(list)
-        setSensorId((current) => current ?? list[0]?.id ?? null)
+        const defaultId = list[0]?.id ?? null
+        setSensorId((current) => current ?? defaultId)
+        if (defaultId !== null) {
+          setLoadingHistory(true)
+        }
       })
       .catch((error: unknown) => {
         if (!isActive) return
@@ -98,16 +102,17 @@ export default function HistoryChart() {
     if (sensorId === null) return
 
     const controller = new AbortController()
-    setLoadingHistory(true)
-    setHistoryError('')
-    setPoints([])
 
     fetchSensorHistory(sensorId, range, controller.signal)
       .then((result) => {
-        if (!controller.signal.aborted) setPoints(result)
+        if (!controller.signal.aborted) {
+          setHistoryError('')
+          setPoints(result)
+        }
       })
       .catch((error: unknown) => {
         if (!controller.signal.aborted) {
+          setPoints([])
           setHistoryError(
             error instanceof Error ? error.message : 'Không thể tải lịch sử cảm biến.',
           )
@@ -170,7 +175,11 @@ export default function HistoryChart() {
         <button
           type="button"
           disabled={loadingHistory || sensorId === null}
-          onClick={() => setRefreshKey((previous) => previous + 1)}
+          onClick={() => {
+            setLoadingHistory(true)
+            setHistoryError('')
+            setRefreshKey((previous) => previous + 1)
+          }}
         >
           Làm mới
         </button>
@@ -190,7 +199,11 @@ export default function HistoryChart() {
           id="history-sensor"
           value={sensorId ?? ''}
           disabled={loadingSensors || sensors.length === 0}
-          onChange={(event) => setSensorId(Number(event.target.value))}
+          onChange={(event) => {
+            setLoadingHistory(true)
+            setHistoryError('')
+            setSensorId(Number(event.target.value))
+          }}
           style={{ padding: '8px 10px', borderRadius: 8 }}
         >
           {sensors.length === 0 && <option value="">Chưa có cảm biến</option>}
@@ -211,7 +224,13 @@ export default function HistoryChart() {
               key={filter.value}
               type="button"
               aria-pressed={range === filter.value}
-              onClick={() => setRange(filter.value)}
+              onClick={() => {
+                if (range !== filter.value) {
+                  setLoadingHistory(true)
+                  setHistoryError('')
+                  setRange(filter.value)
+                }
+              }}
               style={{
                 padding: '8px 14px',
                 borderRadius: 8,
