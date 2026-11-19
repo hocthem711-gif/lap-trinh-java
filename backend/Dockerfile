@@ -27,4 +27,8 @@ COPY --from=builder /build/target/*.jar app.jar
 
 EXPOSE 8080
 
+# Healthcheck kiểm tra trạng thái container tự động (Dev 1 - LTJ-36)
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD wget --no-verbose --tries=1 --spider http://localhost:8080/api/v1/health || exit 1
+
 ENTRYPOINT ["java", "-jar", "app.jar"]
