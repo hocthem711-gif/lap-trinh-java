@@ -25,14 +25,14 @@ public class UavController {
 
     private final UavService uavService;
 
-    @GetMapping({"/api/v1/uavs", "/uavs"})
+    @GetMapping("/uavs")
     @Operation(summary = "Lấy danh sách tất cả UAV")
     public ResponseEntity<ApiResponse<List<Uav>>> getAllUavs() {
         List<Uav> list = uavService.getAllUavs();
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách UAV thành công", list));
     }
 
-    @PostMapping({"/api/v1/uavs", "/uavs"})
+    @PostMapping("/uavs")
     @Operation(summary = "Thêm mới một UAV vào hệ thống")
     public ResponseEntity<ApiResponse<Uav>> createUav(@RequestBody Uav uav) {
         Uav saved = uavService.createUav(uav);
@@ -40,28 +40,28 @@ public class UavController {
                 .body(ApiResponse.success("Thêm mới UAV thành công", saved));
     }
 
-    @DeleteMapping({"/api/v1/uavs/{code}", "/uavs/{code}"})
+    @DeleteMapping("/uavs/{code}")
     @Operation(summary = "Xóa UAV theo mã code")
     public ResponseEntity<ApiResponse<String>> deleteUav(@PathVariable String code) {
         uavService.deleteUavByCode(code);
         return ResponseEntity.ok(ApiResponse.success("Đã xóa UAV mã: " + code, code));
     }
 
-    @PostMapping({"/api/v1/uavs/handshake", "/uavs/handshake"})
+    @PostMapping("/uavs/handshake")
     @Operation(summary = "Xác thực bắt tay và cấp Session ID cho UAV (LTJ-22)")
     public ResponseEntity<ApiResponse<HandshakeResponseDTO>> handshake(@RequestBody HandshakeRequestDTO request) {
         HandshakeResponseDTO response = uavService.processHandshake(request);
         return ResponseEntity.ok(ApiResponse.success("Bắt tay xác thực UAV thành công", response));
     }
 
-    @PostMapping({"/api/v1/uavs/telemetry", "/uavs/telemetry"})
+    @PostMapping("/uavs/telemetry")
     @Operation(summary = "Nhận tọa độ viễn trắc UAV và cập nhật tiến độ Mission (LTJ-32)")
     public ResponseEntity<ApiResponse<MissionProgressResponse>> receiveTelemetry(@RequestBody UavTelemetryPayload payload) {
         MissionProgressResponse response = uavService.ingestRealtimeTelemetry(payload);
         return ResponseEntity.ok(ApiResponse.success("Tiếp nhận viễn trắc UAV thành công", response));
     }
 
-    @GetMapping({"/api/v1/uav-sync/sessions", "/uav-sync/sessions"})
+    @GetMapping("/uav-sync/sessions")
     @Operation(summary = "Lấy danh sách các phiên đồng bộ UAV sắp giảm dần theo thời gian (LTJ-22, khớp analyticsService.ts)")
     public ResponseEntity<ApiResponse<List<UavSyncSessionDTO>>> getSyncSessions(
             @RequestParam(required = false) String uavCode) {

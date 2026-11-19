@@ -7,6 +7,7 @@ import com.smartfarm.backend.dto.response.MissionProgressResponse;
 import com.smartfarm.backend.dto.response.UavSyncSessionDTO;
 import com.smartfarm.backend.entity.SyncLog;
 import com.smartfarm.backend.entity.Uav;
+import com.smartfarm.backend.exception.ResourceNotFoundException;
 import com.smartfarm.backend.repository.SyncLogRepository;
 import com.smartfarm.backend.repository.UavRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,7 +36,7 @@ public class UavService {
 
     public Uav getUavByCode(String code) {
         return uavRepository.findByCode(code)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy UAV với mã: " + code));
+                .orElseThrow(() -> new ResourceNotFoundException("Uav", "code", code));
     }
 
     public Uav createUav(Uav uav) {
@@ -50,7 +51,9 @@ public class UavService {
 
     @Transactional
     public void deleteUavByCode(String code) {
-        uavRepository.findByCode(code).ifPresent(uavRepository::delete);
+        Uav uav = uavRepository.findByCode(code)
+                .orElseThrow(() -> new ResourceNotFoundException("Uav", "code", code));
+        uavRepository.delete(uav);
     }
 
     @Transactional
@@ -204,16 +207,20 @@ public class UavService {
             return newU;
         });
 
-        uav.setLatitude(payload.getLatitude());
-        uav.setLongitude(payload.getLongitude());
+        if (payload.getLatitude() != null) {
+            uav.setLatitude(payload.getLatitude());
+        }
+        if (payload.getLongitude() != null) {
+            uav.setLongitude(payload.getLongitude());
+        }
         uav.setAltitude(payload.getEffectiveAltitude());
         uav.setSpeed(payload.getEffectiveSpeed());
         uav.setBatteryLevel(payload.getEffectiveBattery());
         uav.setIsConnected(true);
         uav.setLastSeenAt(LocalDateTime.now());
 
-        if (payload.getFlightStatus() != null) {
-            uav.setStatus(payload.getFlightStatus());
+        if (payload.getFlightStatus() != null && !payload.getFlightStatus().isBlank()) {
+            uav.setStatus(normalizeTelemetryFlightStatus(payload.getFlightStatus()));
         }
         uavRepository.save(uav);
 
@@ -228,5 +235,16 @@ public class UavService {
         }
 
         return progress;
+    }
+
+    private String normalizeTelemetryFlightStatus(String flightStatus) {
+        String normalized = flightStatus.trim().toUpperCase();
+        return switch (normalized) {
+            case "TAKEOFF", "IN_FLIGHT", "LANDING", "FLYING" -> "FLYING";
+            case "RETURNING" -> "RETURNING";
+            case "LANDED", "COMPLETED", "IDLE", "ACTIVE" -> "ACTIVE";
+            case "OFFLINE", "INACTIVE" -> normalized;
+            default -> normalized;
+        };
     }
 }
