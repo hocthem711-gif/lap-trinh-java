@@ -1178,3 +1178,49 @@ button {
     align-items: flex-start;
   }
 }
+
+.nav-item {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease;
+}
+
+@media (hover: hover) {
+  .nav-item:not(.active):hover {
+    transform: translateX(3px);
+  }
+}
+
+.stats-grid > * {
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease;
+}
+
+@media (hover: hover) {
+  .stats-grid > *:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  }
+}
+
+/* Keyboard accessibility */
+.nav-item:focus-visible,
+.stats-grid a:focus-visible,
+.stats-grid button:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-item,
+  .stats-grid > * {
+    transition: none;
+  }
+
+  .nav-item:not(.active):hover,
+  .stats-grid > *:hover {
+    transform: none;
+  }
+}

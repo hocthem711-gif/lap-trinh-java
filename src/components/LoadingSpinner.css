@@ -1,0 +1,44 @@
+.ui-loading {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 0;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.ui-loading__spinner {
+  width: 20px;
+  height: 20px;
+  border: 3px solid #dbeafe;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: uiSpinnerRotate 0.8s linear infinite;
+  flex-shrink: 0;
+}
+
+.ui-loading--small {
+  padding: 0;
+  gap: 8px;
+}
+
+.ui-loading--small .ui-loading__spinner {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+}
+
+@keyframes uiSpinnerRotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ui-loading__spinner {
+    animation: none;
+    border-top-color: #2563eb;
+    border-right-color: #2563eb;
+  }
+}
