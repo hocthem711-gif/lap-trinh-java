@@ -799,3 +799,108 @@
   font-size: 12px;
   outline: none;
 }
+
+
+/* ============================================================
+   LIGHT MODE OVERRIDE
+   Ghi đè màu sắc dark-mode cho phù hợp với App.css (nền sáng #f5f7fb)
+   Chỉ thay đổi color/background, KHÔNG thay đổi layout/structure
+   ============================================================ */
+
+/* --- Header Card: Giữ gradient nền tối vì đây là banner nổi bật, chỉ đảm bảo chữ đọc rõ --- */
+
+/* --- Telemetry Cards --- */
+.telemetry-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.telemetry-card:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+}
+
+.telemetry-card .label {
+  color: #475569;
+}
+
+.telemetry-card .value {
+  color: #0f172a;
+}
+
+.telemetry-card .unit {
+  color: #64748b;
+}
+
+/* --- Config Panel --- */
+.config-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+.config-panel h3 {
+  color: #0f172a;
+}
+
+.config-row label {
+  color: #475569;
+}
+
+.config-row input[type="number"] {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.config-row .unit-label {
+  color: #64748b;
+}
+
+.apply-all-btn {
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.apply-all-btn:hover {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+/* --- Waypoint list --- */
+.waypoint-list-panel {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+.waypoint-list-panel h3 {
+  color: #0f172a;
+}
+
+.waypoint-list-panel h3 span {
+  color: #64748b;
+  background: #f1f5f9;
+}
+
+.wp-list-item {
+  background: #f8fafc;
+}
+
+.wp-list-item:hover {
+  background: #f1f5f9;
+  border-color: #e2e8f0;
+}
+
+.wp-list-item.selected {
+  background: #eef2ff;
+  border-color: #a5b4fc;
+}
+
+.flight-sidebar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+}
+
+/* --- Map toolbar buttons (keep styled for overlay on dark map) --- */
+
+/* --- Geofence warning (overlay on map, keep dark tones) --- */

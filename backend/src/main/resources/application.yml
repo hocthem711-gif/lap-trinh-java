@@ -7,7 +7,7 @@ spring:
   application:
     name: smart-farm-backend
   datasource:
-    url: jdbc:h2:mem:smartfarmdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    url: jdbc:h2:mem:smartfarmdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;NON_KEYWORDS=VALUE
     driverClassName: org.h2.Driver
     username: sa
     password: 
@@ -23,12 +23,28 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        globally_quoted_identifiers: true
 
-# JWT Configuration
+  mail:
+    host: ${SPRING_MAIL_HOST:smtp.gmail.com}
+    port: ${SPRING_MAIL_PORT:587}
+    username: ${SPRING_MAIL_USERNAME:smartfarm.alerts@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:secret}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# App Configuration
 app:
   jwt:
     secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970 # 256-bit key
     expiration-milliseconds: 86400000 # 24 hours
+  mail:
+    enabled: ${APP_MAIL_ENABLED:false} # Toggle gửi mail thật
+    alert-recipient: ${APP_MAIL_ALERT_RECIPIENT:hieuclet249@gmail.com}
 
 # Documentation Configuration (Swagger UI)
 springdoc:
@@ -37,7 +53,8 @@ springdoc:
   swagger-ui:
     path: /swagger-ui/index.html
     operationsSorter: method
-    logging:
+
+logging:
   level:
-    org.springframework.security: DEBUG
+    org.springframework.security: INFO
     com.smartfarm.backend: DEBUG
