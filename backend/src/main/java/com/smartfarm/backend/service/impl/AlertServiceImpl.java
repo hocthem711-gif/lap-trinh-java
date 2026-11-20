@@ -24,12 +24,15 @@ public class AlertServiceImpl implements AlertService {
     private final AlertRepository alertRepository;
     private final ZoneRepository zoneRepository;
     private final SensorRepository sensorRepository;
+    private final com.smartfarm.backend.service.EmailAlertService emailAlertService;
 
     public AlertServiceImpl(AlertRepository alertRepository, ZoneRepository zoneRepository,
-                            SensorRepository sensorRepository) {
+                            SensorRepository sensorRepository,
+                            com.smartfarm.backend.service.EmailAlertService emailAlertService) {
         this.alertRepository = alertRepository;
         this.zoneRepository = zoneRepository;
         this.sensorRepository = sensorRepository;
+        this.emailAlertService = emailAlertService;
     }
 
     @Override
@@ -46,6 +49,12 @@ public class AlertServiceImpl implements AlertService {
 
         Alert alert = new Alert(request.getMessage(), request.getAlertLevel(), zone, sensor);
         Alert saved = alertRepository.save(alert);
+
+        if (emailAlertService != null && (saved.getAlertLevel() == com.smartfarm.backend.entity.AlertLevel.CRITICAL
+                || saved.getAlertLevel() == com.smartfarm.backend.entity.AlertLevel.WARNING)) {
+            emailAlertService.sendAlertEmail(saved);
+        }
+
         return toResponse(saved);
     }
 

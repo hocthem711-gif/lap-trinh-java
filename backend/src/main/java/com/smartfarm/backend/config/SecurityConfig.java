@@ -48,17 +48,40 @@ public class SecurityConfig {
                                 "/v3/api-docs/**",
                                 "/h2-console/**",
                                 "/health",
+                                "/ws-telemetry/**",
+                                "/realtime/**"
+                        ).permitAll()
+                        // Cho phép truy vấn đọc dữ liệu viễn trắc và dashboard
+                        .requestMatchers(org.springframework.http.HttpMethod.GET,
+                                "/farms/**",
+                                "/zones/**",
                                 "/sensors/**",
                                 "/sensor-data/**",
                                 "/thresholds/**",
                                 "/alerts/**",
                                 "/uavs/**",
                                 "/gateways/**",
-                                "/missions/**",
-                                "/uav-sync/**",
-                                "/ws-telemetry/**",
-                                "/realtime/**"
+                                "/missions/**"
                         ).permitAll()
+                        // Cho phép cổng Ingestion dữ liệu tự động từ UAV / IoT Simulator / Gateway
+                        .requestMatchers(org.springframework.http.HttpMethod.POST,
+                                "/sensor-data/ingest",
+                                "/sensor-data/simulator",
+                                "/sensor-data/sync/bulk",
+                                "/alerts",
+                                "/uavs/**",
+                                "/gateways/**",
+                                "/missions/**",
+                                "/uav-sync/**"
+                        ).permitAll()
+                        // Thắt chặt bảo mật: Chỉ ADMIN mới được thực thi thao tác xóa dữ liệu (DELETE)
+                        .requestMatchers(org.springframework.http.HttpMethod.DELETE,
+                                "/farms/**",
+                                "/zones/**",
+                                "/sensors/**",
+                                "/thresholds/**",
+                                "/alerts/**"
+                        ).hasRole("ADMIN")
                         .anyRequest().authenticated()
                 );
 
