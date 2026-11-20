@@ -1,9 +1,9 @@
 package com.smartfarm.backend.service;
 
-import com.smartfarm.backend.dto.HandshakeRequestDTO;
-import com.smartfarm.backend.dto.HandshakeResponseDTO;
-import com.smartfarm.backend.dto.MissionProgressResponse;
-import com.smartfarm.backend.dto.UavTelemetryPayload;
+import com.smartfarm.backend.dto.request.HandshakeRequestDTO;
+import com.smartfarm.backend.dto.request.UavTelemetryPayload;
+import com.smartfarm.backend.dto.response.HandshakeResponseDTO;
+import com.smartfarm.backend.dto.response.MissionProgressResponse;
 import com.smartfarm.backend.entity.SyncLog;
 import com.smartfarm.backend.entity.Uav;
 import com.smartfarm.backend.repository.SyncLogRepository;
@@ -79,11 +79,12 @@ public class UavService {
                 }
                 uavRepository.save(uav);
 
+                String sessionId = UUID.randomUUID().toString();
                 syncLog.setStatus("SUCCESS");
+                syncLog.setSessionId(sessionId);
                 syncLog.setMessage("Bắt tay thành công. UAV đã sẵn sàng đồng bộ và nhận nhiệm vụ.");
                 syncLogRepository.save(syncLog);
 
-                String sessionId = UUID.randomUUID().toString();
                 log.info("[HANDSHAKE] UAV {} bắt tay thành công. Session: {}", request.getCode(), sessionId);
                 return new HandshakeResponseDTO(true, "Handshake successful", sessionId);
             }
@@ -101,11 +102,12 @@ public class UavService {
             newUav.setLastSeenAt(LocalDateTime.now());
             uavRepository.save(newUav);
 
+            String sessionId = UUID.randomUUID().toString();
             syncLog.setStatus("SUCCESS");
+            syncLog.setSessionId(sessionId);
             syncLog.setMessage("Tự động đăng ký và bắt tay thành công cho UAV mới.");
             syncLogRepository.save(syncLog);
 
-            String sessionId = UUID.randomUUID().toString();
             return new HandshakeResponseDTO(true, "Handshake successful (Auto registered)", sessionId);
         }
 
@@ -113,6 +115,10 @@ public class UavService {
         syncLog.setMessage("Xác thực thất bại: Sai mã UAV hoặc Token không khớp.");
         syncLogRepository.save(syncLog);
         return new HandshakeResponseDTO(false, "Authentication failed", null);
+    }
+
+    public List<SyncLog> getSyncSessions() {
+        return syncLogRepository.findAllByOrderBySyncTimeDesc();
     }
 
     @Transactional
@@ -133,9 +139,9 @@ public class UavService {
 
         uav.setLatitude(payload.getLatitude());
         uav.setLongitude(payload.getLongitude());
-        uav.setAltitude(payload.getAltitude());
-        uav.setSpeed(payload.getSpeed());
-        uav.setBatteryLevel(payload.getBattery());
+        uav.setAltitude(payload.getEffectiveAltitude());
+        uav.setSpeed(payload.getEffectiveSpeed());
+        uav.setBatteryLevel(payload.getEffectiveBattery());
         uav.setIsConnected(true);
         uav.setLastSeenAt(LocalDateTime.now());
 

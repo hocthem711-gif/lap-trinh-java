@@ -1,5 +1,6 @@
 package com.smartfarm.backend.service;
 
+import com.smartfarm.backend.dto.response.AlertResponse;
 import com.smartfarm.backend.entity.*;
 import com.smartfarm.backend.entity.Threshold;
 import com.smartfarm.backend.repository.AlertRepository;
@@ -25,15 +26,18 @@ public class AlertEngineWorker {
     private final SensorDataRepository sensorDataRepository;
     private final ThresholdRepository thresholdRepository;
     private final AlertRepository alertRepository;
+    private final TelemetryRealtimeService telemetryRealtimeService;
 
     public AlertEngineWorker(SensorRepository sensorRepository,
                              SensorDataRepository sensorDataRepository,
                              ThresholdRepository thresholdRepository,
-                             AlertRepository alertRepository) {
+                             AlertRepository alertRepository,
+                             TelemetryRealtimeService telemetryRealtimeService) {
         this.sensorRepository = sensorRepository;
         this.sensorDataRepository = sensorDataRepository;
         this.thresholdRepository = thresholdRepository;
         this.alertRepository = alertRepository;
+        this.telemetryRealtimeService = telemetryRealtimeService;
     }
 
     /**
@@ -98,9 +102,31 @@ public class AlertEngineWorker {
 
                     Alert newAlert = new Alert(message, level, sensor.getZone(), sensor);
                     newAlert.setStatus(AlertStatus.OPEN);
-                    alertRepository.save(newAlert);
+                    Alert savedAlert = alertRepository.save(newAlert);
 
                     log.warn("[ALERT-ENGINE] Phát hiện vi phạm: {}", message);
+
+                    // Đóng gói AlertResponse (12 tham số) và broadcast tức thì qua WebSocket & SSE
+                    try {
+                        AlertResponse alertDto = new AlertResponse(
+                                savedAlert.getId(),
+                                savedAlert.getMessage(),
+                                savedAlert.getAlertLevel(),
+                                savedAlert.getIsRead(),
+                                savedAlert.getStatus(),
+                                savedAlert.getResolvedNote(),
+                                savedAlert.getResolvedAt(),
+                                sensor.getZone().getId(),
+                                sensor.getZone().getName(),
+                                sensor.getId(),
+                                sensor.getName(),
+                                savedAlert.getCreatedAt()
+                        );
+                        telemetryRealtimeService.broadcastAlert(alertDto);
+                        log.info("[ALERT-ENGINE] Đã broadcast cảnh báo đỏ qua WebSocket (/topic/alerts) và SSE: Alert ID {}", savedAlert.getId());
+                    } catch (Exception ex) {
+                        log.warn("[ALERT-ENGINE] Không thể broadcast Alert: {}", ex.getMessage());
+                    }
                 }
             } else {
                 if (openAlertOpt.isPresent()) {

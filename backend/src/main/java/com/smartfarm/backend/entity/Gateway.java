@@ -1,5 +1,6 @@
 package com.smartfarm.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -12,6 +13,7 @@ import lombok.NoArgsConstructor;
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Gateway extends BaseEntity {
 
     @Column(nullable = false, unique = true, length = 50)
@@ -24,5 +26,6 @@ public class Gateway extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "zone_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "sensors"})
     private Zone zone;
 }

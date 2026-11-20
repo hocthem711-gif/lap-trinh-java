@@ -1,5 +1,6 @@
 package com.smartfarm.backend.controller;
 
+import com.smartfarm.backend.common.ApiResponse;
 import com.smartfarm.backend.entity.Gateway;
 import com.smartfarm.backend.entity.Sensor;
 import com.smartfarm.backend.service.GatewayService;
@@ -14,29 +15,44 @@ import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping({"/api/v1/gateways", "/gateways"})
 @RequiredArgsConstructor
 @Tag(name = "IoT Gateway Management", description = "APIs quản lý trạm thu phát Gateway và cấu hình Zone cho cảm biến (LTJ-7)")
 public class GatewayController {
 
     private final GatewayService gatewayService;
 
-    @GetMapping
+    @GetMapping({"/api/v1/gateways", "/gateways"})
     @Operation(summary = "Lấy danh sách tất cả trạm Gateway")
-    public ResponseEntity<List<Gateway>> getAllGateways() {
-        return ResponseEntity.ok(gatewayService.getAllGateways());
+    public ResponseEntity<ApiResponse<List<Gateway>>> getAllGateways() {
+        List<Gateway> list = gatewayService.getAllGateways();
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách Gateway thành công", list));
     }
 
-    @PostMapping
+    @GetMapping({"/api/v1/gateways/{code}", "/gateways/{code}"})
+    @Operation(summary = "Lấy thông tin trạm Gateway theo mã")
+    public ResponseEntity<ApiResponse<Gateway>> getGatewayByCode(@PathVariable String code) {
+        Gateway gateway = gatewayService.getGatewayByCode(code);
+        return ResponseEntity.ok(ApiResponse.success("Lấy thông tin Gateway thành công", gateway));
+    }
+
+    @PostMapping({"/api/v1/gateways", "/gateways"})
     @Operation(summary = "Khai báo trạm Gateway mới")
-    public ResponseEntity<Gateway> createGateway(@RequestBody Gateway gateway) {
+    public ResponseEntity<ApiResponse<Gateway>> createGateway(@RequestBody Gateway gateway) {
         Gateway saved = gatewayService.createGateway(gateway);
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Khai báo Gateway thành công", saved));
     }
 
-    @PatchMapping("/sensors/{sensorId}/zone")
+    @DeleteMapping({"/api/v1/gateways/{code}", "/gateways/{code}"})
+    @Operation(summary = "Xóa trạm Gateway theo mã code (khớp api.ts)")
+    public ResponseEntity<ApiResponse<String>> deleteGateway(@PathVariable String code) {
+        gatewayService.deleteGatewayByCode(code);
+        return ResponseEntity.ok(ApiResponse.success("Đã xóa Gateway mã: " + code, code));
+    }
+
+    @PatchMapping({"/api/v1/gateways/sensors/{sensorId}/zone", "/gateways/sensors/{sensorId}/zone"})
     @Operation(summary = "Gán cảm biến vào khu vực Zone qua Gateway (LTJ-7)")
-    public ResponseEntity<Sensor> assignSensorToZone(
+    public ResponseEntity<ApiResponse<Sensor>> assignSensorToZone(
             @PathVariable Long sensorId,
             @RequestBody Map<String, Long> payload) {
         Long zoneId = payload != null ? payload.get("zoneId") : null;
@@ -44,6 +60,6 @@ public class GatewayController {
             throw new IllegalArgumentException("Vui lòng truyền zoneId hợp lệ");
         }
         Sensor updated = gatewayService.assignSensorToZone(sensorId, zoneId);
-        return ResponseEntity.ok(updated);
+        return ResponseEntity.ok(ApiResponse.success("Gán cảm biến vào Zone thành công", updated));
     }
 }

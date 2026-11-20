@@ -1,9 +1,11 @@
 package com.smartfarm.backend.controller;
 
-import com.smartfarm.backend.dto.HandshakeRequestDTO;
-import com.smartfarm.backend.dto.HandshakeResponseDTO;
-import com.smartfarm.backend.dto.MissionProgressResponse;
-import com.smartfarm.backend.dto.UavTelemetryPayload;
+import com.smartfarm.backend.common.ApiResponse;
+import com.smartfarm.backend.dto.request.HandshakeRequestDTO;
+import com.smartfarm.backend.dto.request.UavTelemetryPayload;
+import com.smartfarm.backend.dto.response.HandshakeResponseDTO;
+import com.smartfarm.backend.dto.response.MissionProgressResponse;
+import com.smartfarm.backend.entity.SyncLog;
 import com.smartfarm.backend.entity.Uav;
 import com.smartfarm.backend.service.UavService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,44 +18,52 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping({"/api/v1/uavs", "/uavs"})
 @RequiredArgsConstructor
 @Tag(name = "UAV Management", description = "APIs quản lý máy bay nông nghiệp UAV, bắt tay đồng bộ và telemetry")
 public class UavController {
 
     private final UavService uavService;
 
-    @GetMapping
+    @GetMapping({"/api/v1/uavs", "/uavs"})
     @Operation(summary = "Lấy danh sách tất cả UAV")
-    public ResponseEntity<List<Uav>> getAllUavs() {
-        return ResponseEntity.ok(uavService.getAllUavs());
+    public ResponseEntity<ApiResponse<List<Uav>>> getAllUavs() {
+        List<Uav> list = uavService.getAllUavs();
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách UAV thành công", list));
     }
 
-    @PostMapping
+    @PostMapping({"/api/v1/uavs", "/uavs"})
     @Operation(summary = "Thêm mới một UAV vào hệ thống")
-    public ResponseEntity<Uav> createUav(@RequestBody Uav uav) {
+    public ResponseEntity<ApiResponse<Uav>> createUav(@RequestBody Uav uav) {
         Uav saved = uavService.createUav(uav);
-        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Thêm mới UAV thành công", saved));
     }
 
-    @DeleteMapping("/{code}")
+    @DeleteMapping({"/api/v1/uavs/{code}", "/uavs/{code}"})
     @Operation(summary = "Xóa UAV theo mã code")
-    public ResponseEntity<String> deleteUav(@PathVariable String code) {
+    public ResponseEntity<ApiResponse<String>> deleteUav(@PathVariable String code) {
         uavService.deleteUavByCode(code);
-        return ResponseEntity.ok("Đã xóa UAV mã: " + code);
+        return ResponseEntity.ok(ApiResponse.success("Đã xóa UAV mã: " + code, code));
     }
 
-    @PostMapping("/handshake")
+    @PostMapping({"/api/v1/uavs/handshake", "/uavs/handshake"})
     @Operation(summary = "Xác thực bắt tay và cấp Session ID cho UAV (LTJ-22)")
-    public ResponseEntity<HandshakeResponseDTO> handshake(@RequestBody HandshakeRequestDTO request) {
+    public ResponseEntity<ApiResponse<HandshakeResponseDTO>> handshake(@RequestBody HandshakeRequestDTO request) {
         HandshakeResponseDTO response = uavService.processHandshake(request);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success("Bắt tay xác thực UAV thành công", response));
     }
 
-    @PostMapping("/telemetry")
+    @PostMapping({"/api/v1/uavs/telemetry", "/uavs/telemetry"})
     @Operation(summary = "Nhận tọa độ viễn trắc UAV và cập nhật tiến độ Mission (LTJ-32)")
-    public ResponseEntity<MissionProgressResponse> receiveTelemetry(@RequestBody UavTelemetryPayload payload) {
+    public ResponseEntity<ApiResponse<MissionProgressResponse>> receiveTelemetry(@RequestBody UavTelemetryPayload payload) {
         MissionProgressResponse response = uavService.ingestRealtimeTelemetry(payload);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success("Tiếp nhận viễn trắc UAV thành công", response));
+    }
+
+    @GetMapping({"/api/v1/uav-sync/sessions", "/uav-sync/sessions"})
+    @Operation(summary = "Lấy danh sách các phiên đồng bộ UAV sắp giảm dần theo thời gian (LTJ-22, khớp analyticsService.ts)")
+    public ResponseEntity<ApiResponse<List<SyncLog>>> getSyncSessions() {
+        List<SyncLog> sessions = uavService.getSyncSessions();
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách phiên đồng bộ thành công", sessions));
     }
 }

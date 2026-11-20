@@ -1,4 +1,4 @@
-package com.smartfarm.backend.dto;
+package com.smartfarm.backend.dto.request;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

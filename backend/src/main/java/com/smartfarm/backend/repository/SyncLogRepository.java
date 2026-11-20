@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface SyncLogRepository extends JpaRepository<SyncLog, Long> {
     List<SyncLog> findByUavCodeOrderBySyncTimeDesc(String uavCode);
+    List<SyncLog> findAllByOrderBySyncTimeDesc();
 }

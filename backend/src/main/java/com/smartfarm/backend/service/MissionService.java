@@ -1,9 +1,9 @@
 package com.smartfarm.backend.service;
 
-import com.smartfarm.backend.dto.MissionProgressResponse;
-import com.smartfarm.backend.dto.MissionRequestDTO;
-import com.smartfarm.backend.dto.UavTelemetryPayload;
-import com.smartfarm.backend.dto.WaypointDTO;
+import com.smartfarm.backend.dto.request.MissionRequestDTO;
+import com.smartfarm.backend.dto.request.UavTelemetryPayload;
+import com.smartfarm.backend.dto.request.WaypointDTO;
+import com.smartfarm.backend.dto.response.MissionProgressResponse;
 import com.smartfarm.backend.entity.Mission;
 import com.smartfarm.backend.entity.Uav;
 import com.smartfarm.backend.entity.Waypoint;
@@ -29,14 +29,23 @@ public class MissionService {
     @Transactional
     public Mission createMission(MissionRequestDTO request) {
         Mission mission = new Mission();
-        mission.setName(request.getName());
+        mission.setName(request.getEffectiveName());
         mission.setStatus("CREATED");
         mission.setCurrentWaypointOrder(1);
         mission.setCompletedWaypoints(0);
         mission.setProgressPercent(0.0);
+        mission.setZoneId(request.getZoneId());
+        mission.setUavId(request.getUavId());
 
-        if (request.getUavId() != null) {
-            uavRepository.findById(request.getUavId()).ifPresent(mission::setUav);
+        if (request.getUavId() != null && !request.getUavId().isBlank()) {
+            uavRepository.findByCode(request.getUavId()).ifPresent(mission::setUav);
+            if (mission.getUav() == null) {
+                try {
+                    Long id = Long.parseLong(request.getUavId());
+                    uavRepository.findById(id).ifPresent(mission::setUav);
+                } catch (NumberFormatException ignored) {
+                }
+            }
         }
 
         if (request.getWaypoints() != null && !request.getWaypoints().isEmpty()) {
@@ -44,12 +53,13 @@ public class MissionService {
             int order = 1;
             for (WaypointDTO wpDto : request.getWaypoints()) {
                 Waypoint wp = new Waypoint();
-                wp.setOrderIndex(wpDto.getOrderIndex() != null ? wpDto.getOrderIndex() : order++);
+                wp.setOrderIndex(wpDto.getEffectiveOrder() != null ? wpDto.getEffectiveOrder() : order++);
                 wp.setLatitude(wpDto.getLatitude());
                 wp.setLongitude(wpDto.getLongitude());
                 wp.setAltitude(wpDto.getAltitude() != null ? wpDto.getAltitude() : 30.0);
                 wp.setSpeed(wpDto.getSpeed() != null ? wpDto.getSpeed() : 8.0);
-                wp.setActionType(wpDto.getActionType() != null ? wpDto.getActionType() : "NORMAL");
+                wp.setActionType(wpDto.getEffectiveType());
+                wp.setLabel(wpDto.getLabel());
                 wp.setVisitState("PENDING");
                 wp.setMission(mission);
                 waypoints.add(wp);
@@ -136,9 +146,10 @@ public class MissionService {
         }
 
         // Kiểm tra an toàn pin & trạng thái bay
-        if (payload.getBattery() != null && payload.getBattery() <= 20.0) {
+        Double battery = payload.getEffectiveBattery();
+        if (battery != null && battery <= 20.0) {
             mission.setStatus("RETURNING");
-            log.warn("[MISSION-PROGRESS] Pin UAV thấp ({}%), chuyển trạng thái RETURNING", payload.getBattery());
+            log.warn("[MISSION-PROGRESS] Pin UAV thấp ({}%), chuyển trạng thái RETURNING", battery);
         } else if (wpIdx >= totalWp) {
             mission.setStatus("COMPLETED");
             log.info("[MISSION-PROGRESS] Hoàn thành toàn bộ lộ trình {} điểm! Status -> COMPLETED", totalWp);
@@ -154,8 +165,11 @@ public class MissionService {
         MissionProgressResponse resp = new MissionProgressResponse();
         resp.setMissionId(mission.getId());
         resp.setMissionName(mission.getName());
-        resp.setUavCode(mission.getUav() != null ? mission.getUav().getCode() :
-                (payload != null ? payload.getUavId() : "UAV-ALPHA-01"));
+        String uavId = mission.getUav() != null ? mission.getUav().getCode() :
+                (mission.getUavId() != null ? mission.getUavId() :
+                        (payload != null && payload.getUavId() != null ? payload.getUavId() : "UAV-ALPHA-01"));
+        resp.setUavId(uavId);
+        resp.setUavCode(uavId);
         resp.setStatus(mission.getStatus());
         resp.setCurrentWaypointOrder(mission.getCurrentWaypointOrder());
         resp.setCompletedWaypoints(mission.getCompletedWaypoints());
@@ -163,19 +177,35 @@ public class MissionService {
         resp.setProgressPercent(mission.getProgressPercent());
         resp.setLastTelemetryAt(mission.getLastTelemetryAt() != null ? mission.getLastTelemetryAt() : LocalDateTime.now());
 
+        double lat = 0.0, lng = 0.0, alt = 30.0, spd = 8.0, bat = 100.0, heading = 0.0;
         if (payload != null) {
-            resp.setCurrentLatitude(payload.getLatitude());
-            resp.setCurrentLongitude(payload.getLongitude());
-            resp.setCurrentAltitude(payload.getAltitude());
-            resp.setCurrentSpeed(payload.getSpeed());
-            resp.setCurrentBattery(payload.getBattery());
+            lat = payload.getLatitude() != null ? payload.getLatitude() : 0.0;
+            lng = payload.getLongitude() != null ? payload.getLongitude() : 0.0;
+            alt = payload.getEffectiveAltitude();
+            spd = payload.getEffectiveSpeed();
+            bat = payload.getEffectiveBattery();
+            heading = payload.getHeadingDeg() != null ? payload.getHeadingDeg() : 0.0;
         } else if (mission.getUav() != null) {
-            resp.setCurrentLatitude(mission.getUav().getLatitude());
-            resp.setCurrentLongitude(mission.getUav().getLongitude());
-            resp.setCurrentAltitude(mission.getUav().getAltitude());
-            resp.setCurrentSpeed(mission.getUav().getSpeed());
-            resp.setCurrentBattery(mission.getUav().getBatteryLevel());
+            lat = mission.getUav().getLatitude() != null ? mission.getUav().getLatitude() : 0.0;
+            lng = mission.getUav().getLongitude() != null ? mission.getUav().getLongitude() : 0.0;
+            alt = mission.getUav().getAltitude() != null ? mission.getUav().getAltitude() : 30.0;
+            spd = mission.getUav().getSpeed() != null ? mission.getUav().getSpeed() : 8.0;
+            bat = mission.getUav().getBatteryLevel() != null ? mission.getUav().getBatteryLevel() : 100.0;
         }
+
+        resp.setLatitude(lat);
+        resp.setLongitude(lng);
+        resp.setAltitudeM(alt);
+        resp.setSpeedMs(spd);
+        resp.setBatteryPercent(bat);
+        resp.setHeadingDeg(heading);
+
+        resp.setCurrentLatitude(lat);
+        resp.setCurrentLongitude(lng);
+        resp.setCurrentAltitude(alt);
+        resp.setCurrentSpeed(spd);
+        resp.setCurrentBattery(bat);
+
         return resp;
     }
 }

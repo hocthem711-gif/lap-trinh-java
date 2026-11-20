@@ -1,7 +1,9 @@
 package com.smartfarm.backend.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.smartfarm.backend.dto.UavTelemetryPayload;
+import com.smartfarm.backend.dto.request.IoTSimulatorPayload;
+import com.smartfarm.backend.dto.request.UavTelemetryPayload;
+import com.smartfarm.backend.service.SensorDataService;
 import com.smartfarm.backend.service.UavService;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -16,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Cấu hình MQTT Gateway Subscriber & Rate Limiting (LTJ-2, LTJ-12, LTJ-32).
- * Lắng nghe telemetry từ cảm biến IoT và máy bay UAV.
+ * Lắng nghe telemetry từ cảm biến IoT và máy bay UAV, lưu trữ vào Database.
  */
 @Configuration
 @RequiredArgsConstructor
@@ -25,6 +27,7 @@ public class MqttGatewayConfig {
 
     private final ObjectMapper objectMapper;
     private final UavService uavService;
+    private final SensorDataService sensorDataService;
 
     @Value("${mqtt.broker.url:tcp://localhost:1883}")
     private String brokerUrl;
@@ -101,11 +104,18 @@ public class MqttGatewayConfig {
                 return;
             }
 
-            // 2. Nếu là telemetry từ sensor -> kiểm tra Rate Limiting (LTJ-12)
+            // 2. Nếu là telemetry từ cảm biến -> kiểm tra Rate Limiting (LTJ-12) & lưu DB
             String nodeCode = extractNodeCode(topic, payload);
             if (nodeCode != null) {
                 if (isAllowedByRateLimiter(nodeCode)) {
-                    log.info("[MQTT GATEWAY][RATE-LIMIT-PASS] Node {}: Bản tin hợp lệ, được xử lý", nodeCode);
+                    log.info("[MQTT GATEWAY][RATE-LIMIT-PASS] Node {}: Bản tin hợp lệ, đang lưu vào DB", nodeCode);
+                    try {
+                        IoTSimulatorPayload simPayload = objectMapper.readValue(payload, IoTSimulatorPayload.class);
+                        sensorDataService.ingestSimulatorPayload(simPayload);
+                        log.info("[MQTT GATEWAY] Đã lưu telemetry cảm biến thành công từ node: {}", simPayload.getDeviceId());
+                    } catch (Exception ex) {
+                        log.warn("[MQTT GATEWAY] Không thể parse IoTSimulatorPayload từ topic {}: {}", topic, ex.getMessage());
+                    }
                 } else {
                     log.debug("[MQTT GATEWAY][RATE-LIMIT-DROP] Node {}: Bỏ qua do gửi dồn dập (< 3000ms)", nodeCode);
                 }

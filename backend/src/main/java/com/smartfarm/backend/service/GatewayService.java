@@ -24,11 +24,23 @@ public class GatewayService {
         return gatewayRepository.findAll();
     }
 
+    public Gateway getGatewayByCode(String code) {
+        return gatewayRepository.findByCode(code)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy Gateway với mã: " + code));
+    }
+
     public Gateway createGateway(Gateway gateway) {
         if (gateway.getStatus() == null) {
             gateway.setStatus("ACTIVE");
         }
         return gatewayRepository.save(gateway);
+    }
+
+    @Transactional
+    public void deleteGatewayByCode(String code) {
+        Gateway gateway = gatewayRepository.findByCode(code)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy Gateway với mã: " + code));
+        gatewayRepository.delete(gateway);
     }
 
     @Transactional

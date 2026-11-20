@@ -1,9 +1,10 @@
 package com.smartfarm.backend.controller;
 
-import com.smartfarm.backend.dto.MissionProgressResponse;
-import com.smartfarm.backend.dto.MissionRequestDTO;
-import com.smartfarm.backend.dto.StatusUpdateRequestDTO;
-import com.smartfarm.backend.dto.UavTelemetryPayload;
+import com.smartfarm.backend.common.ApiResponse;
+import com.smartfarm.backend.dto.request.MissionRequestDTO;
+import com.smartfarm.backend.dto.request.StatusUpdateRequestDTO;
+import com.smartfarm.backend.dto.request.UavTelemetryPayload;
+import com.smartfarm.backend.dto.response.MissionProgressResponse;
 import com.smartfarm.backend.entity.Mission;
 import com.smartfarm.backend.service.MissionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -16,51 +17,54 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping({"/api/v1/missions", "/missions"})
 @RequiredArgsConstructor
 @Tag(name = "Mission & Waypoint Management", description = "APIs quản lý nhiệm vụ bay, lộ trình Waypoint và giám sát tiến độ (LTJ-17, LTJ-32)")
 public class MissionController {
 
     private final MissionService missionService;
 
-    @GetMapping
+    @GetMapping({"/api/v1/missions", "/missions"})
     @Operation(summary = "Lấy danh sách tất cả nhiệm vụ bay")
-    public ResponseEntity<List<Mission>> getAllMissions() {
-        return ResponseEntity.ok(missionService.getAllMissions());
+    public ResponseEntity<ApiResponse<List<Mission>>> getAllMissions() {
+        List<Mission> list = missionService.getAllMissions();
+        return ResponseEntity.ok(ApiResponse.success("Lấy danh sách nhiệm vụ thành công", list));
     }
 
-    @GetMapping("/{id}")
+    @GetMapping({"/api/v1/missions/{id}", "/missions/{id}"})
     @Operation(summary = "Lấy chi tiết nhiệm vụ và danh sách Waypoints")
-    public ResponseEntity<Mission> getMissionById(@PathVariable Long id) {
-        return ResponseEntity.ok(missionService.getMissionById(id));
+    public ResponseEntity<ApiResponse<Mission>> getMissionById(@PathVariable Long id) {
+        Mission mission = missionService.getMissionById(id);
+        return ResponseEntity.ok(ApiResponse.success("Lấy chi tiết nhiệm vụ thành công", mission));
     }
 
-    @PostMapping
+    @PostMapping({"/api/v1/missions", "/missions"})
     @Operation(summary = "Tạo mới nhiệm vụ bay kèm danh sách Waypoints (LTJ-17)")
-    public ResponseEntity<Mission> createMission(@RequestBody MissionRequestDTO request) {
+    public ResponseEntity<ApiResponse<Mission>> createMission(@RequestBody MissionRequestDTO request) {
         Mission created = missionService.createMission(request);
-        return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success("Tạo nhiệm vụ bay thành công", created));
     }
 
-    @PatchMapping("/{id}/status")
+    @PatchMapping({"/api/v1/missions/{id}/status", "/missions/{id}/status"})
     @Operation(summary = "Cập nhật trạng thái nhiệm vụ (CREATED, FLYING, RETURNING, COMPLETED)")
-    public ResponseEntity<Mission> updateStatus(
+    public ResponseEntity<ApiResponse<Mission>> updateStatus(
             @PathVariable Long id,
             @RequestBody StatusUpdateRequestDTO request) {
         String status = (request != null) ? request.getStatus() : "CREATED";
         Mission updated = missionService.updateMissionStatus(id, status);
-        return ResponseEntity.ok(updated);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái nhiệm vụ thành công", updated));
     }
 
-    @GetMapping("/{id}/progress")
+    @GetMapping({"/api/v1/missions/{id}/progress", "/missions/{id}/progress"})
     @Operation(summary = "Lấy tiến độ chi tiết chuyến bay theo Mission ID (LTJ-32)")
-    public ResponseEntity<MissionProgressResponse> getProgress(@PathVariable Long id) {
-        return ResponseEntity.ok(missionService.getMissionProgress(id));
+    public ResponseEntity<ApiResponse<MissionProgressResponse>> getProgress(@PathVariable Long id) {
+        MissionProgressResponse progress = missionService.getMissionProgress(id);
+        return ResponseEntity.ok(ApiResponse.success("Lấy tiến độ chuyến bay thành công", progress));
     }
 
-    @PostMapping("/{id}/telemetry")
+    @PostMapping({"/api/v1/missions/{id}/telemetry", "/missions/{id}/telemetry"})
     @Operation(summary = "Nhận telemetry theo ID nhiệm vụ và cập nhật tiến độ (LTJ-32)")
-    public ResponseEntity<MissionProgressResponse> updateProgressByMissionId(
+    public ResponseEntity<ApiResponse<MissionProgressResponse>> updateProgressByMissionId(
             @PathVariable Long id,
             @RequestBody UavTelemetryPayload payload) {
         Mission mission = missionService.getMissionById(id);
@@ -68,6 +72,6 @@ public class MissionController {
             payload.setMissionName(mission.getName());
         }
         MissionProgressResponse response = missionService.updateMissionProgressFromTelemetry(payload);
-        return ResponseEntity.ok(response);
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật viễn trắc nhiệm vụ thành công", response));
     }
 }
