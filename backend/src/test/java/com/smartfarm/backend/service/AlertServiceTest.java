@@ -36,6 +36,9 @@ class AlertServiceTest {
     @Mock
     private SensorRepository sensorRepository;
 
+    @Mock
+    private EmailAlertService emailAlertService;
+
     @InjectMocks
     private AlertServiceImpl alertService;
 
