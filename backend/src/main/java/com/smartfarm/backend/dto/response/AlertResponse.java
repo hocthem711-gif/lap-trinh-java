@@ -22,6 +22,12 @@ public class AlertResponse {
     public AlertResponse() {}
 
     public AlertResponse(Long id, String message, AlertLevel alertLevel, Boolean isRead,
+                         Long zoneId, String zoneName, Long sensorId, String sensorName,
+                         LocalDateTime createdAt) {
+        this(id, message, alertLevel, isRead, AlertStatus.OPEN, null, null, zoneId, zoneName, sensorId, sensorName, createdAt);
+    }
+
+    public AlertResponse(Long id, String message, AlertLevel alertLevel, Boolean isRead,
                          AlertStatus status, String resolvedNote, LocalDateTime resolvedAt,
                          Long zoneId, String zoneName, Long sensorId, String sensorName,
                          LocalDateTime createdAt) {

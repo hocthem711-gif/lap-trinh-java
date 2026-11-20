@@ -26,6 +26,9 @@ public class DataInitializer implements CommandLineRunner {
     private final SensorRepository sensorRepository;
     private final SensorDataRepository sensorDataRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UavRepository uavRepository;
+    private final GatewayRepository gatewayRepository;
+    private final MissionRepository missionRepository;
 
     public DataInitializer(RoleRepository roleRepository,
                            UserRepository userRepository,
@@ -33,7 +36,10 @@ public class DataInitializer implements CommandLineRunner {
                            ZoneRepository zoneRepository,
                            SensorRepository sensorRepository,
                            SensorDataRepository sensorDataRepository,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           UavRepository uavRepository,
+                           GatewayRepository gatewayRepository,
+                           MissionRepository missionRepository) {
         this.roleRepository = roleRepository;
         this.userRepository = userRepository;
         this.farmRepository = farmRepository;
@@ -41,6 +47,9 @@ public class DataInitializer implements CommandLineRunner {
         this.sensorRepository = sensorRepository;
         this.sensorDataRepository = sensorDataRepository;
         this.passwordEncoder = passwordEncoder;
+        this.uavRepository = uavRepository;
+        this.gatewayRepository = gatewayRepository;
+        this.missionRepository = missionRepository;
     }
 
     @Override
@@ -164,6 +173,49 @@ public class DataInitializer implements CommandLineRunner {
             );
             sensorDataRepository.saveAll(sampleData);
             log.info("Đã khởi tạo telemetry mẫu cho các cảm biến phục vụ Leaflet Map và Realtime Dashboard");
+        }
+
+        // Khởi tạo UAV, Gateway và Mission lộ trình bay 4 điểm Khu A
+        if (uavRepository.count() == 0) {
+            Uav uav = new Uav();
+            uav.setCode("UAV-ALPHA-01");
+            uav.setName("Drone Giám Sát Alpha 01");
+            uav.setModel("Quadcopter-Agri");
+            uav.setStatus("ACTIVE");
+            uav.setToken("UAV-TOKEN-ALPHA-01");
+            uav.setIsConnected(true);
+            uav.setLatitude(10.8450);
+            uav.setLongitude(106.7650);
+            uav.setAltitude(30.0);
+            uav.setSpeed(8.0);
+            uav.setBatteryLevel(100.0);
+            uav.setLastSeenAt(LocalDateTime.now());
+            uavRepository.save(uav);
+
+            Gateway gw = new Gateway();
+            gw.setCode("GW-01");
+            gw.setIpAddress("192.168.1.100");
+            gw.setStatus("ACTIVE");
+            gatewayRepository.save(gw);
+
+            Mission mission = new Mission();
+            mission.setName("Mission-KhuA-Demo");
+            mission.setStatus("CREATED");
+            mission.setUav(uav);
+            mission.setCurrentWaypointOrder(1);
+            mission.setCompletedWaypoints(0);
+            mission.setTotalWaypoints(4);
+            mission.setProgressPercent(0.0);
+            mission.setLastTelemetryAt(LocalDateTime.now());
+
+            Waypoint w1 = new Waypoint(1, 10.8450, 106.7650, 30.0, 8.0, "TAKEOFF", "PENDING", mission);
+            Waypoint w2 = new Waypoint(2, 10.8485, 106.7710, 50.0, 10.0, "NORMAL", "PENDING", mission);
+            Waypoint w3 = new Waypoint(3, 10.8520, 106.7760, 50.0, 8.0, "HOVER", "PENDING", mission);
+            Waypoint w4 = new Waypoint(4, 10.8550, 106.7820, 20.0, 5.0, "LANDING", "PENDING", mission);
+
+            mission.setWaypoints(new java.util.ArrayList<>(Arrays.asList(w1, w2, w3, w4)));
+            missionRepository.save(mission);
+            log.info("[DATA-INIT] Đã khởi tạo dữ liệu mẫu UAV (UAV-ALPHA-01), Gateway (GW-01) và Mission 4 điểm Khu A");
         }
     }
 }

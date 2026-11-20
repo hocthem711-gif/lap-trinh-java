@@ -52,6 +52,10 @@ public class SecurityConfig {
                                 "/sensor-data/**",
                                 "/thresholds/**",
                                 "/alerts/**",
+                                "/uavs/**",
+                                "/gateways/**",
+                                "/missions/**",
+                                "/uav-sync/**",
                                 "/ws-telemetry/**",
                                 "/realtime/**"
                         ).permitAll()

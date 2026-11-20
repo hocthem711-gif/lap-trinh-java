@@ -1,9 +1,12 @@
-package laglag.demo.repository;
+package com.smartfarm.backend.repository;
 
-import laglag.demo.entity.SyncLog;
+import com.smartfarm.backend.entity.SyncLog;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public interface SyncLogRepository extends JpaRepository<SyncLog, Long> {
+    List<SyncLog> findByUavCodeOrderBySyncTimeDesc(String uavCode);
 }
