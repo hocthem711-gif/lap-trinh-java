@@ -173,6 +173,8 @@ const flightMonitorSlice = createSlice({
           batteryPercent: clamped,
           batteryVoltageV: Number((42 + (clamped / 100) * 10.4).toFixed(1)),
           status: nextStatus,
+          segmentProgress:
+            nextStatus === 'RETURNING' && s.status !== 'RETURNING' ? 0 : s.segmentProgress,
           lastTelemetryAt: new Date().toISOString(),
         };
       });
@@ -348,6 +350,11 @@ const flightMonitorSlice = createSlice({
           return {
             ...s,
             status: newStatus,
+            // Bắt đầu chặng RTH mới luôn từ alpha = 0 tại vị trí hiện tại (tránh teleport về Home)
+            segmentProgress:
+              newStatus === 'RETURNING' && s.status !== 'RETURNING'
+                ? 0
+                : s.segmentProgress,
             speedMs:
               newStatus === 'FLYING'
                 ? 8.5

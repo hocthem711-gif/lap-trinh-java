@@ -52,6 +52,7 @@ export interface ExportDatasetMeta {
   label: string;
   shortLabel: string;
   sheetName: string;
+  /** Đường dẫn tương đối so với API_BASE_URL (đã gồm /api/v1) — KHÔNG lặp lại tiền tố /api/v1 */
   apiEndpoint: string;
   description: string;
   accentColor: string;
@@ -298,7 +299,7 @@ export const EXPORT_DATASET_CATALOG: Record<ExportDatasetType, ExportDatasetMeta
     label: 'Dữ liệu Cảm biến & Lịch sử Quan trắc (Sensor Telemetry)',
     shortLabel: 'Cảm biến & Môi trường',
     sheetName: 'DuLieuCamBien_F11',
-    apiEndpoint: '/api/v1/reports/export/sensors',
+    apiEndpoint: '/reports/export/sensors',
     description:
       'Trích xuất dữ liệu 6 chỉ số cảm biến (Nhiệt độ, Độ ẩm KK, Độ ẩm Đất, Ánh sáng, CO₂, pH) theo từng Zone và khung thời gian.',
     accentColor: '#38bdf8',
@@ -321,7 +322,7 @@ export const EXPORT_DATASET_CATALOG: Record<ExportDatasetType, ExportDatasetMeta
     label: 'Danh sách Cảnh báo Vượt ngưỡng & Biên bản xử lý (Alert Report F08/F11)',
     shortLabel: 'Cảnh báo & Ngưỡng (Alert)',
     sheetName: 'DanhSachCanhBao_F08',
-    apiEndpoint: '/api/v1/reports/export/alerts',
+    apiEndpoint: '/reports/export/alerts',
     description:
       'Trích xuất toàn bộ lịch sử cảnh báo vượt ngưỡng (CRITICAL, WARNING, INFO), trạng thái xử lý (OPEN, RESOLVED) và biên bản kỹ thuật viên.',
     accentColor: '#f87171',
@@ -343,7 +344,7 @@ export const EXPORT_DATASET_CATALOG: Record<ExportDatasetType, ExportDatasetMeta
     label: 'Lịch sử Đồng bộ Offline UAV SQLite → MQTT Bulk (Sync History)',
     shortLabel: 'Đồng bộ Offline UAV',
     sheetName: 'LichSuSyncUAV_F20',
-    apiEndpoint: '/api/v1/reports/export/uav-sync',
+    apiEndpoint: '/reports/export/uav-sync',
     description:
       'Trích xuất biên bản đồng bộ dữ liệu ngoại tuyến từ bộ nhớ SQLite trên UAV qua giao thức Handshake MQTT Bulk (10 bản ghi/lô).',
     accentColor: '#a78bfa',
@@ -365,7 +366,7 @@ export const EXPORT_DATASET_CATALOG: Record<ExportDatasetType, ExportDatasetMeta
     label: 'Nhật ký Giám sát Chuyến bay & Note Mission Thủ công (F15/F16/F17)',
     shortLabel: 'Nhật ký & Note Mission',
     sheetName: 'NhatKyMission_F16_F17',
-    apiEndpoint: '/api/v1/reports/export/missions',
+    apiEndpoint: '/reports/export/missions',
     description:
       'Trích xuất tiến độ điểm bay Waypoint, thông số % Pin / Telemetry và toàn bộ Note Mission thủ công kèm tọa độ GPS Snapshot.',
     accentColor: '#34d399',
@@ -388,7 +389,7 @@ export const EXPORT_DATASET_CATALOG: Record<ExportDatasetType, ExportDatasetMeta
     label: 'Báo cáo Tổng hợp Toàn Hệ thống Đa Sheet (Multi-Sheet Master Excel)',
     shortLabel: 'Tổng hợp Đa Sheet (All-in-One)',
     sheetName: 'TongHop_SmartFarm_Master',
-    apiEndpoint: '/api/v1/reports/export/full-workbook',
+    apiEndpoint: '/reports/export/full-workbook',
     description:
       'Đóng gói toàn bộ 5 Sheet chuyên sâu trong một tệp Excel (.xlsx) duy nhất: Tổng quan Nghiệm thu Mission (F17), Cảm biến, Cảnh báo (F08), Sync UAV và Note Mission (F16).',
     accentColor: '#f59e0b',

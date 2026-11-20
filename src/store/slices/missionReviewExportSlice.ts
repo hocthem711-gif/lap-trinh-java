@@ -108,6 +108,89 @@ export const submitMissionReviewSignOff = createAsyncThunk(
   }
 );
 
+const TIME_RANGE_HOURS: Record<Exclude<ExportTimeRange, 'ALL'>, number> = {
+  '24H': 24,
+  '7D': 24 * 7,
+  '30D': 24 * 30,
+};
+
+const ZONE_PREFIX_MAP: Record<string, string> = {
+  'ZONE-A': 'Khu A',
+  'ZONE-B': 'Khu B',
+  'ZONE-C': 'Khu C',
+};
+
+/**
+ * Lọc danh sách bản ghi xuất theo đầy đủ cấu hình (datasetType, zoneFilter, timeRange,
+ * missionIdFilter, alertSeverityFilter, searchKeyword).
+ */
+export function filterExportRowsByConfig(
+  rows: NormalizedExportRow[],
+  cfg: ExcelExportFilterConfig
+): NormalizedExportRow[] {
+  const keyword = cfg.searchKeyword.trim().toLowerCase();
+  const missionTarget =
+    cfg.missionIdFilter && cfg.missionIdFilter !== 'ALL'
+      ? cfg.missionIdFilter.trim().toLowerCase()
+      : null;
+  const zonePrefix =
+    cfg.zoneFilter !== 'ALL' ? ZONE_PREFIX_MAP[cfg.zoneFilter] : undefined;
+  const cutoffMs =
+    cfg.timeRange !== 'ALL'
+      ? Date.now() - TIME_RANGE_HOURS[cfg.timeRange] * 60 * 60 * 1000
+      : null;
+
+  return rows.filter((row) => {
+    if (
+      cfg.datasetType !== 'FULL_WORKBOOK' &&
+      row.datasetType !== cfg.datasetType
+    ) {
+      return false;
+    }
+
+    if (zonePrefix && !row.zoneName.includes(zonePrefix)) {
+      return false;
+    }
+
+    if (cutoffMs !== null && row.timestamp) {
+      const normalizedTs = row.timestamp.includes('T')
+        ? row.timestamp
+        : row.timestamp.replace(' ', 'T');
+      const rowMs = new Date(normalizedTs).getTime();
+      if (!Number.isNaN(rowMs) && rowMs < cutoffMs) {
+        return false;
+      }
+    }
+
+    if (missionTarget) {
+      const rawMissionId = String(row.rawValues?.missionId ?? '').toLowerCase();
+      const matchesMission =
+        rawMissionId === missionTarget ||
+        row.zoneName.toLowerCase().includes(missionTarget) ||
+        row.sourceCode.toLowerCase().includes(missionTarget) ||
+        row.operatorOrNote.toLowerCase().includes(missionTarget);
+      if (!matchesMission) {
+        return false;
+      }
+    }
+
+    if (
+      cfg.alertSeverityFilter !== 'ALL' &&
+      row.severityLevel !== cfg.alertSeverityFilter
+    ) {
+      return false;
+    }
+
+    if (keyword) {
+      const haystack =
+        `${row.id} ${row.zoneName} ${row.sourceCode} ${row.categoryLabel} ${row.primaryMetric} ${row.statusLabel} ${row.operatorOrNote}`.toLowerCase();
+      if (!haystack.includes(keyword)) return false;
+    }
+
+    return true;
+  });
+}
+
 export const triggerDatasetFileExport = createAsyncThunk(
   'missionReviewExport/triggerExport',
   async (
@@ -116,16 +199,54 @@ export const triggerDatasetFileExport = createAsyncThunk(
   ) => {
     const state = getState() as RootState;
     const sliceState = state.missionReviewExport;
+    const overrideDataset = overrideConfig?.datasetType;
+    const isDatasetChanged =
+      overrideDataset !== undefined &&
+      overrideDataset !== sliceState.exportConfig.datasetType;
+
     const effectiveConfig: ExcelExportFilterConfig = {
       ...sliceState.exportConfig,
       ...overrideConfig,
+      selectedColumnKeys:
+        overrideConfig?.selectedColumnKeys ??
+        (isDatasetChanged
+          ? EXPORT_DATASET_CATALOG[overrideDataset].defaultColumns
+              .filter((c) => c.enabledByDefault)
+              .map((c) => c.key)
+          : sliceState.exportConfig.selectedColumnKeys),
     };
-    const filteredRows = selectFilteredExportRows(state);
+
+    const filteredRows = filterExportRowsByConfig(
+      sliceState.allPreviewRows,
+      effectiveConfig
+    );
+
+    if (filteredRows.length === 0) {
+      throw new Error('Không có bản ghi nào khớp bộ lọc hiện tại để xuất file.');
+    }
+
+    const zonePrefix =
+      effectiveConfig.zoneFilter !== 'ALL'
+        ? ZONE_PREFIX_MAP[effectiveConfig.zoneFilter]
+        : undefined;
+    const filteredReviews = sliceState.missionReviews.filter((rev) => {
+      if (
+        effectiveConfig.missionIdFilter !== 'ALL' &&
+        rev.missionId !== effectiveConfig.missionIdFilter &&
+        rev.missionCode !== effectiveConfig.missionIdFilter
+      ) {
+        return false;
+      }
+      if (zonePrefix && !rev.zoneName.includes(zonePrefix)) {
+        return false;
+      }
+      return true;
+    });
+
     const result = await missionReviewExportApi.executeFileExport(
       effectiveConfig,
       filteredRows,
-      sliceState.allPreviewRows,
-      sliceState.missionReviews
+      filteredReviews
     );
     return result;
   }
@@ -341,46 +462,8 @@ export const selectActiveMissionReview = createSelector(
 
 export const selectFilteredExportRows = createSelector(
   [selectSlice],
-  (slice): NormalizedExportRow[] => {
-    const cfg = slice.exportConfig;
-    const keyword = cfg.searchKeyword.trim().toLowerCase();
-
-    return slice.allPreviewRows.filter((row) => {
-      if (
-        cfg.datasetType !== 'FULL_WORKBOOK' &&
-        row.datasetType !== cfg.datasetType
-      ) {
-        return false;
-      }
-
-      if (cfg.zoneFilter !== 'ALL') {
-        const zoneMap: Record<string, string> = {
-          'ZONE-A': 'Khu A',
-          'ZONE-B': 'Khu B',
-          'ZONE-C': 'Khu C',
-        };
-        const prefix = zoneMap[cfg.zoneFilter];
-        if (prefix && !row.zoneName.includes(prefix)) {
-          return false;
-        }
-      }
-
-      if (
-        cfg.alertSeverityFilter !== 'ALL' &&
-        row.severityLevel !== cfg.alertSeverityFilter
-      ) {
-        return false;
-      }
-
-      if (keyword) {
-        const haystack =
-          `${row.id} ${row.zoneName} ${row.sourceCode} ${row.categoryLabel} ${row.primaryMetric} ${row.statusLabel} ${row.operatorOrNote}`.toLowerCase();
-        if (!haystack.includes(keyword)) return false;
-      }
-
-      return true;
-    });
-  }
+  (slice): NormalizedExportRow[] =>
+    filterExportRowsByConfig(slice.allPreviewRows, slice.exportConfig)
 );
 
 export const selectSprint8OverviewKpis = createSelector(

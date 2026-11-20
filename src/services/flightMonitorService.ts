@@ -19,9 +19,51 @@ import type {
 } from '../types/flightMonitor';
 
 const API_BASE_URL = 'http://localhost:8080/api/v1';
-const MISSION_API_URL = 'http://localhost:8080/api/missions';
+const MISSION_API_URL = `${API_BASE_URL}/missions`;
 const SESSIONS_STORAGE_KEY = 'smartfarm_flight_sessions_v1';
 const NOTES_STORAGE_KEY = 'smartfarm_mission_notes_v1';
+
+/** Đọc JWT theo đúng key mà authService lưu khi đăng nhập */
+function getAccessToken(): string | null {
+  return localStorage.getItem('accessToken');
+}
+
+/**
+ * Gọi REST API kèm JWT + timeout, ném lỗi nếu HTTP 4xx/5xx để caller rơi về Hybrid Fallback
+ * (không bao giờ parse JSON của response lỗi).
+ */
+async function missionApiRequest(
+  url: string,
+  init: { method?: string; headers?: Record<string, string>; body?: string } = {},
+  timeoutMs = 2500,
+): Promise<Response> {
+  const token = getAccessToken();
+  const response = await fetch(url, {
+    method: init.method ?? 'GET',
+    body: init.body,
+    headers: {
+      Accept: 'application/json',
+      ...(init.headers ?? {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} khi gọi ${url}`);
+  }
+  return response;
+}
+
+/** Trừ pin và giữ 1 chữ số thập phân (tránh sai số dấu phẩy động & pin đứng im) */
+function drainBattery(current: number, amount: number, floor: number): number {
+  return Math.max(floor, Number((current - amount).toFixed(1)));
+}
+
+/** Nội suy tuyến tính một giá trị vô hướng (altitude, speed...) */
+function lerpScalar(from: number, to: number, alpha: number): number {
+  const t = Math.max(0, Math.min(1, alpha));
+  return from + t * (to - from);
+}
 
 // ==================== 1. CÔNG THỨC TOÁN HỌC ĐỊA LÝ & NỘI SUY ĐƯỜNG BAY ====================
 
@@ -38,12 +80,14 @@ export function calculateHaversineMeters(
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
-  const a =
+  const rawA =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRad(lat1)) *
       Math.cos(toRad(lat2)) *
       Math.sin(dLng / 2) *
       Math.sin(dLng / 2);
+  // Kẹp a vào [0, 1] để sai số dấu phẩy động không làm Math.sqrt(1 - a) trả về NaN
+  const a = Math.min(1, Math.max(0, rawA));
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return Math.round(R * c);
 }
@@ -119,10 +163,10 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
     speedMs: 8.5,
     headingDeg: 58,
     satellites: 18,
-    latitude: 10.8485,
-    longitude: 106.771,
-    homeLatitude: 10.845,
-    homeLongitude: 106.765,
+    latitude: 11.9416,
+    longitude: 108.4595,
+    homeLatitude: 11.9404,
+    homeLongitude: 108.4583,
     currentWaypointOrder: 3,
     completedWaypoints: 2,
     totalWaypoints: 5,
@@ -141,8 +185,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 1,
         label: 'WP-01 • Trạm Xuất phát Khu A (Takeoff)',
-        latitude: 10.845,
-        longitude: 106.765,
+        latitude: 11.9404,
+        longitude: 108.4583,
         altitudeM: 30,
         targetSpeedMs: 8,
         visitState: 'COMPLETED',
@@ -153,8 +197,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 2,
         label: 'WP-02 • Cụm Cảm biến Nhiệt độ Bắc Khu A',
-        latitude: 10.8485,
-        longitude: 106.771,
+        latitude: 11.9416,
+        longitude: 108.4595,
         altitudeM: 48,
         targetSpeedMs: 8.5,
         visitState: 'COMPLETED',
@@ -165,8 +209,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 3,
         label: 'WP-03 • Trung tâm Nhà kính Cà chua (Hover)',
-        latitude: 10.852,
-        longitude: 106.776,
+        latitude: 11.9428,
+        longitude: 108.4608,
         altitudeM: 50,
         targetSpeedMs: 8.5,
         visitState: 'ACTIVE',
@@ -177,8 +221,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 4,
         label: 'WP-04 • Trạm Bơm Tưới Tự động Đông Nam',
-        latitude: 10.8542,
-        longitude: 106.78,
+        latitude: 11.9435,
+        longitude: 108.4599,
         altitudeM: 45,
         targetSpeedMs: 8,
         visitState: 'PENDING',
@@ -189,8 +233,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 5,
         label: 'WP-05 • Bãi đáp Gateway Khu A (Landing)',
-        latitude: 10.855,
-        longitude: 106.782,
+        latitude: 11.9421,
+        longitude: 108.4586,
         altitudeM: 20,
         targetSpeedMs: 5,
         visitState: 'PENDING',
@@ -218,10 +262,10 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
     speedMs: 10.2,
     headingDeg: 238,
     satellites: 16,
-    latitude: 10.8492,
-    longitude: 106.7728,
-    homeLatitude: 10.8442,
-    homeLongitude: 106.7642,
+    latitude: 11.9374,
+    longitude: 108.4555,
+    homeLatitude: 11.9365,
+    homeLongitude: 108.4521,
     currentWaypointOrder: 4,
     completedWaypoints: 3,
     totalWaypoints: 4,
@@ -240,8 +284,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 1,
         label: 'WP-01 • Trạm Gateway Khu B (Takeoff)',
-        latitude: 10.8442,
-        longitude: 106.7642,
+        latitude: 11.9365,
+        longitude: 108.4521,
         altitudeM: 35,
         targetSpeedMs: 9,
         visitState: 'COMPLETED',
@@ -252,8 +296,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 2,
         label: 'WP-02 • Cảm biến Độ ẩm đất Cánh đồng Tây',
-        latitude: 10.8478,
-        longitude: 106.7695,
+        latitude: 11.9378,
+        longitude: 108.4534,
         altitudeM: 55,
         targetSpeedMs: 9.5,
         visitState: 'COMPLETED',
@@ -264,8 +308,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 3,
         label: 'WP-03 • Trạm Quan trắc Kênh Tưới Khu B',
-        latitude: 10.8515,
-        longitude: 106.7755,
+        latitude: 11.9389,
+        longitude: 108.4548,
         altitudeM: 60,
         targetSpeedMs: 10,
         visitState: 'COMPLETED',
@@ -276,8 +320,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 4,
         label: 'WP-04 • Quay về Trạm Sạc Trung tâm (RTH)',
-        latitude: 10.8442,
-        longitude: 106.7642,
+        latitude: 11.9365,
+        longitude: 108.4521,
         altitudeM: 60,
         targetSpeedMs: 10.2,
         visitState: 'ACTIVE',
@@ -305,10 +349,10 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
     speedMs: 0.4,
     headingDeg: 112,
     satellites: 11,
-    latitude: 10.8468,
-    longitude: 106.7745,
-    homeLatitude: 10.8435,
-    homeLongitude: 106.766,
+    latitude: 11.9334,
+    longitude: 108.4625,
+    homeLatitude: 11.9321,
+    homeLongitude: 108.4612,
     currentWaypointOrder: 2,
     completedWaypoints: 1,
     totalWaypoints: 4,
@@ -328,8 +372,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 1,
         label: 'WP-01 • Bãi phóng Khu C (Takeoff)',
-        latitude: 10.8435,
-        longitude: 106.766,
+        latitude: 11.9321,
+        longitude: 108.4612,
         altitudeM: 30,
         targetSpeedMs: 7,
         visitState: 'COMPLETED',
@@ -340,8 +384,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 2,
         label: 'WP-02 • Cụm Cảm biến Độ ẩm đất Sườn Đồi C2',
-        latitude: 10.8468,
-        longitude: 106.7745,
+        latitude: 11.9334,
+        longitude: 108.4625,
         altitudeM: 42,
         targetSpeedMs: 7.5,
         visitState: 'ERROR',
@@ -352,8 +396,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 3,
         label: 'WP-03 • Đỉnh Đồi Cây Ăn Quả Khu C3',
-        latitude: 10.8505,
-        longitude: 106.779,
+        latitude: 11.9346,
+        longitude: 108.4639,
         altitudeM: 55,
         targetSpeedMs: 7.5,
         visitState: 'PENDING',
@@ -364,8 +408,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 4,
         label: 'WP-04 • Trạm Thu hồi Khu C (Landing)',
-        latitude: 10.853,
-        longitude: 106.783,
+        latitude: 11.9338,
+        longitude: 108.4648,
         altitudeM: 25,
         targetSpeedMs: 5,
         visitState: 'PENDING',
@@ -393,10 +437,10 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
     speedMs: 0,
     headingDeg: 0,
     satellites: 20,
-    latitude: 10.845,
-    longitude: 106.765,
-    homeLatitude: 10.845,
-    homeLongitude: 106.765,
+    latitude: 11.9404,
+    longitude: 108.4583,
+    homeLatitude: 11.9404,
+    homeLongitude: 108.4583,
     currentWaypointOrder: 1,
     completedWaypoints: 0,
     totalWaypoints: 4,
@@ -415,8 +459,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 1,
         label: 'WP-01 • Điểm xuất phát Trạm Chính',
-        latitude: 10.845,
-        longitude: 106.765,
+        latitude: 11.9404,
+        longitude: 108.4583,
         altitudeM: 35,
         targetSpeedMs: 8,
         visitState: 'PENDING',
@@ -427,8 +471,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 2,
         label: 'WP-02 • Hành lang Đông Khu A',
-        latitude: 10.849,
-        longitude: 106.772,
+        latitude: 11.9418,
+        longitude: 108.4598,
         altitudeM: 50,
         targetSpeedMs: 8,
         visitState: 'PENDING',
@@ -439,8 +483,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 3,
         label: 'WP-03 • Phân khu Bắc Khu B',
-        latitude: 10.853,
-        longitude: 106.777,
+        latitude: 11.9432,
+        longitude: 108.4606,
         altitudeM: 50,
         targetSpeedMs: 8,
         visitState: 'PENDING',
@@ -451,8 +495,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 4,
         label: 'WP-04 • Bãi đáp Trung tâm',
-        latitude: 10.855,
-        longitude: 106.782,
+        latitude: 11.9406,
+        longitude: 108.4582,
         altitudeM: 20,
         targetSpeedMs: 5,
         visitState: 'PENDING',
@@ -478,11 +522,11 @@ const INITIAL_MISSION_NOTES: MissionNote[] = [
     priority: 'URGENT',
     title: 'Phát hiện lỗi thu thập gói tin cảm biến tại Waypoint #2 (Khu C)',
     content:
-      'UAV-003 báo trạng thái "Thu thập lỗi" tại tọa độ (10.8468, 106.7745) do tán cây rậm làm suy hao RSSI xuống 46% và lỗi CRC 14 gói tin từ nút DEV-Z3-001-SOIL. Đã giữ UAV bay treo ở độ cao 42m để kích hoạt cơ chế truyền lại (Retry).',
+      'UAV-003 báo trạng thái "Thu thập lỗi" tại tọa độ (11.9334, 108.4625) do tán cây rậm làm suy hao RSSI xuống 46% và lỗi CRC 14 gói tin từ nút DEV-Z3-001-SOIL. Đã giữ UAV bay treo ở độ cao 42m để kích hoạt cơ chế truyền lại (Retry).',
     author: 'Nguyễn Trường An (Operator Ca 1)',
     waypointOrder: 2,
-    latitude: 10.8468,
-    longitude: 106.7745,
+    latitude: 11.9334,
+    longitude: 108.4625,
     batteryAtNote: 58,
     flightStatusAtNote: 'COLLECTION_ERROR',
     isPinned: true,
@@ -505,8 +549,8 @@ const INITIAL_MISSION_NOTES: MissionNote[] = [
       'Sau khi hoàn thành thu thập 218 gói dữ liệu qua 3/4 Waypoint tại Khu B, dung lượng pin UAV-002 giảm còn 26% (45.1V). Đã xác nhận chuyển trạng thái sang "Về trạm" ở độ cao an toàn 60m.',
     author: 'Nguyễn Trường An (Operator Ca 1)',
     waypointOrder: 4,
-    latitude: 10.8492,
-    longitude: 106.7728,
+    latitude: 11.9374,
+    longitude: 108.4555,
     batteryAtNote: 26,
     flightStatusAtNote: 'RETURNING',
     isPinned: true,
@@ -529,8 +573,8 @@ const INITIAL_MISSION_NOTES: MissionNote[] = [
       'Đường truyền MQTT và Telemetry ổn định 100%, đã thu thập thành công 142 bản ghi nhiệt độ & độ ẩm từ cụm cảm biến Bắc Khu A mà không phát sinh gói lỗi.',
     author: 'Nguyễn Trường An (Operator Ca 1)',
     waypointOrder: 2,
-    latitude: 10.8485,
-    longitude: 106.771,
+    latitude: 11.9416,
+    longitude: 108.4595,
     batteryAtNote: 84,
     flightStatusAtNote: 'FLYING',
     isPinned: false,
@@ -553,8 +597,8 @@ const INITIAL_MISSION_NOTES: MissionNote[] = [
       'Tầm nhìn quang học tốt, gió nhẹ 2.4 m/s hướng Đông Bắc. Không ảnh hưởng đến tốc độ hành trình 8.5 m/s của DJI Matrice 300 RTK.',
     author: 'Trần (QA / Kiểm thử thực địa)',
     waypointOrder: 3,
-    latitude: 10.8501,
-    longitude: 106.7732,
+    latitude: 11.9422,
+    longitude: 108.4601,
     batteryAtNote: 85,
     flightStatusAtNote: 'FLYING',
     isPinned: false,
@@ -570,7 +614,12 @@ function loadStoredSessions(): UavFlightSession[] {
     const raw = localStorage.getItem(SESSIONS_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as UavFlightSession[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      // Tự động bỏ qua bản lưu cũ còn tọa độ TP.HCM (< 11.5) để đồng nhất về chuẩn Đà Lạt
+      if (
+        Array.isArray(parsed) &&
+        parsed.length > 0 &&
+        parsed.every((s) => s.latitude >= 11.5)
+      ) {
         return parsed;
       }
     }
@@ -597,7 +646,11 @@ function loadStoredNotes(): MissionNote[] {
     const raw = localStorage.getItem(NOTES_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as MissionNote[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      if (
+        Array.isArray(parsed) &&
+        parsed.length > 0 &&
+        parsed.every((n) => n.latitude >= 11.5)
+      ) {
         return parsed;
       }
     }
@@ -640,7 +693,8 @@ export function advanceFlightSessionTick(
 
   // Trường hợp 1: UAV đang ở trạng thái THU THẬP LỖI (COLLECTION_ERROR)
   if (session.status === 'COLLECTION_ERROR') {
-    const nextBattery = Math.max(5, Number((session.batteryPercent - 0.15).toFixed(1)));
+    // Hover tiêu thụ 0.2%/tick, giữ số thực 1 chữ số thập phân (không Math.round làm pin đứng im)
+    const nextBattery = drainBattery(session.batteryPercent, 0.2, 5);
     const updatedWaypoints: FlightWaypointNode[] = session.waypoints.map((wp) =>
       wp.order === session.currentWaypointOrder
         ? {
@@ -653,7 +707,7 @@ export function advanceFlightSessionTick(
 
     return {
       ...session,
-      batteryPercent: Math.round(nextBattery),
+      batteryPercent: nextBattery,
       batteryVoltageV: Number((42 + (nextBattery / 100) * 10.4).toFixed(1)),
       speedMs: 0.3,
       signalStrength: Math.max(35, Math.min(62, session.signalStrength + (Math.random() > 0.5 ? 1 : -1))),
@@ -669,13 +723,19 @@ export function advanceFlightSessionTick(
 
   // Trường hợp 2: UAV đang VỀ TRẠM (RETURNING - RTH)
   if (session.status === 'RETURNING') {
-    const nextAlpha = Math.min(1, Number((session.segmentProgress + 0.12).toFixed(2)));
+    // LERP thực trên đoạn thẳng [điểm bắt đầu RTH -> Home] theo alpha = segmentProgress.
+    // Vị trí hiện tại P = O + alpha·(H - O) => bước kế tiếp P' = P + t·(H - P)
+    // với t = (nextAlpha - alpha) / (1 - alpha), không cần lưu điểm gốc O.
+    const alpha = Math.max(0, Math.min(1, session.segmentProgress));
+    const nextAlpha = Math.min(1, Number((alpha + 0.12).toFixed(2)));
+    const remaining = 1 - alpha;
+    const localT = remaining > 1e-6 ? (nextAlpha - alpha) / remaining : 1;
     const interp = interpolateCoordinate(
       session.latitude,
       session.longitude,
       session.homeLatitude,
       session.homeLongitude,
-      0.28,
+      localT,
     );
     const distToHome = calculateHaversineMeters(
       interp.latitude,
@@ -683,13 +743,25 @@ export function advanceFlightSessionTick(
       session.homeLatitude,
       session.homeLongitude,
     );
+    const stepDistance = calculateHaversineMeters(
+      session.latitude,
+      session.longitude,
+      interp.latitude,
+      interp.longitude,
+    );
     const bearingHome = calculateBearingDeg(
       session.latitude,
       session.longitude,
       session.homeLatitude,
       session.homeLongitude,
     );
-    const nextBattery = Math.max(8, session.batteryPercent - 1);
+    const nextBattery = drainBattery(session.batteryPercent, 1, 8);
+    // Nội suy altitude & speed về thông số Waypoint xuất phát (Home)
+    const homeWp = session.waypoints[0];
+    const homeAltitude = homeWp ? homeWp.altitudeM : session.altitudeM;
+    const homeSpeed = homeWp ? homeWp.targetSpeedMs : session.speedMs;
+    const nextAltitude = Number(lerpScalar(session.altitudeM, homeAltitude, localT).toFixed(1));
+    const nextSpeed = Number(lerpScalar(session.speedMs, homeSpeed, localT).toFixed(1));
 
     if (distToHome <= 25 || nextAlpha >= 1) {
       return {
@@ -719,15 +791,15 @@ export function advanceFlightSessionTick(
       latitude: interp.latitude,
       longitude: interp.longitude,
       headingDeg: bearingHome,
-      speedMs: 10.2,
-      altitudeM: Math.max(25, session.altitudeM - 2),
+      speedMs: nextSpeed,
+      altitudeM: nextAltitude,
       batteryPercent: nextBattery,
       batteryVoltageV: Number((42 + (nextBattery / 100) * 10.4).toFixed(1)),
       segmentProgress: nextAlpha,
-      progressPercent: Math.min(99, session.progressPercent + 3),
-      distanceTraveledM: session.distanceTraveledM + 20,
+      progressPercent: Math.max(session.progressPercent, Math.min(99, session.progressPercent + 3)),
+      distanceTraveledM: session.distanceTraveledM + stepDistance,
       elapsedSeconds: session.elapsedSeconds + 2,
-      estimatedRemainingSeconds: Math.max(5, Math.round(distToHome / 10.2)),
+      estimatedRemainingSeconds: Math.max(5, Math.round(distToHome / Math.max(0.5, nextSpeed))),
       lastTelemetryAt: nowIso,
     };
   }
@@ -749,6 +821,7 @@ export function advanceFlightSessionTick(
   let nextCompleted = session.completedWaypoints;
   let nextStatus: FlightMonitorStatus = session.status;
   let updatedWaypoints = [...wps];
+  let routeFinished = false;
 
   if (nextAlpha >= 1) {
     // Đã chạm tới Waypoint đích của đoạn hiện tại
@@ -776,9 +849,11 @@ export function advanceFlightSessionTick(
       nextWpOrder = targetIdx + 2;
       nextAlpha = 0;
     } else {
-      // Đã hoàn thành toàn bộ các điểm bay -> Chuyển sang Về trạm hoặc Hoàn thành
-      nextAlpha = 1;
+      // Đã hoàn thành toàn bộ các điểm bay -> Chuyển sang Về trạm.
+      // Reset alpha = 0 để nhánh RETURNING nội suy dần từ WP cuối về Home (không teleport trong 1 tick).
+      nextAlpha = 0;
       nextStatus = 'RETURNING';
+      routeFinished = true;
     }
   } else {
     updatedWaypoints = updatedWaypoints.map((wp, idx) =>
@@ -813,30 +888,42 @@ export function advanceFlightSessionTick(
 
   const totalSegments = Math.max(1, wps.length - 1);
   const completedSegs = Math.max(0, nextWpOrder - 2);
+  // Khi đã chạm WP cuối, tiến độ tuyến bay = 100% dù alpha được reset về 0 cho chặng RTH
+  const routeAlpha = routeFinished ? 1 : nextAlpha;
   const overallProgress = Math.min(
     100,
-    Math.round(((completedSegs + nextAlpha) / totalSegments) * 100),
+    Math.round(((completedSegs + routeAlpha) / totalSegments) * 100),
   );
 
-  const nextBattery = Math.max(10, session.batteryPercent - 1);
+  // Nội suy LERP đầy đủ cho altitude & speed giữa 2 Waypoint (không nhảy cóc sang giá trị WP đích)
+  const nextAltitude = Number(
+    lerpScalar(activeFrom.altitudeM, activeTo.altitudeM, nextAlpha).toFixed(1),
+  );
+  const nextSpeed = Number(
+    lerpScalar(activeFrom.targetSpeedMs, activeTo.targetSpeedMs, nextAlpha).toFixed(1),
+  );
+
+  const nextBattery = drainBattery(session.batteryPercent, 1, 10);
   // Nếu pin tụt xuống <= 20% khi đang bay thì tự động chuyển sang Về trạm (RTH)
   if (nextBattery <= 20 && nextStatus === 'FLYING') {
     nextStatus = 'RETURNING';
   }
+  // Bắt đầu chặng RTH luôn từ alpha = 0 tại vị trí hiện tại
+  const nextSegmentProgress = nextStatus === 'RETURNING' ? 0 : nextAlpha;
 
   return {
     ...session,
     status: nextStatus,
     latitude: interp.latitude,
     longitude: interp.longitude,
-    altitudeM: activeTo.altitudeM,
-    speedMs: activeTo.targetSpeedMs,
+    altitudeM: nextAltitude,
+    speedMs: nextSpeed,
     headingDeg: heading,
     batteryPercent: nextBattery,
     batteryVoltageV: Number((42 + (nextBattery / 100) * 10.4).toFixed(1)),
     currentWaypointOrder: nextWpOrder,
     completedWaypoints: nextCompleted,
-    segmentProgress: nextAlpha,
+    segmentProgress: nextSegmentProgress,
     progressPercent: overallProgress,
     distanceTraveledM: Math.min(
       session.totalRouteDistanceM,
@@ -861,21 +948,12 @@ export function advanceFlightSessionTick(
 export async function fetchFlightSessions(): Promise<UavFlightSession[]> {
   const localSessions = loadStoredSessions();
   try {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}/uavs`, {
-      headers: {
-        Accept: 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      signal: AbortSignal.timeout(2500),
-    });
-
-    if (response.ok) {
-      // Đồng bộ trạng thái kết nối thực tế từ Backend nếu có
-      const backendUavs = await response.json();
-      if (Array.isArray(backendUavs) && backendUavs.length > 0) {
-        return localSessions;
-      }
+    // missionApiRequest ném lỗi với 4xx/5xx => chỉ parse JSON khi response.ok
+    const response = await missionApiRequest(`${API_BASE_URL}/uavs`);
+    // Đồng bộ trạng thái kết nối thực tế từ Backend nếu có
+    const backendUavs: unknown = await response.json();
+    if (Array.isArray(backendUavs) && backendUavs.length > 0) {
+      return localSessions;
     }
   } catch {
     // Hybrid Fallback về dữ liệu phiên bay local
@@ -885,25 +963,20 @@ export async function fetchFlightSessions(): Promise<UavFlightSession[]> {
 
 /**
  * Cập nhật trạng thái chuyến bay của UAV (Đang bay / Về trạm / Thu thập lỗi)
- * Đồng bộ với PATCH /api/missions/{id}/status của Dev 2
+ * Đồng bộ với PATCH /api/v1/missions/{id}/status của Dev 2
  */
 export async function updateMissionFlightStatusApi(
   missionId: number,
   newStatus: FlightMonitorStatus,
 ): Promise<{ missionId: number; status: FlightMonitorStatus }> {
   try {
-    const token = localStorage.getItem('token');
-    await fetch(`${MISSION_API_URL}/${missionId}/status`, {
+    await missionApiRequest(`${MISSION_API_URL}/${missionId}/status`, {
       method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: newStatus }),
-      signal: AbortSignal.timeout(2500),
     });
   } catch {
-    // Hybrid fallback: xử lý ngay tại Redux store & localStorage
+    // Hybrid fallback (mạng lỗi hoặc HTTP 4xx/5xx): xử lý ngay tại Redux store & localStorage
   }
   return { missionId, status: newStatus };
 }
@@ -914,20 +987,13 @@ export async function updateMissionFlightStatusApi(
 export async function fetchMissionNotes(): Promise<MissionNote[]> {
   const localNotes = loadStoredNotes();
   try {
-    const token = localStorage.getItem('token');
-    const response = await fetch(`${API_BASE_URL}/missions/notes`, {
-      headers: {
-        Accept: 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      signal: AbortSignal.timeout(2500),
-    });
-    if (response.ok) {
-      const json = await response.json();
-      const list = Array.isArray(json) ? json : json?.data;
-      if (Array.isArray(list) && list.length > 0) {
-        return list as MissionNote[];
-      }
+    const response = await missionApiRequest(`${MISSION_API_URL}/notes`);
+    const json: unknown = await response.json();
+    const list = Array.isArray(json)
+      ? json
+      : (json as { data?: unknown } | null)?.data;
+    if (Array.isArray(list) && list.length > 0) {
+      return list as MissionNote[];
     }
   } catch {
     // Fallback local
@@ -968,18 +1034,17 @@ export async function createMissionNoteApi(
   };
 
   try {
-    const token = localStorage.getItem('token');
-    await fetch(`${API_BASE_URL}/missions/${session.missionId}/notes`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    await missionApiRequest(
+      `${MISSION_API_URL}/${session.missionId}/notes`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newNote),
       },
-      body: JSON.stringify(newNote),
-      signal: AbortSignal.timeout(2000),
-    });
+      2000,
+    );
   } catch {
-    // Hybrid fallback: persist in localStorage
+    // Hybrid fallback (mạng lỗi hoặc HTTP 4xx/5xx): persist in localStorage
   }
 
   const current = loadStoredNotes();
@@ -1004,16 +1069,15 @@ export async function updateMissionNoteApi(
   const payload = { ...updates, updatedAt: nowIso };
 
   try {
-    const token = localStorage.getItem('token');
-    await fetch(`${API_BASE_URL}/missions/notes/${noteId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    await missionApiRequest(
+      `${MISSION_API_URL}/notes/${noteId}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(2000),
-    });
+      2000,
+    );
   } catch {
     // Hybrid fallback
   }
@@ -1029,14 +1093,7 @@ export async function updateMissionNoteApi(
  */
 export async function deleteMissionNoteApi(noteId: number): Promise<number> {
   try {
-    const token = localStorage.getItem('token');
-    await fetch(`${API_BASE_URL}/missions/notes/${noteId}`, {
-      method: 'DELETE',
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      signal: AbortSignal.timeout(2000),
-    });
+    await missionApiRequest(`${MISSION_API_URL}/notes/${noteId}`, { method: 'DELETE' }, 2000);
   } catch {
     // Hybrid fallback
   }

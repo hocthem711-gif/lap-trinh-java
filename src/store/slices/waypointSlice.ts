@@ -1,4 +1,4 @@
-import { createSlice } from '@reduxjs/toolkit';
+import { createSelector, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
 /**
@@ -32,20 +32,20 @@ export const DEFAULT_ALTITUDE = 50;   // meters
 export const DEFAULT_SPEED = 8;       // m/s
 export const BATTERY_DRAIN_RATE = 0.35; // % per minute of flight
 
-/** Geofence boundary — SmartFarm area (polygon bounding box) */
+/** Geofence boundary — SmartFarm Đà Lạt area (polygon bounding box quanh 11.94, 108.45) */
 export const GEOFENCE_BOUNDS = {
-  minLat: 10.840,
-  maxLat: 10.860,
-  minLng: 106.760,
-  maxLng: 106.790,
+  minLat: 11.925,
+  maxLat: 11.955,
+  minLng: 108.440,
+  maxLng: 108.475,
 };
 
-/** Preset Demo Waypoints (Khu A — Khớp kịch bản kiểm thử LTJ-20 WaypointMissionValidator) */
+/** Preset Demo Waypoints (Khu A Đà Lạt — Khớp tọa độ chuẩn 11.94, 108.45 của Sprint 7 & 8) */
 export const PRESET_DEMO_WAYPOINTS: Omit<Waypoint, 'id' | 'isOutOfBounds'>[] = [
-  { order: 1, latitude: 10.8450, longitude: 106.7650, altitude: 30, speed: 8, type: WaypointType.TAKEOFF },
-  { order: 2, latitude: 10.8485, longitude: 106.7710, altitude: 50, speed: 10, type: WaypointType.NORMAL },
-  { order: 3, latitude: 10.8520, longitude: 106.7760, altitude: 50, speed: 8, type: WaypointType.HOVER },
-  { order: 4, latitude: 10.8550, longitude: 106.7820, altitude: 20, speed: 5, type: WaypointType.LANDING },
+  { order: 1, latitude: 11.9404, longitude: 108.4583, altitude: 30, speed: 8, type: WaypointType.TAKEOFF },
+  { order: 2, latitude: 11.9416, longitude: 108.4595, altitude: 50, speed: 10, type: WaypointType.NORMAL },
+  { order: 3, latitude: 11.9428, longitude: 108.4608, altitude: 50, speed: 8, type: WaypointType.HOVER },
+  { order: 4, latitude: 11.9435, longitude: 108.4599, altitude: 20, speed: 5, type: WaypointType.LANDING },
 ];
 
 // ==================== Interfaces ====================
@@ -97,11 +97,13 @@ const haversineDistance = (
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
 
-  const a =
+  const rawA =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
     Math.sin(dLng / 2) * Math.sin(dLng / 2);
 
+  // Kẹp a vào [0, 1] để sai số dấu phẩy động không làm Math.sqrt(1 - a) trả về NaN
+  const a = Math.min(1, Math.max(0, rawA));
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
 };
@@ -370,21 +372,30 @@ export const selectHasOutOfBoundsWaypoints = (state: { waypoint: WaypointState }
  * Generate JSON payload for backend REST API (Dev 2 - Task LTJ-17)
  * POST /api/v1/missions
  */
-export const selectMissionPayload = (state: { waypoint: WaypointState }) => ({
-  missionName: state.waypoint.missionName,
-  uavId: state.waypoint.uavId,
-  zoneId: state.waypoint.zoneId,
-  waypoints: state.waypoint.waypoints.map(wp => ({
-    order: wp.order,
-    latitude: wp.latitude,
-    longitude: wp.longitude,
-    altitude: wp.altitude,
-    speed: wp.speed,
-    type: wp.type,
-  })),
-  totalDistanceM: state.waypoint.telemetry.totalDistanceM,
-  estimatedTimeSeconds: state.waypoint.telemetry.estimatedTimeSeconds,
-  estimatedBatteryDrain: state.waypoint.telemetry.estimatedBatteryDrain,
-});
+export const selectMissionPayload = createSelector(
+  [
+    (state: { waypoint: WaypointState }) => state.waypoint.missionName,
+    (state: { waypoint: WaypointState }) => state.waypoint.uavId,
+    (state: { waypoint: WaypointState }) => state.waypoint.zoneId,
+    selectWaypoints,
+    selectTelemetry,
+  ],
+  (missionName, uavId, zoneId, waypoints, telemetry) => ({
+    missionName,
+    uavId,
+    zoneId,
+    waypoints: waypoints.map((wp) => ({
+      order: wp.order,
+      latitude: wp.latitude,
+      longitude: wp.longitude,
+      altitude: wp.altitude,
+      speed: wp.speed,
+      type: wp.type,
+    })),
+    totalDistanceM: telemetry.totalDistanceM,
+    estimatedTimeSeconds: telemetry.estimatedTimeSeconds,
+    estimatedBatteryDrain: telemetry.estimatedBatteryDrain,
+  }),
+);
 
 export default waypointSlice.reducer;

@@ -15,7 +15,7 @@
  *    - Hỗ trợ bộ mẫu ghi chú nhanh (Quick Templates) và xuất JSON Nhật ký Note Mission
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import {
   MapContainer,
@@ -101,16 +101,27 @@ import {
 import { formatFlightTime } from '../services/flightMonitorService';
 import './FlightMonitoringNote.css';
 
-// ==================== LEAFLET CUSTOM ICONS ====================
+// ==================== LEAFLET CUSTOM ICONS (CACHED) ====================
 
-const createUavLiveIcon = (status: FlightMonitorStatus, headingDeg: number) => {
+const uavIconCache = new Map<string, L.DivIcon>();
+const waypointIconCache = new Map<string, L.DivIcon>();
+
+const getUavLiveIcon = (
+  status: FlightMonitorStatus,
+  headingDeg: number,
+): L.DivIcon => {
+  const normalizedHeading = ((Math.round(headingDeg) % 360) + 360) % 360;
+  const cacheKey = `${status}:${normalizedHeading}`;
+  const cached = uavIconCache.get(cacheKey);
+  if (cached) return cached;
+
   const color = FLIGHT_STATUS_CONFIG[status].color;
-  return L.divIcon({
+  const icon = L.divIcon({
     className: 'fm-uav-leaflet-icon',
     html: `
       <div class="fm-uav-marker-wrap" style="--uav-color: ${color};">
         <div class="fm-uav-pulse"></div>
-        <div class="fm-uav-core" style="transform: rotate(${headingDeg}deg);">
+        <div class="fm-uav-core" style="transform: rotate(${normalizedHeading}deg);">
           ✈
         </div>
       </div>
@@ -119,19 +130,27 @@ const createUavLiveIcon = (status: FlightMonitorStatus, headingDeg: number) => {
     iconAnchor: [19, 19],
     popupAnchor: [0, -18],
   });
+  uavIconCache.set(cacheKey, icon);
+  return icon;
 };
 
-const createWaypointNodeIcon = (
+const getWaypointNodeIcon = (
   order: number,
   visitState: 'COMPLETED' | 'ACTIVE' | 'PENDING' | 'ERROR',
-) => {
-  return L.divIcon({
+): L.DivIcon => {
+  const cacheKey = `${order}:${visitState}`;
+  const cached = waypointIconCache.get(cacheKey);
+  if (cached) return cached;
+
+  const icon = L.divIcon({
     className: 'fm-wp-leaflet-icon',
     html: `<div class="fm-wp-marker wp-${visitState.toLowerCase()}">${order}</div>`,
     iconSize: [28, 28],
     iconAnchor: [14, 14],
     popupAnchor: [0, -14],
   });
+  waypointIconCache.set(cacheKey, icon);
+  return icon;
 };
 
 // ==================== MAIN COMPONENT ====================
@@ -171,6 +190,19 @@ export default function FlightMonitoringNote() {
   const [formError, setFormError] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [copiedJson, setCopiedJson] = useState<boolean>(false);
+  const copyTimerRef = useRef<number | null>(null);
+  const isMountedRef = useRef<boolean>(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = null;
+      }
+    };
+  }, []);
 
   // 1. Khởi tạo dữ liệu phiên bay & Note Mission khi mở trang
   useEffect(() => {
@@ -215,10 +247,24 @@ export default function FlightMonitoringNote() {
     );
   }, [activeSession, dispatch]);
 
-  // Tính toán danh sách tọa độ Polyline cho bản đồ Leaflet
+  // Tính toán danh sách tọa độ Polyline & Icon Leaflet đã memoize để tránh tạo lại mỗi tick 2s
   const routePositions = useMemo<[number, number][]>(() => {
     if (!activeSession) return [];
     return activeSession.waypoints.map((wp) => [wp.latitude, wp.longitude]);
+  }, [activeSession]);
+
+  const activeUavIcon = useMemo<L.DivIcon | null>(() => {
+    if (!activeSession) return null;
+    return getUavLiveIcon(activeSession.status, activeSession.headingDeg);
+  }, [activeSession]);
+
+  const waypointIconsByOrder = useMemo<Record<number, L.DivIcon>>(() => {
+    if (!activeSession) return {};
+    const map: Record<number, L.DivIcon> = {};
+    for (const wp of activeSession.waypoints) {
+      map[wp.order] = getWaypointNodeIcon(wp.order, wp.visitState);
+    }
+    return map;
   }, [activeSession]);
 
   // Định dạng màu sắc cho mức Pin
@@ -356,10 +402,30 @@ export default function FlightMonitoringNote() {
     );
   }, [activeSession, filteredNotes]);
 
-  const handleCopyExportJson = () => {
-    navigator.clipboard.writeText(exportPayloadJson);
-    setCopiedJson(true);
-    window.setTimeout(() => setCopiedJson(false), 2000);
+  const handleCopyExportJson = async () => {
+    try {
+      if (!navigator.clipboard?.writeText) {
+        throw new Error('Clipboard API không khả dụng.');
+      }
+      await navigator.clipboard.writeText(exportPayloadJson);
+      if (!isMountedRef.current) return;
+      setCopiedJson(true);
+      if (copyTimerRef.current !== null) {
+        window.clearTimeout(copyTimerRef.current);
+      }
+      copyTimerRef.current = window.setTimeout(() => {
+        if (isMountedRef.current) {
+          setCopiedJson(false);
+        }
+        copyTimerRef.current = null;
+      }, 2000);
+    } catch {
+      if (isMountedRef.current) {
+        setFormError(
+          'Không thể sao chép tự động vào Clipboard (trình duyệt từ chối quyền hoặc chưa dùng HTTPS).',
+        );
+      }
+    }
   };
 
   if (!activeSession) {
@@ -923,7 +989,10 @@ export default function FlightMonitoringNote() {
                   <Marker
                     key={wp.order}
                     position={[wp.latitude, wp.longitude]}
-                    icon={createWaypointNodeIcon(wp.order, wp.visitState)}
+                    icon={
+                      waypointIconsByOrder[wp.order] ??
+                      getWaypointNodeIcon(wp.order, wp.visitState)
+                    }
                   >
                     <Popup>
                       <div className="fm-map-popup">
@@ -947,10 +1016,10 @@ export default function FlightMonitoringNote() {
                 {/* Marker vị trí UAV hiện tại */}
                 <Marker
                   position={[activeSession.latitude, activeSession.longitude]}
-                  icon={createUavLiveIcon(
-                    activeSession.status,
-                    activeSession.headingDeg,
-                  )}
+                  icon={
+                    activeUavIcon ??
+                    getUavLiveIcon(activeSession.status, activeSession.headingDeg)
+                  }
                 >
                   <Popup>
                     <div className="fm-map-popup">

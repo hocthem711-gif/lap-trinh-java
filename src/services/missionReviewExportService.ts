@@ -8,6 +8,8 @@ import {
   EXPORT_DATASET_CATALOG,
   MISSION_REVIEW_DECISION_META,
   type ExcelExportFilterConfig,
+  type ExportColumnDefinition,
+  type ExportDatasetType,
   type ExportExecutionHistoryItem,
   type MissionQualityGrade,
   type MissionReviewRecord,
@@ -88,7 +90,7 @@ export function determineQualityGrade(score: number): MissionQualityGrade {
 const INITIAL_MISSION_REVIEWS: MissionReviewRecord[] = [
   {
     missionId: 'MSN-2026-071',
-    missionCode: 'MSN-DALAT-071',
+    missionCode: 'MSN-2026-071',
     missionTitle: 'Bay Khảo sát Đa phổ & Đo Ви Khí hậu Nhà kính Khu A',
     farmName: 'Nông trại Công nghệ cao Đà Lạt',
     zoneId: 'ZONE-A',
@@ -134,7 +136,7 @@ const INITIAL_MISSION_REVIEWS: MissionReviewRecord[] = [
     reviewerRole: 'Kỹ thuật viên Trưởng Giám sát UAV (Dev 4)',
     reviewedAt: '2026-11-18T09:10:00.000Z',
     reviewSummaryNote:
-      'Chuyến bay MSN-DALAT-071 bám sát quỹ đạo 6 Waypoints với sai số RTK trung bình chỉ 0.42m. Thu thập đủ 360/360 gói tin đa phổ NDVI và đồng bộ thành công cảnh báo lá dâu tây khô mép tại phía Bắc WP-3.',
+      'Chuyến bay MSN-2026-071 bám sát quỹ đạo 6 Waypoints với sai số RTK trung bình chỉ 0.42m. Thu thập đủ 360/360 gói tin đa phổ NDVI và đồng bộ thành công cảnh báo lá dâu tây khô mép tại phía Bắc WP-3.',
     correctiveActionPlan:
       'Duy trì cấu hình độ cao 45m AGL cho Khu A; thông báo bộ phận tưới nhỏ giọt tăng 12% lưu lượng tại luống B4-B6 theo ghi chú Note Mission.',
     waypointAudits: [
@@ -308,7 +310,7 @@ const INITIAL_MISSION_REVIEWS: MissionReviewRecord[] = [
   },
   {
     missionId: 'MSN-2026-072',
-    missionCode: 'MSN-DALAT-072',
+    missionCode: 'MSN-2026-072',
     missionTitle: 'Tuần tra Nhiệt độ Cực đoan & Đồng bộ Offline Khu B',
     farmName: 'Nông trại Công nghệ cao Đà Lạt',
     zoneId: 'ZONE-B',
@@ -492,7 +494,7 @@ const INITIAL_MISSION_REVIEWS: MissionReviewRecord[] = [
   },
   {
     missionId: 'MSN-2026-073',
-    missionCode: 'MSN-DALAT-073',
+    missionCode: 'MSN-2026-073',
     missionTitle: 'Bay Kiểm tra Sự cố Mất Gói tin Cảm biến Đất Khu C',
     farmName: 'Nông trại Công nghệ cao Đà Lạt',
     zoneId: 'ZONE-C',
@@ -999,6 +1001,18 @@ export async function buildExportPreviewDataset(
 // 5. BỘ SINH FILE EXCEL ĐA SHEET (.XLS/.XLSX), CSV UTF-8 BOM, JSON & HTML PDF
 // ============================================================================
 
+const MAX_CLIENT_EXPORT_ROWS = 10000;
+const FORMULA_INJECTION_PREFIX_REGEX = /^[=+\-@\t\r]/;
+
+/**
+ * Chống CSV/Excel Formula Injection (CWE-1236):
+ * Thêm dấu nháy đơn (') trước các ô bắt đầu bằng =, +, -, @, tab hoặc CR.
+ */
+function sanitizeSpreadsheetCell(value: string | number | null | undefined): string {
+  const str = String(value ?? '');
+  return FORMULA_INJECTION_PREFIX_REGEX.test(str) ? `'${str}` : str;
+}
+
 function escapeXml(value: string | number | null | undefined): string {
   const str = String(value ?? '');
   return str
@@ -1016,29 +1030,37 @@ function escapeXml(value: string | number | null | undefined): string {
 function generateMultiSheetExcelXml(
   config: ExcelExportFilterConfig,
   filteredRows: NormalizedExportRow[],
-  allRows: NormalizedExportRow[],
   reviews: MissionReviewRecord[]
 ): { xmlContent: string; sheetCount: number } {
   const nowStr = new Date().toLocaleString('vi-VN');
-  const activeCols = EXPORT_DATASET_CATALOG[config.datasetType].defaultColumns.filter(
-    (col) =>
-      config.selectedColumnKeys.length === 0 ||
+  const resolveColumnsForDataset = (
+    datasetType: ExportDatasetType,
+    applySelectedKeys: boolean
+  ): ExportColumnDefinition[] => {
+    const defaultCols = EXPORT_DATASET_CATALOG[datasetType].defaultColumns;
+    if (!applySelectedKeys || config.selectedColumnKeys.length === 0) {
+      return defaultCols;
+    }
+    const matched = defaultCols.filter((col) =>
       config.selectedColumnKeys.includes(col.key)
-  );
+    );
+    return matched.length > 0 ? matched : defaultCols;
+  };
 
   const buildDataWorksheetXml = (
     sheetName: string,
     bannerTitle: string,
-    rowsForSheet: NormalizedExportRow[]
+    rowsForSheet: NormalizedExportRow[],
+    sheetCols: ExportColumnDefinition[]
   ): string => {
-    const colElements = activeCols
+    const colElements = sheetCols
       .map(
         (col) =>
           `<Column ss:AutoFitWidth="1" ss:Width="${Math.max(85, Math.round(col.widthPx * 0.85))}"/>`
       )
       .join('');
 
-    const headerCells = activeCols
+    const headerCells = sheetCols
       .map(
         (col) =>
           `<Cell ss:StyleID="sTableHeader"><Data ss:Type="String">${escapeXml(col.header)}</Data></Cell>`
@@ -1054,10 +1076,11 @@ function generateMultiSheetExcelXml(
               ? 'sCellWarning'
               : 'sCellNormal';
 
-        const cells = activeCols
+        const cells = sheetCols
           .map((col) => {
             const val = (row as unknown as Record<string, unknown>)[col.key] ?? '';
-            return `<Cell ss:StyleID="${styleId}"><Data ss:Type="String">${escapeXml(String(val))}</Data></Cell>`;
+            const safeText = sanitizeSpreadsheetCell(String(val));
+            return `<Cell ss:StyleID="${styleId}"><Data ss:Type="String">${escapeXml(safeText)}</Data></Cell>`;
           })
           .join('');
         return `<Row ss:Height="22">${cells}</Row>`;
@@ -1069,12 +1092,12 @@ function generateMultiSheetExcelXml(
     <Table ss:DefaultRowHeight="20">
       ${colElements}
       <Row ss:Height="28">
-        <Cell ss:MergeAcross="${Math.max(1, activeCols.length - 1)}" ss:StyleID="sTitleBanner">
+        <Cell ss:MergeAcross="${Math.max(1, sheetCols.length - 1)}" ss:StyleID="sTitleBanner">
           <Data ss:Type="String">${escapeXml(bannerTitle)}</Data>
         </Cell>
       </Row>
       <Row ss:Height="20">
-        <Cell ss:MergeAcross="${Math.max(1, activeCols.length - 1)}" ss:StyleID="sMetaRow">
+        <Cell ss:MergeAcross="${Math.max(1, sheetCols.length - 1)}" ss:StyleID="sMetaRow">
           <Data ss:Type="String">Ngày xuất: ${escapeXml(nowStr)} | Người xuất: Nguyễn Trường An (Dev 4 - Quatrungvoon) | Khu vực: ${escapeXml(config.zoneFilter)} | Khung thời gian: ${escapeXml(config.timeRange)} | Tổng số dòng: ${rowsForSheet.length}</Data>
         </Cell>
       </Row>
@@ -1136,7 +1159,7 @@ function generateMultiSheetExcelXml(
         ]
           .map(
             (val) =>
-              `<Cell ss:StyleID="${styleId}"><Data ss:Type="String">${escapeXml(val)}</Data></Cell>`
+              `<Cell ss:StyleID="${styleId}"><Data ss:Type="String">${escapeXml(sanitizeSpreadsheetCell(val))}</Data></Cell>`
           )
           .join('');
         return `<Row ss:Height="23">${cells}</Row>`;
@@ -1176,22 +1199,26 @@ function generateMultiSheetExcelXml(
       buildDataWorksheetXml(
         '2_DuLieuCamBien_F11',
         'BẢNG TRÍCH XUẤT DỮ LIỆU CẢM BIẾN & QUAN TRẮC VI KHÍ HẬU (F11)',
-        allRows.filter((r) => r.datasetType === 'SENSOR_TELEMETRY')
+        filteredRows.filter((r) => r.datasetType === 'SENSOR_TELEMETRY'),
+        resolveColumnsForDataset('SENSOR_TELEMETRY', false)
       ),
       buildDataWorksheetXml(
         '3_CanhBaoVuotNguong_F08',
         'BẢNG TỔNG HỢP CẢNH BÁO VƯỢT NGƯỠNG & BIÊN BẢN XỬ LÝ (F08 / F11)',
-        allRows.filter((r) => r.datasetType === 'ALERT_REPORT')
+        filteredRows.filter((r) => r.datasetType === 'ALERT_REPORT'),
+        resolveColumnsForDataset('ALERT_REPORT', false)
       ),
       buildDataWorksheetXml(
         '4_LichSuSyncUAV_F20',
         'LỊCH SỬ ĐỒNG BỘ DỮ LIỆU NGOẠI TUYẾN UAV SQLITE → MQTT BULK (F20)',
-        allRows.filter((r) => r.datasetType === 'UAV_OFFLINE_SYNC')
+        filteredRows.filter((r) => r.datasetType === 'UAV_OFFLINE_SYNC'),
+        resolveColumnsForDataset('UAV_OFFLINE_SYNC', false)
       ),
       buildDataWorksheetXml(
         '5_NhatKyNoteMission_F16',
         'NHẬT KÝ GIÁM SÁT CHUYẾN BAY & NOTE MISSION THỦ CÔNG KÈM GPS SNAPSHOT (F15 / F16)',
-        allRows.filter((r) => r.datasetType === 'MISSION_FLIGHT_NOTES')
+        filteredRows.filter((r) => r.datasetType === 'MISSION_FLIGHT_NOTES'),
+        resolveColumnsForDataset('MISSION_FLIGHT_NOTES', false)
       ),
     ].join('\n');
   } else {
@@ -1199,7 +1226,8 @@ function generateMultiSheetExcelXml(
     worksheetsXml = buildDataWorksheetXml(
       meta.sheetName,
       `BÁO CÁO SMARTFARM IOT & UAV — ${meta.label.toUpperCase()}`,
-      filteredRows
+      filteredRows,
+      resolveColumnsForDataset(config.datasetType, true)
     );
   }
 
@@ -1290,7 +1318,10 @@ function generateUtf8BomCsv(
   );
 
   const escapeCsvCell = (val: unknown): string => {
-    const str = String(val ?? '').replace(/"/g, '""');
+    const safeVal = sanitizeSpreadsheetCell(
+      val as string | number | null | undefined
+    );
+    const str = safeVal.replace(/"/g, '""');
     return `"${str}"`;
   };
 
@@ -1423,11 +1454,20 @@ export const missionReviewExportApi = {
         fetchMissionNotes(),
       ]);
       const merged = storedReviews.map((rev) => {
+        const normalizedCode = rev.missionCode.startsWith('MSN-DALAT-')
+          ? rev.missionId
+          : rev.missionCode;
         const liveMatch = liveSessions.find(
-          (s) => s.missionCode === rev.missionCode || String(s.missionId) === rev.missionId
+          (s) =>
+            s.missionCode === normalizedCode ||
+            s.missionCode === rev.missionId ||
+            String(s.missionId) === rev.missionId
         );
         const matchingNotes = liveNotes.filter(
-          (n) => n.missionCode === rev.missionCode || String(n.missionId) === rev.missionId
+          (n) =>
+            n.missionCode === normalizedCode ||
+            n.missionCode === rev.missionId ||
+            String(n.missionId) === rev.missionId
         );
 
         const mappedNotes = matchingNotes.map((n) => ({
@@ -1445,6 +1485,7 @@ export const missionReviewExportApi = {
 
         return {
           ...rev,
+          missionCode: normalizedCode,
           operationalState: liveMatch ? liveMatch.status : rev.operationalState,
           fieldNotesSummary:
             mappedNotes.length > 0 ? mappedNotes : rev.fieldNotesSummary,
@@ -1518,12 +1559,20 @@ export const missionReviewExportApi = {
   async executeFileExport(
     config: ExcelExportFilterConfig,
     filteredRows: NormalizedExportRow[],
-    allRows: NormalizedExportRow[],
     reviews: MissionReviewRecord[]
   ): Promise<{
     historyItem: ExportExecutionHistoryItem;
     updatedHistory: ExportExecutionHistoryItem[];
   }> {
+    if (filteredRows.length === 0) {
+      throw new Error('Không có bản ghi nào khớp bộ lọc để xuất báo cáo.');
+    }
+
+    const rowsToExport =
+      filteredRows.length > MAX_CLIENT_EXPORT_ROWS
+        ? filteredRows.slice(0, MAX_CLIENT_EXPORT_ROWS)
+        : filteredRows;
+
     const meta = EXPORT_DATASET_CATALOG[config.datasetType];
     const dateStamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const safePrefix = (config.customFileNamePrefix || 'SmartFarm_BaoCao')
@@ -1533,28 +1582,56 @@ export const missionReviewExportApi = {
     let executionSource: 'BACKEND_POI_API' | 'HYBRID_CLIENT_ENGINE' =
       'HYBRID_CLIENT_ENGINE';
     let blob: Blob | null = null;
-    let sheetCount = 1;
+    let sheetCount = config.datasetType === 'FULL_WORKBOOK' ? 5 : 1;
     let extension = 'xls';
 
     // Thử gọi Backend Apache POI API (LTJ-37) nếu Backend đang chạy
     try {
       const token = localStorage.getItem('accessToken');
-      const query = new URLSearchParams({
+      const queryParams = new URLSearchParams({
         format: config.fileFormat,
         zone: config.zoneFilter,
         range: config.timeRange,
-      }).toString();
-      const response = await fetch(`${API_BASE_URL}${meta.apiEndpoint}?${query}`, {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        signal: AbortSignal.timeout(1500),
       });
+      if (config.missionIdFilter && config.missionIdFilter !== 'ALL') {
+        queryParams.set('missionId', config.missionIdFilter);
+      }
+      const endpointPath = meta.apiEndpoint.replace(/^\/api\/v1/, '');
+      const response = await fetch(
+        `${API_BASE_URL}${endpointPath}?${queryParams.toString()}`,
+        {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: AbortSignal.timeout(1500),
+        }
+      );
       if (response.ok) {
-        const fetchedBlob = await response.blob();
-        if (fetchedBlob.size > 100) {
-          blob = fetchedBlob;
-          executionSource = 'BACKEND_POI_API';
+        const contentType = (response.headers.get('content-type') || '').toLowerCase();
+        const isValidContentType =
+          (config.fileFormat === 'XLSX' &&
+            (contentType.includes('spreadsheetml') ||
+              contentType.includes('ms-excel') ||
+              contentType.includes('application/octet-stream'))) ||
+          (config.fileFormat === 'CSV' && contentType.includes('text/csv')) ||
+          (config.fileFormat === 'JSON' && contentType.includes('application/json')) ||
+          (config.fileFormat === 'HTML_PRINT' && contentType.includes('text/html'));
+
+        if (isValidContentType) {
+          const fetchedBlob = await response.blob();
+          if (fetchedBlob.size > 100) {
+            blob = fetchedBlob;
+            executionSource = 'BACKEND_POI_API';
+            if (config.fileFormat === 'XLSX' && contentType.includes('spreadsheetml')) {
+              extension = 'xlsx';
+            } else if (config.fileFormat === 'CSV') {
+              extension = 'csv';
+            } else if (config.fileFormat === 'JSON') {
+              extension = 'json';
+            } else if (config.fileFormat === 'HTML_PRINT') {
+              extension = 'html';
+            }
+          }
         }
       }
     } catch {
@@ -1565,17 +1642,17 @@ export const missionReviewExportApi = {
       if (config.fileFormat === 'XLSX') {
         const { xmlContent, sheetCount: sc } = generateMultiSheetExcelXml(
           config,
-          filteredRows,
-          allRows,
+          rowsToExport,
           reviews
         );
         sheetCount = sc;
         extension = 'xls';
-        blob = new Blob(['\uFEFF' + xmlContent], {
+        // Không chèn \uFEFF (BOM) trước <?xml ...?> để Excel không cảnh báo sai định dạng
+        blob = new Blob([xmlContent], {
           type: 'application/vnd.ms-excel;charset=utf-8',
         });
       } else if (config.fileFormat === 'CSV') {
-        const csvContent = generateUtf8BomCsv(config, filteredRows);
+        const csvContent = generateUtf8BomCsv(config, rowsToExport);
         extension = 'csv';
         blob = new Blob([csvContent], {
           type: 'text/csv;charset=utf-8',
@@ -1591,14 +1668,15 @@ export const missionReviewExportApi = {
             datasetLabel: meta.label,
             zoneFilter: config.zoneFilter,
             timeRange: config.timeRange,
-            totalRecords: filteredRows.length,
+            missionIdFilter: config.missionIdFilter,
+            totalRecords: rowsToExport.length,
           },
           missionReviewsSummary:
             config.datasetType === 'FULL_WORKBOOK' ||
             config.datasetType === 'MISSION_FLIGHT_NOTES'
               ? reviews
               : undefined,
-          records: filteredRows,
+          records: rowsToExport,
         };
         extension = 'json';
         blob = new Blob([JSON.stringify(jsonPayload, null, 2)], {
@@ -1607,7 +1685,7 @@ export const missionReviewExportApi = {
       } else {
         const htmlContent = generatePrintableHtmlReport(
           config,
-          filteredRows,
+          rowsToExport,
           reviews
         );
         extension = 'html';
@@ -1640,8 +1718,8 @@ export const missionReviewExportApi = {
       fileFormat: config.fileFormat,
       rowCount:
         config.datasetType === 'FULL_WORKBOOK'
-          ? allRows.length + reviews.length
-          : filteredRows.length,
+          ? rowsToExport.length + reviews.length
+          : rowsToExport.length,
       sheetCount,
       fileSizeKb,
       zoneFilter: config.zoneFilter,

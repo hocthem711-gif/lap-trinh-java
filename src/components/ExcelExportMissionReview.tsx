@@ -390,7 +390,13 @@ const ExcelExportMissionReview: React.FC = () => {
     activeMission?.waypointAudits[0] ??
     null;
 
+  const isExportEmpty = filteredExportRows.length === 0;
+  const emptyExportTooltip = isExportEmpty
+    ? 'Không có bản ghi nào khớp bộ lọc hiện tại để xuất'
+    : undefined;
+
   const handleQuickExportFormat = (format: ExportFileFormat) => {
+    if (isExportEmpty) return;
     dispatch(setExportFileFormat(format));
     dispatch(triggerDatasetFileExport({ fileFormat: format }));
   };
@@ -416,7 +422,8 @@ const ExcelExportMissionReview: React.FC = () => {
           <button
             type="button"
             className="s8-btn-master-excel"
-            disabled={exporting}
+            disabled={exporting || isExportEmpty}
+            title={emptyExportTooltip}
             onClick={() =>
               dispatch(
                 triggerDatasetFileExport({
@@ -591,7 +598,8 @@ const ExcelExportMissionReview: React.FC = () => {
               <button
                 type="button"
                 className="s8-download-btn excel"
-                disabled={exporting}
+                disabled={exporting || isExportEmpty}
+                title={emptyExportTooltip}
                 onClick={() => handleQuickExportFormat('XLSX')}
               >
                 <FileSpreadsheet size={17} />
@@ -600,7 +608,8 @@ const ExcelExportMissionReview: React.FC = () => {
               <button
                 type="button"
                 className="s8-download-btn csv"
-                disabled={exporting}
+                disabled={exporting || isExportEmpty}
+                title={emptyExportTooltip}
                 onClick={() => handleQuickExportFormat('CSV')}
               >
                 <Table size={17} />
@@ -609,7 +618,8 @@ const ExcelExportMissionReview: React.FC = () => {
               <button
                 type="button"
                 className="s8-download-btn json"
-                disabled={exporting}
+                disabled={exporting || isExportEmpty}
+                title={emptyExportTooltip}
                 onClick={() => handleQuickExportFormat('JSON')}
               >
                 <FileCode size={17} />
@@ -618,7 +628,8 @@ const ExcelExportMissionReview: React.FC = () => {
               <button
                 type="button"
                 className="s8-download-btn html"
-                disabled={exporting}
+                disabled={exporting || isExportEmpty}
+                title={emptyExportTooltip}
                 onClick={() => handleQuickExportFormat('HTML_PRINT')}
               >
                 <Printer size={17} />
@@ -791,7 +802,7 @@ const ExcelExportMissionReview: React.FC = () => {
                   lọc)
                 </strong>
                 <span>
-                  Endpoint: <code>{currentDatasetMeta.apiEndpoint}</code>
+                  Endpoint: <code>/api/v1{currentDatasetMeta.apiEndpoint}</code>
                 </span>
               </div>
               <span className="s8-encoding-badge">
@@ -893,6 +904,7 @@ const ExcelExportMissionReview: React.FC = () => {
                     <button
                       type="button"
                       className="s8-btn-reexport"
+                      disabled={exporting}
                       onClick={() =>
                         dispatch(
                           triggerDatasetFileExport({
@@ -1454,6 +1466,7 @@ const ExcelExportMissionReview: React.FC = () => {
                       triggerDatasetFileExport({
                         datasetType: 'MISSION_FLIGHT_NOTES',
                         fileFormat: 'XLSX',
+                        missionIdFilter: activeMission.missionId,
                         customFileNamePrefix: `NghiemThu_${activeMission.missionCode}`,
                       })
                     );
