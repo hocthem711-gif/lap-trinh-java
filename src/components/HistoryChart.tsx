@@ -1,3 +1,4 @@
+import LoadingSpinner from './LoadingSpinner'
 import { useEffect, useState } from 'react'
 import {
   Chart as ChartJS,
@@ -246,12 +247,16 @@ export default function HistoryChart() {
         </div>
       </div>
 
-      {loadingSensors && <p>Đang tải danh sách cảm biến...</p>}
+      {loadingSensors && (
+  <LoadingSpinner label="Đang tải danh sách cảm biến..." />
+)}
       {!loadingSensors && sensors.length === 0 && (
         <p>Chưa có cảm biến để xem lịch sử.</p>
       )}
       {sensorError && <p role="alert" style={{ color: '#dc2626' }}>Lỗi: {sensorError}</p>}
-      {loadingHistory && <p>Đang tải lịch sử...</p>}
+      {loadingHistory && (
+  <LoadingSpinner label="Đang tải lịch sử cảm biến..." />
+)}
       {historyError && <p role="alert" style={{ color: '#dc2626' }}>Lỗi: {historyError}</p>}
       {!loadingHistory && !historyError && sensorId !== null && points.length === 0 && (
         <p>Không có dữ liệu lịch sử trong khoảng thời gian đã chọn.</p>

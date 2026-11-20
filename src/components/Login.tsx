@@ -1,4 +1,4 @@
-
+import LoadingSpinner from './LoadingSpinner'
 import { useState, type FormEvent } from 'react'
 import { Plane, LockKeyhole, User, Eye, EyeOff } from 'lucide-react'
 import { login } from '../services/authService'
@@ -96,7 +96,14 @@ export default function Login({ onLogin }: LoginProps) {
             className="login-submit"
             disabled={isLoading}
           >
-            {isLoading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+            {isLoading ? (
+  <LoadingSpinner
+    label="Đang đăng nhập..."
+    small
+  />
+) : (
+  'Đăng nhập'
+)}
           </button>
         </form>
 
