@@ -1,3 +1,4 @@
+import RedAlertToastWidget from './components/RedAlertToastWidget';
 import HistoryChart from './components/HistoryChart'
 import { useState } from 'react'
 import Login from './components/Login'
@@ -436,7 +437,7 @@ function App() {
                 </div>
                 <span className="date-label">Dữ liệu minh họa</span>
               </div>
-
+              <RedAlertToastWidget />
               <div className="stats-grid">
                 {stats.map((stat) => {
                   const Icon = stat.icon
