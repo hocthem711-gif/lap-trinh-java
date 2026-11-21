@@ -72,7 +72,8 @@ public class SecurityConfig {
                                 "/uavs/**",
                                 "/gateways/**",
                                 "/missions/**",
-                                "/uav-sync/**"
+                                "/uav-sync/**",
+                                "/reports/**"
                         ).permitAll()
                         // Thắt chặt bảo mật: Chỉ ADMIN mới được thực thi thao tác xóa dữ liệu (DELETE)
                         .requestMatchers(org.springframework.http.HttpMethod.DELETE,

@@ -1,9 +1,13 @@
 package com.smartfarm.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "thresholds")
+@Table(name = "thresholds", indexes = {
+        @Index(name = "idx_threshold_zone_type", columnList = "zone_id, sensor_type")
+})
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Threshold extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
@@ -18,6 +22,7 @@ public class Threshold extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "zone_id", nullable = false)
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "sensors"})
     private Zone zone;
 
     public Threshold() {}

@@ -1,10 +1,17 @@
 package com.smartfarm.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "alerts")
+@Table(name = "alerts", indexes = {
+        @Index(name = "idx_alert_status", columnList = "status"),
+        @Index(name = "idx_alert_zone_created", columnList = "zone_id, created_at"),
+        @Index(name = "idx_alert_sensor_status", columnList = "sensor_id, status"),
+        @Index(name = "idx_alert_is_read", columnList = "is_read")
+})
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Alert extends BaseEntity {
 
     @Column(nullable = false, length = 500)
@@ -17,7 +24,7 @@ public class Alert extends BaseEntity {
     @Column(name = "is_read", nullable = false)
     private Boolean isRead = false;
 
-    // --- CÁC TRƯỜNG MỚI CHO TASK LTJ-27 ---
+    // --- CÁC TRƯỜNG CHO TASK LTJ-27 ---
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
     private AlertStatus status = AlertStatus.OPEN;
@@ -27,14 +34,16 @@ public class Alert extends BaseEntity {
 
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
-    // --------------------------------------
+    // ----------------------------------
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "zone_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "sensors"})
     private Zone zone;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sensor_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Sensor sensor;
 
     public Alert() {}

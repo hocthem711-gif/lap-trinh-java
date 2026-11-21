@@ -9,7 +9,9 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "waypoints")
+@Table(name = "waypoints", indexes = {
+        @Index(name = "idx_waypoint_mission_order", columnList = "mission_id, order_index")
+})
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
@@ -17,6 +19,7 @@ import lombok.NoArgsConstructor;
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Waypoint extends BaseEntity {
 
+    @Column(name = "order_index")
     private Integer orderIndex;
 
     @Column(nullable = false)

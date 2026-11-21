@@ -1,9 +1,7 @@
 package com.smartfarm.backend.entity;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -12,7 +10,10 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "sync_logs")
+@Table(name = "sync_logs", indexes = {
+        @Index(name = "idx_synclog_time", columnList = "sync_time"),
+        @Index(name = "idx_synclog_uav_time", columnList = "uav_code, sync_time")
+})
 @Data
 @EqualsAndHashCode(callSuper = true)
 @NoArgsConstructor
