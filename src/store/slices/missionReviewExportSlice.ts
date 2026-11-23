@@ -65,7 +65,7 @@ const initialState: MissionReviewExportState = {
   exportConfig: {
     datasetType: 'FULL_WORKBOOK',
     fileFormat: 'XLSX',
-    timeRange: '7D',
+    timeRange: 'ALL',
     zoneFilter: 'ALL',
     missionIdFilter: 'ALL',
     alertSeverityFilter: 'ALL',
@@ -114,10 +114,10 @@ const TIME_RANGE_HOURS: Record<Exclude<ExportTimeRange, 'ALL'>, number> = {
   '30D': 24 * 30,
 };
 
-const ZONE_PREFIX_MAP: Record<string, string> = {
-  'ZONE-A': 'Khu A',
-  'ZONE-B': 'Khu B',
-  'ZONE-C': 'Khu C',
+const ZONE_PREFIX_PATTERNS: Record<string, string[]> = {
+  'ZONE-A': ['khu a', 'khu vực a'],
+  'ZONE-B': ['khu b', 'khu vực b'],
+  'ZONE-C': ['khu c', 'khu vực c'],
 };
 
 /**
@@ -133,8 +133,8 @@ export function filterExportRowsByConfig(
     cfg.missionIdFilter && cfg.missionIdFilter !== 'ALL'
       ? cfg.missionIdFilter.trim().toLowerCase()
       : null;
-  const zonePrefix =
-    cfg.zoneFilter !== 'ALL' ? ZONE_PREFIX_MAP[cfg.zoneFilter] : undefined;
+  const zonePatterns =
+    cfg.zoneFilter !== 'ALL' ? ZONE_PREFIX_PATTERNS[cfg.zoneFilter] : undefined;
   const cutoffMs =
     cfg.timeRange !== 'ALL'
       ? Date.now() - TIME_RANGE_HOURS[cfg.timeRange] * 60 * 60 * 1000
@@ -148,8 +148,11 @@ export function filterExportRowsByConfig(
       return false;
     }
 
-    if (zonePrefix && !row.zoneName.includes(zonePrefix)) {
-      return false;
+    if (zonePatterns) {
+      const normalizedZone = row.zoneName.toLowerCase();
+      if (!zonePatterns.some((p) => normalizedZone.includes(p))) {
+        return false;
+      }
     }
 
     if (cutoffMs !== null && row.timestamp) {
@@ -225,9 +228,9 @@ export const triggerDatasetFileExport = createAsyncThunk(
       throw new Error('Không có bản ghi nào khớp bộ lọc hiện tại để xuất file.');
     }
 
-    const zonePrefix =
+    const zonePatterns =
       effectiveConfig.zoneFilter !== 'ALL'
-        ? ZONE_PREFIX_MAP[effectiveConfig.zoneFilter]
+        ? ZONE_PREFIX_PATTERNS[effectiveConfig.zoneFilter]
         : undefined;
     const filteredReviews = sliceState.missionReviews.filter((rev) => {
       if (
@@ -237,8 +240,14 @@ export const triggerDatasetFileExport = createAsyncThunk(
       ) {
         return false;
       }
-      if (zonePrefix && !rev.zoneName.includes(zonePrefix)) {
-        return false;
+      if (zonePatterns) {
+        const normalizedZone = rev.zoneName.toLowerCase();
+        if (
+          rev.zoneId !== effectiveConfig.zoneFilter &&
+          !zonePatterns.some((p) => normalizedZone.includes(p))
+        ) {
+          return false;
+        }
       }
       return true;
     });

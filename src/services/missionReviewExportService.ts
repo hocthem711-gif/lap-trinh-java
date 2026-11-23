@@ -19,6 +19,11 @@ import {
 } from '../types/missionReviewExport';
 import { fetchFlightSessions, fetchMissionNotes } from './flightMonitorService';
 import { alertApi } from './alertService';
+import type {
+  FlightWaypointNode,
+  MissionNote,
+  UavFlightSession,
+} from '../types/flightMonitor';
 
 const API_BASE_URL = 'http://localhost:8080/api/v1';
 
@@ -43,14 +48,17 @@ export function calculateHaversineDistanceMeters(
   const toRad = (deg: number) => (deg * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);
   const dLng = toRad(lng2 - lng1);
-  const a =
+  const rawA =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
     Math.cos(toRad(lat1)) *
       Math.cos(toRad(lat2)) *
       Math.sin(dLng / 2) *
       Math.sin(dLng / 2);
+  // Kẹp a vào [0, 1]: sai số dấu phẩy động có thể làm a > 1 => Math.sqrt(1 - a) = NaN
+  const a = Math.min(1, Math.max(0, rawA));
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return Number((R * c).toFixed(2));
+  const distance = R * c;
+  return Number.isFinite(distance) ? Number(distance.toFixed(2)) : 0;
 }
 
 /**
@@ -699,6 +707,146 @@ function loadStoredMissionReviews(): MissionReviewRecord[] {
   } catch {
     return INITIAL_MISSION_REVIEWS;
   }
+}
+
+/** Ánh xạ zoneId số của Sprint 7 sang mã Zone dùng trong bộ lọc Sprint 8 */
+const ZONE_CODE_BY_ID: Record<number, string> = {
+  1: 'ZONE-A',
+  2: 'ZONE-B',
+  3: 'ZONE-C',
+};
+
+/** Dung lượng 2 pin TB60 của DJI Matrice 300 RTK (2 x 274 Wh) dùng để tính Wh/km */
+const UAV_BATTERY_CAPACITY_WH = 548;
+
+/**
+ * Chuyển 1 Note Mission (Sprint 7) sang định dạng Ghi chú hiện trường của hồ sơ nghiệm thu (Sprint 8)
+ */
+function mapLiveNoteToFieldNote(
+  n: MissionNote
+): MissionReviewRecord['fieldNotesSummary'][number] {
+  return {
+    id: `NOTE-${n.id}`,
+    title: n.title,
+    category: n.category,
+    severity: n.priority,
+    content: n.content,
+    waypointLabel: `WP-${n.waypointOrder}`,
+    createdAt: n.createdAt,
+    authorName: n.author,
+    gpsSnapshot: `${n.latitude.toFixed(6)}, ${n.longitude.toFixed(6)}`,
+    batterySnapshotPercent: n.batteryAtNote,
+  };
+}
+
+function mapVisitStateToAuditStatus(
+  state: FlightWaypointNode['visitState']
+): MissionReviewRecord['waypointAudits'][number]['executionStatus'] {
+  if (state === 'COMPLETED') return 'REACHED';
+  if (state === 'ERROR') return 'SKIPPED_ERROR';
+  return state;
+}
+
+/**
+ * Tạo hồ sơ nghiệm thu "Chờ duyệt" cho phiên bay Sprint 7 chưa có hồ sơ ở Sprint 8
+ * (VD: UAV-004 / MSN-2026-074). Mọi chỉ số đều tạm tính từ Telemetry thực tế của phiên bay,
+ * điểm rubric chỉ là gợi ý ban đầu để Kỹ thuật viên trưởng chấm lại khi ký duyệt.
+ */
+function buildPendingReviewFromSession(s: UavFlightSession): MissionReviewRecord {
+  const totalWp = Math.max(1, s.totalWaypoints);
+  const totalPackets = s.packetsCollected + s.packetErrors;
+  const consumedBattery = Math.max(0, Math.round((100 - s.batteryPercent) * 10) / 10);
+  const distanceKm = s.distanceTraveledM / 1000;
+  const rssiDbm = Math.round(s.signalStrength / 2 - 100);
+
+  const rubricScores: MissionReviewRubricScores = {
+    flightPathAccuracy: Math.round((s.completedWaypoints / totalWp) * 100),
+    sensorDataCompleteness:
+      totalPackets > 0 ? Math.round((s.packetsCollected / totalPackets) * 100) : 0,
+    batteryEfficiencyRating: Math.round(Math.max(0, Math.min(100, s.batteryPercent))),
+    commLinkStability: Math.round(Math.max(0, Math.min(100, s.signalStrength))),
+    safetyCompliance: Math.max(50, 100 - s.packetErrors),
+  };
+  const errorWaypoints = s.waypoints.filter((wp) => wp.visitState === 'ERROR').length;
+  const overallScore = calculateOverallMissionScore(rubricScores, errorWaypoints);
+
+  return {
+    missionId: s.missionCode,
+    missionCode: s.missionCode,
+    missionTitle: s.missionName,
+    farmName: 'Nông trại Công nghệ cao Đà Lạt',
+    zoneId: ZONE_CODE_BY_ID[s.zoneId] ?? `ZONE-${s.zoneId}`,
+    zoneName: s.zoneName,
+    uavId: s.uavId,
+    uavName: s.uavName,
+    uavModel: s.uavModel,
+    pilotName: 'Nguyễn Trường An (Dev 4)',
+    operationalState: s.status,
+    reviewDecision: 'PENDING_REVIEW',
+    overallScore,
+    qualityGrade: determineQualityGrade(overallScore),
+    startedAt: s.startedAt,
+    completedAt: s.lastTelemetryAt,
+    plannedDurationMin: Number(((s.elapsedSeconds + s.estimatedRemainingSeconds) / 60).toFixed(1)),
+    actualDurationMin: Number((s.elapsedSeconds / 60).toFixed(1)),
+    plannedDistanceM: s.totalRouteDistanceM,
+    actualDistanceM: Math.round(s.distanceTraveledM),
+    avgSpeedMS:
+      s.elapsedSeconds > 0 ? Number((s.distanceTraveledM / s.elapsedSeconds).toFixed(1)) : 0,
+    maxAltitudeM: Math.max(0, ...s.waypoints.map((wp) => wp.altitudeM)),
+    startBatteryPercent: 100,
+    endBatteryPercent: s.batteryPercent,
+    batteryConsumedPercent: consumedBattery,
+    energyEfficiencyWhPerKm:
+      distanceKm > 0
+        ? Number((((consumedBattery / 100) * UAV_BATTERY_CAPACITY_WH) / distanceKm).toFixed(1))
+        : 0,
+    totalWaypoints: s.totalWaypoints,
+    completedWaypoints: s.completedWaypoints,
+    errorWaypoints,
+    totalSensorPackets: s.packetsCollected,
+    averageLatencyMs: 0,
+    averageRssiDbm: rssiDbm,
+    maxGpsDriftMeters: 0,
+    avgGpsDriftMeters: 0,
+    waypointAudits: s.waypoints.map((wp) => {
+      const wpTotal = wp.collectedPackets + wp.errorPackets;
+      return {
+        waypointId: s.missionId * 100 + wp.order,
+        sequenceNumber: wp.order,
+        label: wp.label,
+        plannedLat: wp.latitude,
+        plannedLng: wp.longitude,
+        actualLat: wp.latitude,
+        actualLng: wp.longitude,
+        gpsDriftMeters: 0,
+        plannedAltitudeM: wp.altitudeM,
+        actualAltitudeM: wp.altitudeM,
+        plannedSpeedMS: wp.targetSpeedMs,
+        actualSpeedMS: wp.targetSpeedMs,
+        hoverDurationSec: 0,
+        actionRequired: 'Thu thập dữ liệu cảm biến theo lộ trình đã lập (Sprint 4)',
+        executionStatus: mapVisitStateToAuditStatus(wp.visitState),
+        sensorPacketsCollected: wp.collectedPackets,
+        packetLossPercent: wpTotal > 0 ? Math.round((wp.errorPackets / wpTotal) * 1000) / 10 : 0,
+        batteryAtWaypointPercent: s.batteryPercent,
+        signalRssiDbm: rssiDbm,
+        reachedTimestamp:
+          wp.reachedAt && !Number.isNaN(Date.parse(wp.reachedAt)) ? wp.reachedAt : null,
+        auditRemark: 'Tự động tạo từ Telemetry phiên bay Sprint 7 — chờ đối soát thực địa.',
+      };
+    }),
+    fieldNotesSummary: [],
+    rubricScores,
+    reviewerName: '',
+    reviewerRole: '',
+    reviewedAt: null,
+    reviewSummaryNote:
+      'Hồ sơ tự động tạo từ phiên bay Sprint 7 (Giám sát bay & Note Mission). Điểm hiện tại được tạm tính từ Telemetry, chờ Kỹ thuật viên trưởng đối soát và ký duyệt.',
+    correctiveActionPlan: '',
+    weatherCondition: 'Chưa ghi nhận',
+    windSpeedKmh: 0,
+  };
 }
 
 function saveStoredMissionReviews(records: MissionReviewRecord[]): void {
@@ -1453,6 +1601,17 @@ export const missionReviewExportApi = {
         fetchFlightSessions(),
         fetchMissionNotes(),
       ]);
+
+      const matchNotesForMission = (missionCode: string, missionIdStr: string) =>
+        liveNotes
+          .filter(
+            (n) =>
+              n.missionCode === missionCode ||
+              n.missionCode === missionIdStr ||
+              String(n.missionId) === missionIdStr
+          )
+          .map(mapLiveNoteToFieldNote);
+
       const merged = storedReviews.map((rev) => {
         const normalizedCode = rev.missionCode.startsWith('MSN-DALAT-')
           ? rev.missionId
@@ -1463,34 +1622,35 @@ export const missionReviewExportApi = {
             s.missionCode === rev.missionId ||
             String(s.missionId) === rev.missionId
         );
-        const matchingNotes = liveNotes.filter(
-          (n) =>
-            n.missionCode === normalizedCode ||
-            n.missionCode === rev.missionId ||
-            String(n.missionId) === rev.missionId
-        );
-
-        const mappedNotes = matchingNotes.map((n) => ({
-          id: `NOTE-${n.id}`,
-          title: n.title,
-          category: n.category,
-          severity: n.priority,
-          content: n.content,
-          waypointLabel: `WP-${n.waypointOrder}`,
-          createdAt: n.createdAt,
-          authorName: n.author,
-          gpsSnapshot: `${n.latitude.toFixed(6)}, ${n.longitude.toFixed(6)}`,
-          batterySnapshotPercent: n.batteryAtNote,
-        }));
+        const mappedNotes = matchNotesForMission(normalizedCode, rev.missionId);
 
         return {
           ...rev,
           missionCode: normalizedCode,
           operationalState: liveMatch ? liveMatch.status : rev.operationalState,
-          fieldNotesSummary:
-            mappedNotes.length > 0 ? mappedNotes : rev.fieldNotesSummary,
+          // Dùng trực tiếp danh sách liveNotes từ Sprint 7 làm nguồn chuẩn để Note đã xóa không bị "hồi sinh"
+          fieldNotesSummary: mappedNotes,
         };
       });
+
+      // Tự động tạo hồ sơ "Chờ duyệt" cho các phiên bay Sprint 7 chưa có trong Sprint 8 (VD: UAV-004 / MSN-2026-074)
+      const existingCodes = new Set(
+        merged.flatMap((r) => [r.missionCode, r.missionId])
+      );
+      for (const session of liveSessions) {
+        if (
+          !existingCodes.has(session.missionCode) &&
+          !existingCodes.has(String(session.missionId))
+        ) {
+          const pendingReview = buildPendingReviewFromSession(session);
+          pendingReview.fieldNotesSummary = matchNotesForMission(
+            session.missionCode,
+            String(session.missionId)
+          );
+          merged.push(pendingReview);
+          existingCodes.add(session.missionCode);
+        }
+      }
 
       saveStoredMissionReviews(merged);
       return merged;
@@ -1585,51 +1745,69 @@ export const missionReviewExportApi = {
     let sheetCount = config.datasetType === 'FULL_WORKBOOK' ? 5 : 1;
     let extension = 'xls';
 
-    // Thử gọi Backend Apache POI API (LTJ-37) nếu Backend đang chạy
+    // Thử gọi Backend Apache POI Excel / OpenPDF API (LTJ-37) nếu Backend đang chạy
+    let openedPrintDialog = false;
     try {
       const token = localStorage.getItem('accessToken');
-      const queryParams = new URLSearchParams({
-        format: config.fileFormat,
-        zone: config.zoneFilter,
-        range: config.timeRange,
-      });
-      if (config.missionIdFilter && config.missionIdFilter !== 'ALL') {
-        queryParams.set('missionId', config.missionIdFilter);
+      const zoneIdMap: Record<string, string> = {
+        'ZONE-A': '1',
+        'ZONE-B': '2',
+        'ZONE-C': '3',
+      };
+      const mappedZoneId = zoneIdMap[config.zoneFilter];
+
+      let backendUrl: string | null = null;
+      if (
+        config.fileFormat === 'XLSX' &&
+        (config.datasetType === 'SENSOR_TELEMETRY' ||
+          config.datasetType === 'ALERT_REPORT' ||
+          config.datasetType === 'FULL_WORKBOOK')
+      ) {
+        const typeParam =
+          config.datasetType === 'SENSOR_TELEMETRY'
+            ? 'sensors'
+            : config.datasetType === 'ALERT_REPORT'
+              ? 'alerts'
+              : 'all';
+        const params = new URLSearchParams({ type: typeParam });
+        if (mappedZoneId) params.set('zoneId', mappedZoneId);
+        backendUrl = `${API_BASE_URL}/reports/export/excel?${params.toString()}`;
+      } else if (
+        config.fileFormat === 'HTML_PRINT' &&
+        (config.datasetType === 'SENSOR_TELEMETRY' ||
+          config.datasetType === 'ALERT_REPORT')
+      ) {
+        const typeParam =
+          config.datasetType === 'ALERT_REPORT' ? 'alerts' : 'sensors';
+        const params = new URLSearchParams({ type: typeParam });
+        if (mappedZoneId) params.set('zoneId', mappedZoneId);
+        backendUrl = `${API_BASE_URL}/reports/export/pdf?${params.toString()}`;
       }
-      const endpointPath = meta.apiEndpoint.replace(/^\/api\/v1/, '');
-      const response = await fetch(
-        `${API_BASE_URL}${endpointPath}?${queryParams.toString()}`,
-        {
+
+      if (backendUrl) {
+        const response = await fetch(backendUrl, {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-          signal: AbortSignal.timeout(1500),
-        }
-      );
-      if (response.ok) {
-        const contentType = (response.headers.get('content-type') || '').toLowerCase();
-        const isValidContentType =
-          (config.fileFormat === 'XLSX' &&
+          signal: AbortSignal.timeout(2500),
+        });
+        if (response.ok) {
+          const contentType = (response.headers.get('content-type') || '').toLowerCase();
+          const isValidExcel =
+            config.fileFormat === 'XLSX' &&
             (contentType.includes('spreadsheetml') ||
               contentType.includes('ms-excel') ||
-              contentType.includes('application/octet-stream'))) ||
-          (config.fileFormat === 'CSV' && contentType.includes('text/csv')) ||
-          (config.fileFormat === 'JSON' && contentType.includes('application/json')) ||
-          (config.fileFormat === 'HTML_PRINT' && contentType.includes('text/html'));
+              contentType.includes('application/octet-stream'));
+          const isValidPdf =
+            config.fileFormat === 'HTML_PRINT' &&
+            contentType.includes('application/pdf');
 
-        if (isValidContentType) {
-          const fetchedBlob = await response.blob();
-          if (fetchedBlob.size > 100) {
-            blob = fetchedBlob;
-            executionSource = 'BACKEND_POI_API';
-            if (config.fileFormat === 'XLSX' && contentType.includes('spreadsheetml')) {
-              extension = 'xlsx';
-            } else if (config.fileFormat === 'CSV') {
-              extension = 'csv';
-            } else if (config.fileFormat === 'JSON') {
-              extension = 'json';
-            } else if (config.fileFormat === 'HTML_PRINT') {
-              extension = 'html';
+          if (isValidExcel || isValidPdf) {
+            const fetchedBlob = await response.blob();
+            if (fetchedBlob.size > 100) {
+              blob = fetchedBlob;
+              executionSource = 'BACKEND_POI_API';
+              extension = isValidPdf ? 'pdf' : 'xlsx';
             }
           }
         }
@@ -1692,14 +1870,32 @@ export const missionReviewExportApi = {
         blob = new Blob([htmlContent], {
           type: 'text/html;charset=utf-8',
         });
+        // Mở cửa sổ xem trước & kích hoạt hộp thoại In / Lưu PDF của trình duyệt
+        if (typeof window !== 'undefined') {
+          const printWindow = window.open('', '_blank', 'width=1024,height=768');
+          if (printWindow) {
+            printWindow.document.open();
+            printWindow.document.write(htmlContent);
+            printWindow.document.close();
+            printWindow.focus();
+            window.setTimeout(() => {
+              try {
+                printWindow.print();
+              } catch {
+                // Ignore print dialog cancellation
+              }
+            }, 350);
+            openedPrintDialog = true;
+          }
+        }
       }
     }
 
     const fileName = `${safePrefix}_${meta.sheetName}_${dateStamp}.${extension}`;
     const fileSizeKb = Number(Math.max(1.2, blob.size / 1024).toFixed(1));
 
-    // Kích hoạt tải xuống trình duyệt
-    if (typeof window !== 'undefined') {
+    // Kích hoạt tải xuống trình duyệt (bỏ qua nếu đã mở cửa sổ In/PDF thành công)
+    if (typeof window !== 'undefined' && !openedPrintDialog) {
       const downloadUrl = window.URL.createObjectURL(blob);
       const anchor = document.createElement('a');
       anchor.href = downloadUrl;
@@ -1738,6 +1934,6 @@ export const missionReviewExportApi = {
    */
   async resetMissionReviewsToDefault(): Promise<MissionReviewRecord[]> {
     saveStoredMissionReviews(INITIAL_MISSION_REVIEWS);
-    return INITIAL_MISSION_REVIEWS;
+    return await this.getMissionReviews();
   },
 };
