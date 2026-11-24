@@ -27,17 +27,29 @@ public class AlertEngineWorker {
     private final ThresholdRepository thresholdRepository;
     private final AlertRepository alertRepository;
     private final TelemetryRealtimeService telemetryRealtimeService;
+    private final EmailAlertService emailAlertService;
 
     public AlertEngineWorker(SensorRepository sensorRepository,
                              SensorDataRepository sensorDataRepository,
                              ThresholdRepository thresholdRepository,
                              AlertRepository alertRepository,
                              TelemetryRealtimeService telemetryRealtimeService) {
+        this(sensorRepository, sensorDataRepository, thresholdRepository, alertRepository, telemetryRealtimeService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AlertEngineWorker(SensorRepository sensorRepository,
+                             SensorDataRepository sensorDataRepository,
+                             ThresholdRepository thresholdRepository,
+                             AlertRepository alertRepository,
+                             TelemetryRealtimeService telemetryRealtimeService,
+                             @org.springframework.lang.Nullable EmailAlertService emailAlertService) {
         this.sensorRepository = sensorRepository;
         this.sensorDataRepository = sensorDataRepository;
         this.thresholdRepository = thresholdRepository;
         this.alertRepository = alertRepository;
         this.telemetryRealtimeService = telemetryRealtimeService;
+        this.emailAlertService = emailAlertService;
     }
 
     /**
@@ -105,6 +117,15 @@ public class AlertEngineWorker {
                     Alert savedAlert = alertRepository.save(newAlert);
 
                     log.warn("[ALERT-ENGINE] Phát hiện vi phạm: {}", message);
+
+                    // Kích hoạt gửi email cảnh báo tự động nếu là cảnh báo CRITICAL hoặc WARNING (Dev 1 - LTJ-36)
+                    if (emailAlertService != null && (savedAlert.getAlertLevel() == AlertLevel.CRITICAL || savedAlert.getAlertLevel() == AlertLevel.WARNING)) {
+                        try {
+                            emailAlertService.sendAlertEmail(savedAlert);
+                        } catch (Exception ex) {
+                            log.warn("[ALERT-ENGINE] Không thể gửi Email Alert: {}", ex.getMessage());
+                        }
+                    }
 
                     // Đóng gói AlertResponse (12 tham số) và broadcast tức thì qua WebSocket & SSE
                     try {
