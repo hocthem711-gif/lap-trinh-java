@@ -14,9 +14,11 @@ import com.smartfarm.backend.dto.response.SensorDataResponse;
 import com.smartfarm.backend.entity.Alert;
 import com.smartfarm.backend.entity.AlertLevel;
 import com.smartfarm.backend.entity.AlertStatus;
+import com.smartfarm.backend.entity.Mission;
 import com.smartfarm.backend.entity.SensorData;
 import com.smartfarm.backend.entity.SyncLog;
 import com.smartfarm.backend.repository.AlertRepository;
+import com.smartfarm.backend.repository.MissionRepository;
 import com.smartfarm.backend.repository.SensorDataRepository;
 import com.smartfarm.backend.repository.SyncLogRepository;
 import com.smartfarm.backend.service.ExportService;
@@ -55,6 +57,7 @@ public class ExportServiceImpl implements ExportService {
     private final SensorDataRepository sensorDataRepository;
     private final AlertRepository alertRepository;
     private final SyncLogRepository syncLogRepository;
+    private final MissionRepository missionRepository;
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -505,6 +508,83 @@ public class ExportServiceImpl implements ExportService {
             rows.add(map);
         }
         return rows;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getMissionExportData(String missionId) {
+        List<Mission> missions;
+        if (missionId != null && !missionId.isBlank() && !"ALL".equalsIgnoreCase(missionId)) {
+            missions = missionRepository.findByName(missionId)
+                    .map(List::of)
+                    .orElseGet(missionRepository::findAll);
+        } else {
+            missions = missionRepository.findAll();
+        }
+
+        List<Map<String, Object>> rows = new ArrayList<>();
+        for (Mission m : missions) {
+            Map<String, Object> map = new LinkedHashMap<>();
+            map.put("id", m.getId());
+            map.put("timestamp", m.getLastTelemetryAt() != null ? m.getLastTelemetryAt().toString() : (m.getCreatedAt() != null ? m.getCreatedAt().toString() : ""));
+            map.put("zoneName", "Khu A - Lộ trình Waypoints");
+            map.put("sourceCode", m.getName() != null ? m.getName() : ("MSN-" + m.getId()));
+            map.put("categoryLabel", "Giám sát & Nghiệm thu (F17)");
+            map.put("primaryMetric", "Tiến độ: " + (m.getProgressPercent() != null ? m.getProgressPercent() : 0.0) + "%");
+            map.put("secondaryMetric", (m.getCompletedWaypoints() != null ? m.getCompletedWaypoints() : 0) + "/" + (m.getTotalWaypoints() != null ? m.getTotalWaypoints() : 4) + " Waypoints");
+            map.put("statusLabel", m.getStatus() != null ? m.getStatus() : "COMPLETED");
+            String uav = m.getUav() != null ? m.getUav().getCode() : (m.getUavId() != null ? m.getUavId() : "UAV-ALPHA-01");
+            map.put("operatorOrNote", "Điều khiển UAV: " + uav);
+            rows.add(map);
+        }
+        return rows;
+    }
+
+    @Override
+    public byte[] exportMissionsExcel(List<Map<String, Object>> missionData, String title) {
+        try (Workbook workbook = new XSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            Sheet sheet = workbook.createSheet("TienDoNhiemVu_F17");
+            createTitleRow(sheet, workbook, title != null ? title : "BÁO CÁO TIẾN ĐỘ VÀ NGHIỆM THU NHIỆM VỤ BAY UAV", 8);
+
+            CellStyle headerStyle = createHeaderStyle(workbook, IndexedColors.SEA_GREEN);
+            CellStyle dataStyle = createDataStyle(workbook);
+
+            String[] headers = {"STT", "Thời Gian", "Khu Vực", "Mã Nhiệm Vụ", "Hạng Mục", "Tiến Độ", "Số Điểm Bay", "Trạng Thái", "Ghi Chú"};
+            Row hRow = sheet.createRow(2);
+            for (int i = 0; i < headers.length; i++) {
+                Cell c = hRow.createCell(i);
+                c.setCellValue(headers[i]);
+                c.setCellStyle(headerStyle);
+            }
+
+            int rowIdx = 3;
+            int stt = 1;
+            if (missionData != null) {
+                for (Map<String, Object> m : missionData) {
+                    Row r = sheet.createRow(rowIdx++);
+                    r.createCell(0).setCellValue(stt++);
+                    r.createCell(1).setCellValue(String.valueOf(m.getOrDefault("timestamp", "")));
+                    r.createCell(2).setCellValue(String.valueOf(m.getOrDefault("zoneName", "")));
+                    r.createCell(3).setCellValue(String.valueOf(m.getOrDefault("sourceCode", "")));
+                    r.createCell(4).setCellValue(String.valueOf(m.getOrDefault("categoryLabel", "")));
+                    r.createCell(5).setCellValue(String.valueOf(m.getOrDefault("primaryMetric", "")));
+                    r.createCell(6).setCellValue(String.valueOf(m.getOrDefault("secondaryMetric", "")));
+                    r.createCell(7).setCellValue(String.valueOf(m.getOrDefault("statusLabel", "")));
+                    r.createCell(8).setCellValue(String.valueOf(m.getOrDefault("operatorOrNote", "")));
+
+                    for (int i = 0; i < headers.length; i++) {
+                        r.getCell(i).setCellStyle(dataStyle);
+                    }
+                }
+            }
+
+            autoSizeColumns(sheet, headers.length);
+            workbook.write(out);
+            return out.toByteArray();
+        } catch (Exception e) {
+            log.error("[EXPORT] Lỗi xuất Missions Excel: {}", e.getMessage(), e);
+            throw new RuntimeException("Lỗi khi xuất Missions Excel: " + e.getMessage());
+        }
     }
 
     // Helper CellStyles

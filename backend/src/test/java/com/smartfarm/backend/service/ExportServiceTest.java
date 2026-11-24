@@ -40,6 +40,9 @@ class ExportServiceTest {
     @Mock
     private SyncLogRepository syncLogRepository;
 
+    @Mock
+    private com.smartfarm.backend.repository.MissionRepository missionRepository;
+
     @InjectMocks
     private ExportServiceImpl exportService;
 
@@ -169,5 +172,28 @@ class ExportServiceTest {
         assertNotNull(rows);
         assertEquals(1, rows.size());
         assertEquals("UAV-ALPHA-01", rows.get(0).get("sourceCode"));
+    }
+
+    @Test
+    @DisplayName("LTJ-37/39: Lấy dữ liệu nhiệm vụ bay chuẩn hóa và xuất Excel")
+    void testMissionExport_Success() {
+        Mission m = new Mission();
+        m.setId(1L);
+        m.setName("MSN-TEST-001");
+        m.setStatus("COMPLETED");
+        m.setProgressPercent(100.0);
+        m.setCompletedWaypoints(4);
+        m.setTotalWaypoints(4);
+
+        when(missionRepository.findAll()).thenReturn(List.of(m));
+
+        List<Map<String, Object>> rows = exportService.getMissionExportData("ALL");
+        assertNotNull(rows);
+        assertEquals(1, rows.size());
+        assertEquals("MSN-TEST-001", rows.get(0).get("sourceCode"));
+
+        byte[] excelBytes = exportService.exportMissionsExcel(rows, "Test Missions");
+        assertNotNull(excelBytes);
+        assertTrue(excelBytes.length > 500);
     }
 }

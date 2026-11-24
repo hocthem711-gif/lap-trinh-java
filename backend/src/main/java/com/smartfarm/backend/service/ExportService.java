@@ -60,4 +60,14 @@ public interface ExportService {
      * Lấy dữ liệu đồng bộ UAV định dạng bảng chuẩn hóa cho Frontend Export (khớp F11 /api/v1/reports/export/uav-sync)
      */
     List<Map<String, Object>> getUavSyncExportData();
+
+    /**
+     * Lấy dữ liệu nhiệm vụ bay định dạng bảng chuẩn hóa cho Frontend Export (khớp F11 /api/v1/reports/export/missions)
+     */
+    List<Map<String, Object>> getMissionExportData(String missionId);
+
+    /**
+     * Xuất danh sách nhiệm vụ bay ra file Excel (.xlsx) bằng Apache POI
+     */
+    byte[] exportMissionsExcel(List<Map<String, Object>> missionData, String title);
 }

@@ -105,33 +105,107 @@ public class ExportReportController {
     }
 
     @GetMapping("/export/sensors")
-    @Operation(summary = "Lấy dữ liệu cảm biến định dạng bảng xuất file cho Frontend (F11)")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSensorsForExport(
+    @Operation(summary = "Lấy dữ liệu cảm biến định dạng bảng xuất file hoặc tải file trực tiếp (F11)")
+    public ResponseEntity<?> getSensorsForExport(
+            @RequestParam(required = false) String format,
             @RequestParam(required = false) Long zoneId,
             @RequestParam(required = false) Long sensorId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
+
+        if ("xlsx".equalsIgnoreCase(format) || "excel".equalsIgnoreCase(format)) {
+            List<SensorDataResponse> list = (sensorId != null) ?
+                    sensorDataService.getHistoricalData(sensorId, start != null ? start : LocalDateTime.now().minusDays(30), end != null ? end : LocalDateTime.now()) :
+                    sensorDataService.getHistoricalDataPaged(null, zoneId, start, end, 0, 500).getContent();
+            byte[] excelBytes = exportService.exportSensorDataExcel(list, "DuLieuCamBien");
+            String fileName = "SmartFarm_SensorData_" + System.currentTimeMillis() + ".xlsx";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .body(excelBytes);
+        }
 
         List<Map<String, Object>> rows = exportService.getSensorExportData(zoneId, sensorId, start, end);
         return ResponseEntity.ok(ApiResponse.success("Trích xuất dữ liệu cảm biến thành công", rows));
     }
 
     @GetMapping("/export/alerts")
-    @Operation(summary = "Lấy dữ liệu cảnh báo định dạng bảng xuất file cho Frontend (F11)")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAlertsForExport(
+    @Operation(summary = "Lấy dữ liệu cảnh báo định dạng bảng xuất file hoặc tải file trực tiếp (F11)")
+    public ResponseEntity<?> getAlertsForExport(
+            @RequestParam(required = false) String format,
             @RequestParam(required = false) Long zoneId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime start,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime end) {
+
+        if ("xlsx".equalsIgnoreCase(format) || "excel".equalsIgnoreCase(format)) {
+            List<AlertResponse> alerts = (zoneId != null) ?
+                    alertService.getAlertsByZoneId(zoneId) :
+                    alertService.getAllAlerts();
+            byte[] excelBytes = exportService.exportAlertsExcel(alerts, "DanhSachCanhBao");
+            String fileName = "SmartFarm_AlertReport_" + System.currentTimeMillis() + ".xlsx";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .body(excelBytes);
+        }
 
         List<Map<String, Object>> rows = exportService.getAlertExportData(zoneId, status, start, end);
         return ResponseEntity.ok(ApiResponse.success("Trích xuất danh sách cảnh báo thành công", rows));
     }
 
     @GetMapping("/export/uav-sync")
-    @Operation(summary = "Lấy dữ liệu lịch sử đồng bộ UAV định dạng bảng xuất file cho Frontend (F11)")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getUavSyncForExport() {
+    @Operation(summary = "Lấy dữ liệu lịch sử đồng bộ UAV định dạng bảng xuất file hoặc tải file trực tiếp (F11)")
+    public ResponseEntity<?> getUavSyncForExport(
+            @RequestParam(required = false) String format) {
+
+        if ("xlsx".equalsIgnoreCase(format) || "excel".equalsIgnoreCase(format)) {
+            List<SyncLog> syncs = syncLogRepository.findAllByOrderBySyncTimeDesc();
+            List<Map<String, Object>> rows = exportService.getUavSyncExportData();
+            byte[] excelBytes = exportService.exportMissionsExcel(rows, "BÁO CÁO ĐỒNG BỘ NGOẠI TUYẾN UAV");
+            String fileName = "SmartFarm_UavSync_" + System.currentTimeMillis() + ".xlsx";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .body(excelBytes);
+        }
+
         List<Map<String, Object>> rows = exportService.getUavSyncExportData();
         return ResponseEntity.ok(ApiResponse.success("Trích xuất lịch sử đồng bộ UAV thành công", rows));
+    }
+
+    @GetMapping("/export/missions")
+    @Operation(summary = "Lấy dữ liệu nhiệm vụ và điểm bay UAV hoặc tải file trực tiếp (F11, F17)")
+    public ResponseEntity<?> getMissionsForExport(
+            @RequestParam(required = false) String format,
+            @RequestParam(required = false) String missionId) {
+
+        List<Map<String, Object>> rows = exportService.getMissionExportData(missionId);
+
+        if ("xlsx".equalsIgnoreCase(format) || "excel".equalsIgnoreCase(format)) {
+            byte[] excelBytes = exportService.exportMissionsExcel(rows, "BÁO CÁO TIẾN ĐỘ VÀ NGHIỆM THU NHIỆM VỤ BAY");
+            String fileName = "SmartFarm_MissionReview_" + System.currentTimeMillis() + ".xlsx";
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .body(excelBytes);
+        }
+
+        return ResponseEntity.ok(ApiResponse.success("Trích xuất dữ liệu nhiệm vụ bay thành công", rows));
+    }
+
+    @GetMapping("/export/full-workbook")
+    @Operation(summary = "Tải file Multi-Sheet Excel Workbook 5 Sheet toàn diện (F11 - LTJ-37/39)")
+    public ResponseEntity<byte[]> getFullWorkbookForExport() {
+        List<SensorDataResponse> sensors = sensorDataService.getHistoricalDataPaged(null, null, null, null, 0, 500).getContent();
+        List<AlertResponse> alerts = alertService.getAllAlerts();
+        List<SyncLog> syncs = syncLogRepository.findAllByOrderBySyncTimeDesc();
+        byte[] excelBytes = exportService.exportMultiSheetWorkbook(sensors, alerts, syncs, "BÁO CÁO TỔNG HỢP TOÀN TRANG TRẠI (F11)");
+        String fileName = "SmartFarm_FullWorkbook_" + System.currentTimeMillis() + ".xlsx";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"")
+                .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .body(excelBytes);
     }
 }
