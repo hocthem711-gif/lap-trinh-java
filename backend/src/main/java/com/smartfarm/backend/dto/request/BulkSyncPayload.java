@@ -1,8 +1,10 @@
 package com.smartfarm.backend.dto.request;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.NotEmpty;
 import java.util.List;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class BulkSyncPayload {
 
     private String syncSessionId;

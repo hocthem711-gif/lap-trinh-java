@@ -78,4 +78,18 @@ class MqttGatewayConfigTest {
         verify(uavService, times(1)).ingestRealtimeTelemetry(any(UavTelemetryPayload.class));
         verifyNoInteractions(sensorDataService);
     }
+
+    @Test
+    @DisplayName("LTJ-22/25: Route MQTT handshake and bulk sync topics for offline UAV synchronization")
+    void testHandleIncomingSyncTopics() {
+        String handshakeJson = "{\"action\":\"SYNC_REQUEST\",\"uavId\":\"UAV-ALPHA-01\",\"pendingRecords\":10,\"requestTime\":1730000000}";
+        MqttMessage hsMsg = new MqttMessage(handshakeJson.getBytes(StandardCharsets.UTF_8));
+        mqttGatewayConfig.handleIncomingMqttMessage("iot/ltj/sync/handshake/request", hsMsg);
+        verify(uavService, times(1)).processHandshake(any());
+
+        String bulkJson = "{\"syncSessionId\":\"SYNC-UAV-01-123\",\"uavId\":\"UAV-ALPHA-01\",\"records\":[{\"deviceId\":\"SN-01\",\"temperature\":25.0,\"timestamp\":1730000000}]}";
+        MqttMessage bulkMsg = new MqttMessage(bulkJson.getBytes(StandardCharsets.UTF_8));
+        mqttGatewayConfig.handleIncomingMqttMessage("iot/ltj/sync/bulk", bulkMsg);
+        verify(sensorDataService, times(1)).syncBulkData(any());
+    }
 }

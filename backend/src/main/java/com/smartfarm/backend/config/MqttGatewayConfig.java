@@ -1,6 +1,8 @@
 package com.smartfarm.backend.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.smartfarm.backend.dto.request.BulkSyncPayload;
+import com.smartfarm.backend.dto.request.HandshakeRequestDTO;
 import com.smartfarm.backend.dto.request.IoTSimulatorPayload;
 import com.smartfarm.backend.dto.request.UavTelemetryPayload;
 import com.smartfarm.backend.service.SensorDataService;
@@ -58,9 +60,9 @@ public class MqttGatewayConfig {
                     public void connectComplete(boolean reconnect, String serverURI) {
                         log.info("[MQTT GATEWAY] Kết nối thành công tới Broker: {} (reconnect: {})", serverURI, reconnect);
                         try {
-                            mqttClient.subscribe(new String[]{"iot/sensors/#", "iot/ltj/sensor/#", "iot/ltj/uav/telemetry"},
-                                    new int[]{1, 1, 1});
-                            log.info("[MQTT GATEWAY] Đã đăng ký lắng nghe topics: iot/sensors/#, iot/ltj/sensor/#, iot/ltj/uav/telemetry");
+                            mqttClient.subscribe(new String[]{"iot/sensors/#", "iot/ltj/sensor/#", "iot/ltj/uav/telemetry", "iot/ltj/sync/#"},
+                                    new int[]{1, 1, 1, 1});
+                            log.info("[MQTT GATEWAY] Đã đăng ký lắng nghe topics: iot/sensors/#, iot/ltj/sensor/#, iot/ltj/uav/telemetry, iot/ltj/sync/#");
                         } catch (MqttException e) {
                             log.error("[MQTT GATEWAY] Đăng ký topic thất bại: {}", e.getMessage());
                         }
@@ -107,7 +109,33 @@ public class MqttGatewayConfig {
                 return;
             }
 
-            // 2. Nếu là telemetry từ cảm biến -> kiểm tra Rate Limiting (LTJ-12) & lưu DB
+            // 2. Nếu là gói tin Handshake hoặc Bulk Sync từ UAV ngoại tuyến (LTJ-22, LTJ-25)
+            if ("iot/ltj/sync/handshake/request".equalsIgnoreCase(topic)) {
+                try {
+                    HandshakeRequestDTO handshakeRequest = objectMapper.readValue(payload, HandshakeRequestDTO.class);
+                    uavService.processHandshake(handshakeRequest);
+                    log.info("[MQTT GATEWAY] Đã xử lý Handshake qua MQTT từ UAV: {}", handshakeRequest.getEffectiveCode());
+                } catch (Exception ex) {
+                    log.warn("[MQTT GATEWAY] Lỗi xử lý Handshake từ MQTT: {}", ex.getMessage());
+                }
+                return;
+            }
+            if ("iot/ltj/sync/bulk".equalsIgnoreCase(topic)) {
+                try {
+                    BulkSyncPayload bulkPayload = objectMapper.readValue(payload, BulkSyncPayload.class);
+                    sensorDataService.syncBulkData(bulkPayload);
+                    log.info("[MQTT GATEWAY] Đã tiếp nhận Bulk Sync qua MQTT từ UAV: {}, session: {}", bulkPayload.getUavId(), bulkPayload.getSyncSessionId());
+                } catch (Exception ex) {
+                    log.warn("[MQTT GATEWAY] Lỗi xử lý Bulk Sync từ MQTT: {}", ex.getMessage());
+                }
+                return;
+            }
+            if ("iot/ltj/sync/handshake/complete".equalsIgnoreCase(topic)) {
+                log.info("[MQTT GATEWAY] Đã tiếp nhận thông báo kết thúc phiên đồng bộ qua MQTT: {}", payload);
+                return;
+            }
+
+            // 3. Nếu là telemetry từ cảm biến -> kiểm tra Rate Limiting (LTJ-12) & lưu DB
             String nodeCode = extractNodeCode(topic, payload);
             if (nodeCode != null) {
                 if (isAllowedByRateLimiter(nodeCode)) {
