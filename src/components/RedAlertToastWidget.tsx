@@ -11,7 +11,6 @@ import {
   triggerExtremeTelemetryBurst,
   acknowledgeAlertById,
 } from '../store/slices/alertSlice';
-import type { AlertItem } from '../types/alert';
 import './RedAlertToastWidget.css';
 
 interface Props {
@@ -23,8 +22,8 @@ export default function RedAlertToastWidget({ onNavigateAlertsPage }: Props) {
   const stats = useSelector(selectAlertSummaryStats);
   const alerts = useSelector(selectFilteredAlerts);
 
-  // Danh sách các thẻ Toast đang hiển thị ở góc phải màn hình
-  const [toasts, setToasts] = useState<AlertItem[]>([]);
+  // Danh sách ID các thẻ Toast đã bị người dùng đóng thủ công
+  const [closedToastIds, setClosedToastIds] = useState<number[]>([]);
 
   // 1. Tải dữ liệu cảnh báo khi mở Dashboard
   useEffect(() => {
@@ -33,15 +32,14 @@ export default function RedAlertToastWidget({ onNavigateAlertsPage }: Props) {
     }
   }, [dispatch, alerts.length]);
 
-  // 2. Lấy tối đa 3 cảnh báo đang mở (OPEN) mới nhất để bật Toast Notification
-  useEffect(() => {
-    const openAlerts = alerts.filter((a) => a.status === 'OPEN').slice(0, 3);
-    setToasts(openAlerts);
-  }, [alerts]);
+  // 2. Lấy tối đa 3 cảnh báo đang mở (OPEN) mới nhất chưa bị đóng thủ công
+  const toasts = alerts
+    .filter((a) => a.status === 'OPEN' && !closedToastIds.includes(a.id))
+    .slice(0, 3);
 
   // Đóng 1 thẻ Toast trên màn hình
   const handleCloseToast = (id: number) => {
-    setToasts((prev) => prev.filter((item) => item.id !== id));
+    setClosedToastIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
   };
 
   // Xác nhận đã đọc cảnh báo
