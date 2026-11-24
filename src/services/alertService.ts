@@ -368,14 +368,162 @@ function ensureZoneThresholdsExist(zone: Zone): ThresholdRule[] {
   return created;
 }
 
+// ==================== Adapter Chuẩn hóa DTO Backend (Dev 1) <-> Frontend (Dev 4) ====================
+
+interface BackendThresholdRaw {
+  id: number;
+  zoneId: number;
+  zoneName?: string;
+  farmId?: number;
+  farmName?: string;
+  sensorType: SensorType;
+  minValue?: number;
+  maxValue?: number;
+  criticalMin?: number;
+  criticalMax?: number;
+  enabled?: boolean;
+  updatedAt?: string;
+  createdAt?: string;
+}
+
+interface BackendAlertRaw {
+  id: number;
+  alertCode?: string;
+  zoneId?: number;
+  zoneName?: string;
+  sensorId?: number | null;
+  sensorCode?: string;
+  sensorName?: string;
+  sensorType?: AlertItem['sensorType'];
+  alertLevel?: BackendAlertLevel;
+  status?: AlertItem['status'];
+  isRead?: boolean;
+  measuredValue?: number;
+  unit?: string;
+  thresholdMin?: number;
+  thresholdMax?: number;
+  message?: string;
+  resolvedNote?: string | null;
+  createdAt?: string;
+  resolvedAt?: string | null;
+}
+
+function normalizeThresholdRule(
+  raw: BackendThresholdRaw,
+  fallbackZone?: Zone,
+  overrides?: Partial<ThresholdUpdatePayload>,
+): ThresholdRule {
+  const sensorType: SensorType = ALL_SENSOR_TYPES.includes(raw.sensorType)
+    ? raw.sensorType
+    : 'TEMPERATURE';
+  const preset = SENSOR_THRESHOLD_PRESETS[sensorType];
+
+  const minVal =
+    typeof raw.minValue === 'number' && Number.isFinite(raw.minValue)
+      ? raw.minValue
+      : (overrides?.minValue ?? preset.minValue);
+  const maxVal =
+    typeof raw.maxValue === 'number' && Number.isFinite(raw.maxValue)
+      ? raw.maxValue
+      : (overrides?.maxValue ?? preset.maxValue);
+
+  const safeMin = Math.max(preset.physicalMin + preset.step, Math.min(minVal, preset.physicalMax - preset.step * 2));
+  const safeMax = Math.max(safeMin + preset.step, Math.min(maxVal, preset.physicalMax - preset.step));
+
+  const rawCritMin = overrides?.criticalMin ?? raw.criticalMin;
+  const computedCritMin =
+    typeof rawCritMin === 'number' && Number.isFinite(rawCritMin) && rawCritMin < safeMin && rawCritMin >= preset.physicalMin
+      ? rawCritMin
+      : Math.max(preset.physicalMin, Number((safeMin - Math.max(preset.step, (safeMax - safeMin) * 0.25)).toFixed(2)));
+
+  const rawCritMax = overrides?.criticalMax ?? raw.criticalMax;
+  const computedCritMax =
+    typeof rawCritMax === 'number' && Number.isFinite(rawCritMax) && rawCritMax > safeMax && rawCritMax <= preset.physicalMax
+      ? rawCritMax
+      : Math.min(preset.physicalMax, Number((safeMax + Math.max(preset.step, (safeMax - safeMin) * 0.25)).toFixed(2)));
+
+  return {
+    id: raw.id,
+    zoneId: raw.zoneId ?? fallbackZone?.id ?? 1,
+    zoneName: raw.zoneName || fallbackZone?.name || `Khu vực #${raw.zoneId}`,
+    farmId: raw.farmId ?? fallbackZone?.farmId ?? 1,
+    farmName: raw.farmName || fallbackZone?.farmName || 'Nông trại Công nghệ cao Đà Lạt',
+    sensorType,
+    minValue: safeMin,
+    maxValue: safeMax,
+    criticalMin: computedCritMin,
+    criticalMax: computedCritMax,
+    enabled: overrides?.enabled ?? raw.enabled ?? true,
+    updatedAt: raw.updatedAt || raw.createdAt || new Date().toISOString(),
+  };
+}
+
+function inferAlertSourceType(raw: BackendAlertRaw): AlertItem['sensorType'] {
+  if (raw.sensorType) return raw.sensorType;
+  const text = `${raw.sensorName ?? ''} ${raw.sensorCode ?? ''} ${raw.message ?? ''}`.toUpperCase();
+  if (text.includes('UAV') || text.includes('PIN') || text.includes('BATTERY')) return 'UAV_BATTERY';
+  if (text.includes('SOIL') || text.includes('ẨM ĐẤT')) return 'SOIL_MOISTURE';
+  if (text.includes('HUMI') || text.includes('ĐỘ ẨM')) return 'HUMIDITY';
+  if (text.includes('LIGHT') || text.includes('LUX') || text.includes('ÁNH SÁNG')) return 'LIGHT';
+  if (text.includes('CO2') || text.includes('PPM')) return 'CO2';
+  return 'TEMPERATURE';
+}
+
+function normalizeAlertItem(raw: BackendAlertRaw, fallback?: Partial<AlertItem>): AlertItem {
+  const sensorType = raw.sensorType ?? fallback?.sensorType ?? inferAlertSourceType(raw);
+  const preset =
+    sensorType !== 'UAV_BATTERY' ? SENSOR_THRESHOLD_PRESETS[sensorType] : null;
+  const unit = raw.unit || fallback?.unit || (sensorType === 'UAV_BATTERY' ? '%' : preset?.unit ?? '');
+
+  let measuredValue =
+    typeof raw.measuredValue === 'number' && Number.isFinite(raw.measuredValue)
+      ? raw.measuredValue
+      : fallback?.measuredValue;
+  if (measuredValue === undefined && raw.message) {
+    const match = raw.message.match(/(-?\d+(?:\.\d+)?)\s*(?:°C|%|lux|ppm)/i);
+    if (match) measuredValue = Number(match[1]);
+  }
+
+  const isRead = raw.isRead ?? fallback?.isRead ?? false;
+  const status: AlertItem['status'] =
+    raw.status ??
+    fallback?.status ??
+    (raw.resolvedAt ? 'RESOLVED' : isRead ? 'ACKNOWLEDGED' : 'OPEN');
+
+  return {
+    id: raw.id,
+    alertCode: raw.alertCode || fallback?.alertCode || `ALT-BE-${String(raw.id).padStart(4, '0')}`,
+    zoneId: raw.zoneId ?? fallback?.zoneId ?? 1,
+    zoneName: raw.zoneName || fallback?.zoneName || `Khu vực #${raw.zoneId ?? 1}`,
+    sensorId: raw.sensorId ?? fallback?.sensorId ?? null,
+    sensorCode:
+      raw.sensorCode ||
+      raw.sensorName ||
+      fallback?.sensorCode ||
+      (raw.sensorId ? `SENSOR-${raw.sensorId}` : `DEV-${raw.id}`),
+    sensorType,
+    alertLevel: raw.alertLevel ?? fallback?.alertLevel ?? 'WARNING',
+    status,
+    isRead,
+    measuredValue: measuredValue ?? 0,
+    unit,
+    thresholdMin: raw.thresholdMin ?? fallback?.thresholdMin ?? (sensorType === 'UAV_BATTERY' ? 20 : preset?.minValue ?? 0),
+    thresholdMax: raw.thresholdMax ?? fallback?.thresholdMax ?? (sensorType === 'UAV_BATTERY' ? 100 : preset?.maxValue ?? 100),
+    message: raw.message || fallback?.message || 'Cảnh báo vượt ngưỡng từ hệ thống giám sát.',
+    resolvedNote: raw.resolvedNote ?? fallback?.resolvedNote ?? undefined,
+    createdAt: raw.createdAt || fallback?.createdAt || new Date().toISOString(),
+    resolvedAt: raw.resolvedAt ?? fallback?.resolvedAt ?? undefined,
+  };
+}
+
 // ==================== API Dịch vụ Ngưỡng Cảnh báo (F09) ====================
 
 export const thresholdApi = {
   async getByZone(zone: Zone): Promise<ThresholdRule[]> {
     try {
-      const res = await apiClient.get<{ data?: ThresholdRule[] }>(`/thresholds/zone/${zone.id}`);
+      const res = await apiClient.get<{ data?: BackendThresholdRaw[] }>(`/thresholds/zone/${zone.id}`);
       if (res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
-        return res.data.data;
+        return res.data.data.map((item) => normalizeThresholdRule(item, zone));
       }
     } catch {
       // Fallback sang dữ liệu nội bộ khi Backend LTJ-26 chưa khởi chạy
@@ -390,9 +538,9 @@ export const thresholdApi = {
 
   async getAll(): Promise<ThresholdRule[]> {
     try {
-      const res = await apiClient.get<{ data?: ThresholdRule[] }>('/thresholds');
+      const res = await apiClient.get<{ data?: BackendThresholdRaw[] }>('/thresholds');
       if (res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
-        return res.data.data;
+        return res.data.data.map((item) => normalizeThresholdRule(item));
       }
     } catch {
       // Fallback
@@ -402,15 +550,25 @@ export const thresholdApi = {
 
   async saveRule(payload: ThresholdUpdatePayload, zone: Zone): Promise<ThresholdRule> {
     try {
+      const backendBody = {
+        zoneId: payload.zoneId,
+        sensorType: payload.sensorType,
+        minValue: payload.minValue,
+        maxValue: payload.maxValue,
+      };
       if (payload.id) {
-        const res = await apiClient.put<{ data?: ThresholdRule }>(
+        const res = await apiClient.put<{ data?: BackendThresholdRaw }>(
           `/thresholds/${payload.id}`,
-          payload
+          backendBody
         );
-        if (res.data?.data) return res.data.data;
+        if (res.data?.data) {
+          return normalizeThresholdRule(res.data.data, zone, payload);
+        }
       } else {
-        const res = await apiClient.post<{ data?: ThresholdRule }>('/thresholds', payload);
-        if (res.data?.data) return res.data.data;
+        const res = await apiClient.post<{ data?: BackendThresholdRaw }>('/thresholds', backendBody);
+        if (res.data?.data) {
+          return normalizeThresholdRule(res.data.data, zone, payload);
+        }
       }
     } catch {
       // Fallback cập nhật vào bộ nhớ nội bộ
@@ -500,9 +658,13 @@ export const thresholdApi = {
 export const alertApi = {
   async getAll(): Promise<AlertItem[]> {
     try {
-      const res = await apiClient.get<{ data?: AlertItem[] }>('/alerts');
+      const res = await apiClient.get<{ data?: BackendAlertRaw[] }>('/alerts');
       if (res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
-        return res.data.data;
+        const normalized = res.data.data.map((item) => normalizeAlertItem(item));
+        mockAlerts = normalized;
+        return normalized.sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
       }
     } catch {
       // Fallback
@@ -513,9 +675,18 @@ export const alertApi = {
   },
 
   async acknowledge(alertId: number): Promise<AlertItem> {
+    const existing = mockAlerts.find((a) => a.id === alertId);
     try {
-      const res = await apiClient.patch<{ data?: AlertItem }>(`/alerts/${alertId}/read`);
-      if (res.data?.data) return res.data.data;
+      const res = await apiClient.patch<{ data?: BackendAlertRaw }>(`/alerts/${alertId}/read`);
+      if (res.data?.data) {
+        const normalized = normalizeAlertItem(res.data.data, {
+          ...existing,
+          isRead: true,
+          status: existing?.status === 'RESOLVED' ? 'RESOLVED' : 'ACKNOWLEDGED',
+        });
+        mockAlerts = mockAlerts.map((a) => (a.id === alertId ? normalized : a));
+        return normalized;
+      }
     } catch {
       // Fallback
     }
@@ -536,12 +707,26 @@ export const alertApi = {
 
   async resolve(alertId: number, resolvedNote: string): Promise<AlertItem> {
     const nowIso = new Date().toISOString();
+    const existing = mockAlerts.find((a) => a.id === alertId);
     try {
-      const res = await apiClient.patch<{ data?: AlertItem }>(`/alerts/${alertId}/resolve`, {
+      const res = await apiClient.patch<{ data?: BackendAlertRaw }>(`/alerts/${alertId}/resolve`, {
         resolvedNote,
         status: 'RESOLVED',
       });
-      if (res.data?.data) return res.data.data;
+      if (res.data?.data) {
+        const normalized = normalizeAlertItem(res.data.data, {
+          ...existing,
+          status: 'RESOLVED',
+          isRead: true,
+          resolvedNote:
+            resolvedNote.trim() ||
+            existing?.resolvedNote ||
+            'Đã kiểm tra và xử lý đưa chỉ số về ngưỡng an toàn.',
+          resolvedAt: nowIso,
+        });
+        mockAlerts = mockAlerts.map((a) => (a.id === alertId ? normalized : a));
+        return normalized;
+      }
     } catch {
       // Fallback
     }
