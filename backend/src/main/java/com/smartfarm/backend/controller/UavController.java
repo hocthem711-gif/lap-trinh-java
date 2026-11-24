@@ -5,6 +5,7 @@ import com.smartfarm.backend.dto.request.HandshakeRequestDTO;
 import com.smartfarm.backend.dto.request.UavTelemetryPayload;
 import com.smartfarm.backend.dto.response.HandshakeResponseDTO;
 import com.smartfarm.backend.dto.response.MissionProgressResponse;
+import com.smartfarm.backend.dto.response.UavSyncSessionDTO;
 import com.smartfarm.backend.entity.SyncLog;
 import com.smartfarm.backend.entity.Uav;
 import com.smartfarm.backend.service.UavService;
@@ -62,11 +63,9 @@ public class UavController {
 
     @GetMapping({"/api/v1/uav-sync/sessions", "/uav-sync/sessions"})
     @Operation(summary = "Lấy danh sách các phiên đồng bộ UAV sắp giảm dần theo thời gian (LTJ-22, khớp analyticsService.ts)")
-    public ResponseEntity<ApiResponse<List<SyncLog>>> getSyncSessions(
+    public ResponseEntity<ApiResponse<List<UavSyncSessionDTO>>> getSyncSessions(
             @RequestParam(required = false) String uavCode) {
-        List<SyncLog> sessions = (uavCode != null && !uavCode.isBlank())
-                ? uavService.getSyncSessionsByUavCode(uavCode)
-                : uavService.getSyncSessions();
+        List<UavSyncSessionDTO> sessions = uavService.getEnrichedSyncSessions(uavCode);
         return ResponseEntity.ok(ApiResponse.success("Lấy danh sách phiên đồng bộ thành công", sessions));
     }
 }

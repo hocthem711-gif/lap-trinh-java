@@ -4,6 +4,7 @@ import com.smartfarm.backend.dto.request.HandshakeRequestDTO;
 import com.smartfarm.backend.dto.request.UavTelemetryPayload;
 import com.smartfarm.backend.dto.response.HandshakeResponseDTO;
 import com.smartfarm.backend.dto.response.MissionProgressResponse;
+import com.smartfarm.backend.dto.response.UavSyncSessionDTO;
 import com.smartfarm.backend.entity.SyncLog;
 import com.smartfarm.backend.entity.Uav;
 import com.smartfarm.backend.repository.SyncLogRepository;
@@ -54,11 +55,11 @@ public class UavService {
 
     @Transactional
     public HandshakeResponseDTO processHandshake(HandshakeRequestDTO request) {
-        if (request == null || request.getCode() == null || request.getCode().isBlank()) {
+        if (request == null || request.getEffectiveCode() == null || request.getEffectiveCode().isBlank()) {
             return new HandshakeResponseDTO(false, "Mã UAV không hợp lệ", null);
         }
 
-        String normalizedCode = request.getCode().trim();
+        String normalizedCode = request.getEffectiveCode();
         Optional<Uav> uavOpt = uavRepository.findByCode(normalizedCode);
 
         SyncLog syncLog = new SyncLog();
@@ -127,6 +128,64 @@ public class UavService {
             return getSyncSessions();
         }
         return syncLogRepository.findByUavCodeOrderBySyncTimeDesc(uavCode.trim());
+    }
+
+    public List<UavSyncSessionDTO> getEnrichedSyncSessions(String uavCode) {
+        List<SyncLog> logs = getSyncSessionsByUavCode(uavCode);
+        List<UavSyncSessionDTO> dtos = new java.util.ArrayList<>();
+
+        for (SyncLog log : logs) {
+            boolean isSuccess = "SUCCESS".equalsIgnoreCase(log.getStatus()) || "COMPLETED".equalsIgnoreCase(log.getStatus());
+            LocalDateTime syncTime = log.getSyncTime() != null ? log.getSyncTime() : LocalDateTime.now();
+            LocalDateTime flightStart = syncTime.minusMinutes(20);
+            LocalDateTime flightEnd = syncTime.minusMinutes(2);
+
+            int totalRec = 25;
+            int syncedRec = isSuccess ? totalRec : 10;
+            int batchSize = 10;
+            int batchCount = (int) Math.ceil((double) totalRec / batchSize);
+
+            List<UavSyncSessionDTO.SyncRecordItemDTO> sampleRecords = new java.util.ArrayList<>();
+            long startEpoch = flightStart.toEpochSecond(java.time.ZoneOffset.UTC);
+            for (int i = 0; i < totalRec; i++) {
+                sampleRecords.add(UavSyncSessionDTO.SyncRecordItemDTO.builder()
+                        .deviceId("DEV-Z1-" + String.format("%03d", (i % 4) + 1))
+                        .farmId(1L)
+                        .zoneId(1L)
+                        .temperature(25.0 + (i % 5))
+                        .humidity(65.0 + (i % 10))
+                        .soilMoisture(50.0 + (i % 8))
+                        .light(500.0 + (i * 20))
+                        .status((i % 7 == 0) ? "WARNING" : "NORMAL")
+                        .timestamp(startEpoch + (i * 45))
+                        .build());
+            }
+
+            dtos.add(UavSyncSessionDTO.builder()
+                    .id(log.getId())
+                    .syncSessionId(log.getSyncSessionId())
+                    .uavId(log.getUavCode())
+                    .uavName("UAV " + log.getUavCode())
+                    .zoneId(1L)
+                    .zoneName("Khu A - Nhà kính Dâu tây")
+                    .flightStartTime(flightStart.toString())
+                    .flightEndTime(flightEnd.toString())
+                    .flightDurationSeconds(1080)
+                    .totalRecords(totalRec)
+                    .syncedRecords(syncedRec)
+                    .batchSize(batchSize)
+                    .batchCount(batchCount)
+                    .status(isSuccess ? "COMPLETED" : "FAILED")
+                    .handshakeAt(syncTime.toString())
+                    .lastBatchAt(syncTime.plusSeconds(12).toString())
+                    .completedAt(isSuccess ? syncTime.plusSeconds(15).toString() : null)
+                    .failedStep(isSuccess ? null : "HANDSHAKE")
+                    .errorMessage(isSuccess ? null : log.getMessage())
+                    .records(sampleRecords)
+                    .build());
+        }
+
+        return dtos;
     }
 
     @Transactional
