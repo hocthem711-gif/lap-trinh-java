@@ -7,6 +7,7 @@
 > - `[LTJ-25]` `[Sprint 5][Dev 5] Giả lập UAV Offline Sync (SQLite Local to MQTT)`  
 > - `[LTJ-30]` `[Sprint 6][Dev 5] Giả lập Bắn Data Cực đoan & Activity Diagram`  
 > - `[LTJ-35]` `[Sprint 7][Dev 5] Script Giả lập UAV Bay Realtime Telemetry`  
+> - `[LTJ-40]` `[Sprint 8][Dev 5] System Testing & Hoàn thiện Bộ Hồ sơ Báo cáo`  
 > **Người thực hiện**: Trần Nguyễn Bảo Hoàng — Dev 5 (IoT, System Architecture & QA Specialist)
 
 ---
@@ -103,6 +104,13 @@ Mỗi bản tin được sinh ra trên topic `iot/ltj/sensor/zone-{zoneId}/{devi
 # Chạy mô phỏng thời gian thực (Realtime Stream 1 giây/bước):
 .\gradlew.bat run --args="--flight-sim" --console=plain
 ```
+
+### 8. Chế độ 7: Chạy Kiểm thử Toàn Hệ thống End-to-End (`Sprint 8 - LTJ-40`)
+```powershell
+# Kiểm thử trực tiếp với Backend API & HiveMQ Broker (12 kịch bản SYS-01 -> SYS-12):
+.\gradlew.bat run --args="--system-test http://localhost:8080/api/v1 tcp://broker.hivemq.com:1883" --console=plain
+```
+*(Nếu Backend chưa khởi chạy, hệ thống sẽ tự động chuyển sang chạy 5 kịch bản tích hợp nội bộ `Standalone Self-Test`.)*
 ---
 
 ## 📁 Cấu Trúc Thư Mục
@@ -114,17 +122,19 @@ iot-simulator/
 ├── gradlew & gradlew.bat                            # Gradle wrapper scripts
 ├── src/
 │   ├── main/java/com/iot/simulator/
-│   │   ├── IoTSimulatorApp.java                     # Điều phối 6 chế độ chạy
+│   │   ├── IoTSimulatorApp.java                     # Điều phối 7 chế độ chạy
 │   │   ├── MqttPublisher.java                       # Kết nối bất đồng bộ MqttAsyncClient (QoS 1)
 │   │   ├── SensorData.java                          # Dữ liệu cảm biến, mức pin, kịch bản cực đoan Alert (LTJ-30)
 │   │   ├── UavFlightSimulator.java                  # Mô phỏng bay UAV, thuật toán LERP 3D & Telemetry (LTJ-35)
 │   │   ├── WaypointMissionValidator.java            # Kiểm định JSON Waypoints, Geofence, Haversine 3D & Mission (LTJ-20)
 │   │   ├── OfflineStorageManager.java               # Quản lý CSDL SQLite cục bộ (Caching, Batching, Sync Status) (LTJ-25)
-│   │   └── UavOfflineSyncManager.java               # Điều phối Handshake, Chunking & Bulk Sync MQTT (LTJ-25)
+│   │   ├── UavOfflineSyncManager.java               # Điều phối Handshake, Chunking & Bulk Sync MQTT (LTJ-25)
+│   │   └── SystemTestRunner.java                    # Bộ kiểm thử End-to-End System Testing 12 kịch bản (LTJ-40)
 │   └── test/java/com/iot/simulator/
+│       ├── SystemTestingSuiteTest.java              # Bộ 5 Unit/Integration Tests cấp hệ thống (LTJ-40)
 │       ├── ExtremeAlertSimulationTest.java          # Bộ 4 Unit Tests kiểm thử dữ liệu cực đoan & Alert (LTJ-30)
 │       ├── UavFlightSimulatorTest.java              # Bộ 4 Unit Tests kiểm thử thuật toán LERP & Telemetry (LTJ-35)
-│       ├── OfflineStorageManagerTest.java           # Bộ Unit Tests kiểm thử SQLite (LTJ-25)
-│       └── UavOfflineSyncManagerTest.java           # Bộ Unit Tests kiểm thử Handshake & Bulk Sync (LTJ-25)
+│       ├── OfflineStorageManagerTest.java           # Bộ 3 Unit Tests kiểm thử SQLite (LTJ-25)
+│       └── UavOfflineSyncManagerTest.java           # Bộ 4 Unit Tests kiểm thử Handshake & Bulk Sync (LTJ-25)
 └── README.md                                        # Hướng dẫn sử dụng
 ```

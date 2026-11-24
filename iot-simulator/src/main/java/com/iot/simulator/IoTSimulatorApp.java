@@ -16,13 +16,14 @@ import java.util.concurrent.Future;
  * Giả lập UAV Offline Sync (SQLite to MQTT), Giả lập Bắn Data Cực đoan (Alert Trigger)
  * và Giả lập UAV Bay Realtime Telemetry.
  *
- * Hỗ trợ 6 chế độ chạy:
+ * Hỗ trợ 7 chế độ chạy:
  *   1. Chạy bắn MQTT liên tục (F20 - Online):        gradlew run
  *   2. Chạy Load Test 10-20 sensors (LTJ-15):        gradlew run --args="--load-test 20 1 10"
  *   3. Chạy Test Mission & Waypoints (LTJ-20):       gradlew run --args="--test-mission"
  *   4. Chạy Test UAV Offline Sync SQLite (LTJ-25):   gradlew run --args="--test-offline-sync 30 10"
  *   5. Chạy Test Bắn Data Cực đoan Alert (LTJ-30):   gradlew run --args="--test-extreme-alert"
  *   6. Chạy Test UAV Realtime Telemetry (LTJ-35):    gradlew run --args="--test-uav-flight" (hoặc --flight-sim)
+ *   7. Chạy System Testing toàn hệ thống (LTJ-40):   gradlew run --args="--system-test [backendUrl] [brokerUrl]"
  */
 public class IoTSimulatorApp {
 
@@ -56,6 +57,14 @@ public class IoTSimulatorApp {
     }
 
     public static void main(String[] args) {
+        // Chế độ 7 (Sprint 8 - LTJ-40): System Testing toàn diện xuyên suốt Backend + MQTT + IoT Simulator
+        if (args.length > 0 && "--system-test".equalsIgnoreCase(args[0])) {
+            String backendUrl = (args.length > 1 && !args[1].isEmpty()) ? args[1] : SystemTestRunner.DEFAULT_BACKEND_URL;
+            String broker = (args.length > 2 && !args[2].isEmpty()) ? args[2] : DEFAULT_BROKER;
+            new SystemTestRunner(backendUrl, broker).runFullSystemTestSuite();
+            return;
+        }
+
         // Chế độ 6 (Sprint 7 - LTJ-35): Giả lập UAV Bay Realtime Telemetry (Nội suy GPS LERP qua MQTT)
         if (args.length > 0 && ("--test-uav-flight".equalsIgnoreCase(args[0]) || "--flight-sim".equalsIgnoreCase(args[0]))) {
             boolean isFastMode = "--test-uav-flight".equalsIgnoreCase(args[0]);
@@ -436,7 +445,6 @@ public class IoTSimulatorApp {
     }
 
     /**
->>>>>>> dcf948f (feat(LTJ-35): implement UAV realtime telemetry flight simulator with LERP GPS interpolation)
      * Gửi gói tin JSON sang Backend REST API (/api/v1/sensor-data/simulator).
      */
     private static int sendToBackendHttp(HttpClient httpClient, String apiUrl, String jsonPayload) {

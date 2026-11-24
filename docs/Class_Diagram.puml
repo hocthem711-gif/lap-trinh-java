@@ -1,0 +1,369 @@
+@startuml Class_Diagram
+!theme plain
+scale max 3800 width
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 11
+skinparam roundCorner 6
+skinparam shadowing false
+skinparam classAttributeIconSize 0
+skinparam linetype polyline
+skinparam nodesep 50
+skinparam ranksep 60
+skinparam packageStyle rectangle
+skinparam ArrowColor #2C3E50
+skinparam ClassBorderColor #2C3E50
+skinparam ClassHeaderBackgroundColor #EBF5FB
+
+title Sơ Đồ Lớp Hệ Thống Nông Nghiệp Thông Minh (Smart Farm IoT & UAV - Class Diagram)\n[Sprint 8][Dev 5] Task LTJ-40: Cập Nhật Toàn Bộ Kiến Trúc Lớp (Backend Core, UAV/Mission & IoT Simulator)
+
+' =====================================================================
+' 1. ENUMERATIONS
+' =====================================================================
+package "1. Các Kiểu Liệt Kê Cố Định (Enums)" as EnumPkg #F8F9F9 {
+    enum RoleName {
+        ROLE_ADMIN
+        ROLE_FARMER
+        ROLE_DEV
+    }
+
+    enum SensorType {
+        TEMPERATURE
+        HUMIDITY
+        SOIL_MOISTURE
+        LIGHT
+    }
+
+    enum SensorStatus {
+        ACTIVE
+        INACTIVE
+        ERROR
+        MAINTENANCE
+    }
+
+    enum AlertLevel {
+        INFO
+        WARNING
+        CRITICAL
+    }
+
+    enum AlertStatus {
+        OPEN
+        RESOLVED
+    }
+}
+
+' =====================================================================
+' 2. BACKEND DOMAIN ENTITIES
+' =====================================================================
+package "2. Các Thực Thể Nghiệp Vụ CSDL (Domain Entities)" as EntityPkg #F5EEF8 {
+
+    abstract class BaseEntity {
+        # id : Long
+        # createdAt : LocalDateTime
+        # updatedAt : LocalDateTime
+        + getId() : Long
+    }
+    note right of BaseEntity
+        <b>Lớp cơ sở trừu tượng (@MappedSuperclass):</b>
+        Tất cả các Thực thể nghiệp vụ bên dưới (User, Farm,
+        Zone, Sensor, Threshold, Alert, Uav, Mission...)
+        đều kế thừa các thuộc tính: id, createdAt, updatedAt.
+    end note
+
+    class User {
+        - username : String
+        - email : String
+        - password : String
+        - fullName : String
+        - active : Boolean
+    }
+
+    BaseEntity <|-- User : kế thừa mẫu (@MappedSuperclass)
+
+    class Role {
+        - id : Long
+        - name : RoleName
+    }
+
+    class Farm {
+        - name : String
+        - location : String
+        - areaSquareMeters : Double
+    }
+
+    class Zone {
+        - name : String
+        - cropType : String
+    }
+
+    class Sensor {
+        - sensorCode : String
+        - name : String
+        - sensorType : SensorType
+        - status : SensorStatus
+        - latitude : Double
+        - longitude : Double
+        - installedAt : LocalDateTime
+    }
+
+    class SensorData {
+        - id : Long
+        - value : Double
+        - unit : String
+        - batteryLevel : Double
+        - status : String
+        - recordedAt : LocalDateTime
+    }
+
+    class Threshold {
+        - sensorType : SensorType
+        - minValue : Double
+        - maxValue : Double
+    }
+
+    class Alert {
+        - message : String
+        - alertLevel : AlertLevel
+        - isRead : Boolean
+        - status : AlertStatus
+        - resolvedNote : String
+        - resolvedAt : LocalDateTime
+    }
+
+    class Gateway {
+        - code : String
+        - ipAddress : String
+        - status : String
+    }
+
+    class Uav {
+        - code : String
+        - name : String
+        - model : String
+        - status : String
+        - token : String
+        - isConnected : Boolean
+        - latitude : Double
+        - longitude : Double
+        - altitude : Double
+        - speed : Double
+        - batteryLevel : Double
+        - lastSeenAt : LocalDateTime
+    }
+
+    class Mission {
+        - name : String
+        - status : String
+        - currentWaypointOrder : Integer
+        - completedWaypoints : Integer
+        - totalWaypoints : Integer
+        - progressPercent : Double
+        - lastTelemetryAt : LocalDateTime
+        - uavId : String
+        - zoneId : Long
+    }
+
+    class Waypoint {
+        - orderIndex : Integer
+        - latitude : Double
+        - longitude : Double
+        - altitude : Double
+        - speed : Double
+        - actionType : String
+        - visitState : String
+        - label : String
+    }
+
+    class SyncLog {
+        - uavCode : String
+        - syncTime : LocalDateTime
+        - status : String
+        - message : String
+        - sessionId : String
+    }
+
+    ' Quan hệ giữa các Entity
+    User "0..*" -- "1..*" Role : có vai trò >
+    User "1" -- "0..*" Farm : sở hữu >
+    Farm "1" *-- "1..*" Zone : gồm các vùng >
+    Zone "1" *-- "0..*" Sensor : chứa cảm biến >
+    Zone "1" -- "0..*" Gateway : quản lý >
+    Zone "1" -- "0..*" Threshold : cấu hình ngưỡng >
+    Zone "1" -- "0..*" Alert : phát sinh cảnh báo >
+    Sensor "1" *-- "0..*" SensorData : ghi nhận chỉ số >
+    Sensor "0..1" -- "0..*" Alert : kích hoạt >
+    Uav "1" -- "0..*" Mission : thực hiện >
+    Mission "1" *-- "1..*" Waypoint : gồm lộ trình >
+    Uav "1" ..> "0..*" SyncLog : ghi nhật ký đồng bộ >
+}
+
+' =====================================================================
+' 3. BACKEND CORE SERVICES, VALIDATION & REALTIME GATEWAY
+' =====================================================================
+package "3. Tầng Dịch Vụ Nghiệp Vụ Backend (Core Services)" as ServicePkg #E8F8F5 {
+
+    class MqttGatewayConfig {
+        - brokerUrl : String
+        - mqttClient : MqttClient
+        - MIN_INTERVAL_MS : long = 3000
+        + startMqttSubscriber() : void
+        - handleIncomingMqttMessage(topic, msg) : void
+        - isAllowedByRateLimiter(nodeCode) : boolean
+    }
+
+    class SensorDataServiceImpl {
+        + ingestData(req) : SensorDataResponse
+        + ingestSimulatorPayload(payload) : List<SensorDataResponse>
+        + syncBulkData(payload) : BulkSyncResponse
+        + getLatestTelemetryAll() : List<LatestSensorTelemetryResponse>
+        + getDashboardSummary() : DashboardSummaryResponse
+    }
+
+    class SensorDataValidator {
+        + validateReading(type, value, battery, recordedAt) : ValidationResult
+    }
+
+    class AlertEngineWorker {
+        + evaluateTelemetryAndTriggerAlerts() : void
+    }
+
+    class AlertServiceImpl {
+        + createAlert(req) : AlertResponse
+        + markAsRead(id) : AlertResponse
+        + resolveAlert(id, note) : AlertResponse
+    }
+
+    class EmailAlertServiceImpl {
+        - mailEnabled : boolean
+        - alertRecipient : String
+        + sendAlertEmail(alert) : void
+    }
+
+    class UavService {
+        + processHandshake(req) : HandshakeResponseDTO
+        + ingestRealtimeTelemetry(payload) : MissionProgressResponse
+        + getSyncSessions() : List<SyncLog>
+    }
+
+    class MissionService {
+        + createMission(req) : Mission
+        + updateMissionStatus(id, status) : Mission
+        + updateMissionProgressFromTelemetry(payload) : MissionProgressResponse
+    }
+
+    class TelemetryRealtimeServiceImpl {
+        + subscribeStream() : SseEmitter
+        + broadcastCustomTelemetry(payload) : void
+        + broadcastAlert(alert) : void
+    }
+
+    MqttGatewayConfig --> SensorDataServiceImpl : chuyển tiếp sensor telemetry
+    MqttGatewayConfig --> UavService : chuyển tiếp UAV telemetry
+    SensorDataServiceImpl --> SensorDataValidator : kiểm định dải vật lý (F19)
+    AlertEngineWorker --> AlertServiceImpl : tạo cảnh báo tự động
+    AlertServiceImpl --> EmailAlertServiceImpl : gửi email bất đồng bộ (LTJ-36)
+    AlertServiceImpl --> TelemetryRealtimeServiceImpl : phát cảnh báo Realtime
+    UavService --> MissionService : cập nhật tiến độ bay
+    MissionService --> TelemetryRealtimeServiceImpl : đẩy tọa độ WebSocket/SSE
+}
+
+' =====================================================================
+' 4. IOT SIMULATOR & SYSTEM TESTING SUITE (DEV 5)
+' =====================================================================
+package "4. Tầng Giả Lập IoT & Kiểm Thử Hệ Thống (IoT Simulator & QA)" as SimPkg #FFF8F0 {
+
+    class IoTSimulatorApp {
+        - DEFAULT_BROKER : String
+        - DEFAULT_SENSORS : int = 15
+        + main(args : String[]) : void
+        + buildVirtualDevices(total : int) : List<VirtualDevice>
+        + runOfflineSyncTestSuite(records, batchSize) : void
+        + runExtremeAlertTestSuite(brokerUrl) : void
+        + runUavFlightSimulation(brokerUrl, isFastMode) : void
+    }
+
+    class "SensorData" as SimSensorData {
+        - deviceId : String
+        - farmId : Long
+        - zoneId : Long
+        - temperature : double
+        - humidity : double
+        - soilMoisture : double
+        - light : double
+        - batteryLevel : Double
+        - status : String
+        - timestamp : long
+        + {static} generateRandom(farmId, zoneId, devId) : SensorData
+        + {static} generateWithAnomalyOption(..., prob) : SensorData
+        + {static} generateExtremeAlertData(..., type) : SensorData
+        + toCompactJson() : String
+    }
+
+    class MqttPublisher {
+        - client : MqttAsyncClient
+        - brokerUrl : String
+        - qos : int
+        + connect() : void
+        + publish(topic, payload) : void
+        + publishWithLatency(topic, payload) : double
+        + disconnect() : void
+        + isConnected() : boolean
+    }
+
+    class OfflineStorageManager {
+        - conn : Connection
+        + save(data : SensorData) : void
+        + getPending(limit : int) : Map<Long, String>
+        + markSynced(ids : Collection<Long>) : void
+        + countPending() : int
+        + countSynced() : int
+    }
+
+    class UavOfflineSyncManager {
+        - uavId : String
+        + sendOrStore(pub, topic, data) : double
+        + syncIfOnline(pub, batchSize) : void
+        + sync(pub, batchSize) : int
+    }
+
+    class WaypointMissionValidator {
+        + {static} haversineDistanceMeters(lat1, lng1, lat2, lng2) : double
+        + {static} validateMissionJson(json : String) : String
+        + {static} isValidStatusTransition(curr, next) : boolean
+        + {static} runAutomatedMissionTestSuite() : void
+    }
+
+    class UavFlightSimulator {
+        - uavId : String
+        - missionName : String
+        + {static} lerp(start, end, alpha) : double
+        + simulateFlight(pub, topic, fastMode, listener) : int
+    }
+
+    class SystemTestRunner {
+        - backendBaseUrl : String
+        - mqttBrokerUrl : String
+        - httpClient : HttpClient
+        + runFullSystemTestSuite() : SystemTestReport
+        + runStandaloneSelfTestSuite() : SystemTestReport
+    }
+
+    IoTSimulatorApp --> MqttPublisher : phát MQTT QoS 1
+    IoTSimulatorApp --> SimSensorData : tạo mẫu & cực đoan
+    IoTSimulatorApp --> UavOfflineSyncManager : đồng bộ ngoại tuyến
+    IoTSimulatorApp --> WaypointMissionValidator : kiểm định lộ trình
+    IoTSimulatorApp --> UavFlightSimulator : mô phỏng bay LERP
+    IoTSimulatorApp --> SystemTestRunner : chạy E2E System Test
+    UavOfflineSyncManager --> OfflineStorageManager : đọc/ghi SQLite
+    UavFlightSimulator ..> WaypointMissionValidator : tính Haversine
+    SystemTestRunner ..> WaypointMissionValidator : kiểm định Mission
+    SystemTestRunner ..> UavFlightSimulator : sinh khung hình bay
+    SystemTestRunner ..> OfflineStorageManager : kiểm thử SQLite Sync
+}
+
+' Liên kết tổng quan giữa các tầng
+SimPkg ..> ServicePkg : "Giao thức MQTT (:1883) & REST API (/api/v1)"
+ServicePkg -down-> EntityPkg : "Thao tác CSDL qua JPA / Hibernate ORM"
+
+@enduml
