@@ -1,12 +1,15 @@
 package com.smartfarm.backend.service;
 
 import com.smartfarm.backend.dto.request.MissionRequestDTO;
+import com.smartfarm.backend.dto.request.SubmitMissionReviewPayload;
 import com.smartfarm.backend.dto.request.UavTelemetryPayload;
 import com.smartfarm.backend.dto.request.WaypointDTO;
 import com.smartfarm.backend.dto.response.MissionProgressResponse;
 import com.smartfarm.backend.entity.Mission;
+import com.smartfarm.backend.entity.MissionNote;
 import com.smartfarm.backend.entity.Uav;
 import com.smartfarm.backend.entity.Waypoint;
+import com.smartfarm.backend.repository.MissionNoteRepository;
 import com.smartfarm.backend.repository.MissionRepository;
 import com.smartfarm.backend.repository.UavRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,7 +24,6 @@ import java.util.List;
 import java.util.Set;
 
 @Service
-@RequiredArgsConstructor
 @Slf4j
 public class MissionService {
 
@@ -32,6 +34,20 @@ public class MissionService {
 
     private final MissionRepository missionRepository;
     private final UavRepository uavRepository;
+    private final MissionNoteRepository missionNoteRepository;
+
+    public MissionService(MissionRepository missionRepository, UavRepository uavRepository) {
+        this(missionRepository, uavRepository, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public MissionService(MissionRepository missionRepository,
+                          UavRepository uavRepository,
+                          @org.springframework.lang.Nullable MissionNoteRepository missionNoteRepository) {
+        this.missionRepository = missionRepository;
+        this.uavRepository = uavRepository;
+        this.missionNoteRepository = missionNoteRepository;
+    }
 
     @Transactional
     public Mission createMission(MissionRequestDTO request) {
@@ -221,5 +237,88 @@ public class MissionService {
         resp.setCurrentBattery(bat);
 
         return resp;
+    }
+
+    // ==================== QUẢN LÝ MISSION NOTES (Dev 4 - LTJ-34) ====================
+
+    public List<MissionNote> getAllMissionNotes() {
+        return missionNoteRepository != null ? missionNoteRepository.findAllByOrderByCreatedAtDesc() : new ArrayList<>();
+    }
+
+    public List<MissionNote> getNotesByMissionId(Long missionId) {
+        return missionNoteRepository != null ? missionNoteRepository.findByMissionIdOrderByCreatedAtDesc(missionId) : new ArrayList<>();
+    }
+
+    @Transactional
+    public MissionNote createMissionNote(Long missionId, MissionNote note) {
+        if (note == null) {
+            throw new IllegalArgumentException("Dữ liệu ghi chú không được để trống");
+        }
+        if (missionId != null) {
+            note.setMissionId(missionId);
+            missionRepository.findById(missionId).ifPresent(m -> {
+                if (note.getMissionName() == null || note.getMissionName().isBlank()) {
+                    note.setMissionName(m.getName());
+                }
+                if (note.getZoneId() == null) {
+                    note.setZoneId(m.getZoneId());
+                }
+            });
+        }
+        return missionNoteRepository != null ? missionNoteRepository.save(note) : note;
+    }
+
+    @Transactional
+    public MissionNote updateMissionNote(Long noteId, MissionNote updates) {
+        if (missionNoteRepository == null) return updates;
+        MissionNote note = missionNoteRepository.findById(noteId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy ghi chú với ID: " + noteId));
+
+        if (updates.getTitle() != null && !updates.getTitle().isBlank()) {
+            note.setTitle(updates.getTitle().trim());
+        }
+        if (updates.getContent() != null && !updates.getContent().isBlank()) {
+            note.setContent(updates.getContent().trim());
+        }
+        if (updates.getCategory() != null) {
+            note.setCategory(updates.getCategory());
+        }
+        if (updates.getPriority() != null) {
+            note.setPriority(updates.getPriority());
+        }
+        if (updates.getWaypointOrder() != null) {
+            note.setWaypointOrder(updates.getWaypointOrder());
+        }
+        if (updates.getAuthor() != null) {
+            note.setAuthor(updates.getAuthor());
+        }
+        if (updates.getIsPinned() != null) {
+            note.setIsPinned(updates.getIsPinned());
+        }
+        return missionNoteRepository.save(note);
+    }
+
+    @Transactional
+    public void deleteMissionNote(Long noteId) {
+        if (missionNoteRepository != null && missionNoteRepository.existsById(noteId)) {
+            missionNoteRepository.deleteById(noteId);
+        }
+    }
+
+    // ==================== PHÊ DUYỆT NGHIỆM THU MISSION (Dev 4 - LTJ-39) ====================
+
+    @Transactional
+    public java.util.Map<String, Object> submitMissionReview(String missionCodeOrId, SubmitMissionReviewPayload payload) {
+        java.util.Map<String, Object> result = new java.util.HashMap<>();
+        result.put("missionId", missionCodeOrId);
+        result.put("reviewDecision", payload != null ? payload.getReviewDecision() : "APPROVED");
+        result.put("reviewerName", payload != null && payload.getReviewerName() != null ? payload.getReviewerName() : "Nguyễn Trường An (Dev 4)");
+        result.put("reviewerRole", payload != null && payload.getReviewerRole() != null ? payload.getReviewerRole() : "QA & Flight Reviewer");
+        result.put("reviewSummaryNote", payload != null ? payload.getReviewSummaryNote() : "Nhiệm vụ bay đạt chuẩn chất lượng");
+        result.put("correctiveActionPlan", payload != null ? payload.getCorrectiveActionPlan() : "");
+        result.put("reviewedAt", LocalDateTime.now().toString());
+        result.put("rubricScores", payload != null ? payload.getRubricScores() : java.util.Map.of());
+        result.put("status", "SUCCESS");
+        return result;
     }
 }

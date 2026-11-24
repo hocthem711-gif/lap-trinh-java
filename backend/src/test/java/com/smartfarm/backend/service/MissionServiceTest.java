@@ -32,6 +32,9 @@ class MissionServiceTest {
     @Mock
     private UavRepository uavRepository;
 
+    @Mock
+    private com.smartfarm.backend.repository.MissionNoteRepository missionNoteRepository;
+
     @InjectMocks
     private MissionService missionService;
 
@@ -116,5 +119,45 @@ class MissionServiceTest {
         assertEquals(95.0, progress.getBatteryPercent());
         assertEquals(40.0, progress.getAltitudeM());
         assertEquals("READY", progress.getStatus());
+    }
+
+    @Test
+    @DisplayName("LTJ-34: Create and retrieve manual mission notes")
+    void testMissionNotes_CreateAndQuery() {
+        com.smartfarm.backend.entity.MissionNote note = com.smartfarm.backend.entity.MissionNote.builder()
+                .missionId(10L)
+                .title("Bất thường luống dâu")
+                .content("Phát hiện sâu bệnh tại WP2")
+                .category("PEST_DISEASE")
+                .priority("HIGH")
+                .author("Dev 4")
+                .build();
+
+        when(missionNoteRepository.save(any(com.smartfarm.backend.entity.MissionNote.class))).thenReturn(note);
+        when(missionNoteRepository.findAllByOrderByCreatedAtDesc()).thenReturn(List.of(note));
+
+        com.smartfarm.backend.entity.MissionNote saved = missionService.createMissionNote(10L, note);
+        assertNotNull(saved);
+        assertEquals("Bất thường luống dâu", saved.getTitle());
+
+        List<com.smartfarm.backend.entity.MissionNote> all = missionService.getAllMissionNotes();
+        assertEquals(1, all.size());
+    }
+
+    @Test
+    @DisplayName("LTJ-39: Submit mission quality review with rubric scores")
+    void testSubmitMissionReview() {
+        com.smartfarm.backend.dto.request.SubmitMissionReviewPayload payload = com.smartfarm.backend.dto.request.SubmitMissionReviewPayload.builder()
+                .missionId("MSN-2026-071")
+                .reviewDecision("APPROVED")
+                .reviewerName("Nguyễn Trường An")
+                .reviewerRole("QA Specialist")
+                .reviewSummaryNote("Nhiệm vụ hoàn thành xuất sắc")
+                .build();
+
+        java.util.Map<String, Object> result = missionService.submitMissionReview("MSN-2026-071", payload);
+        assertNotNull(result);
+        assertEquals("APPROVED", result.get("reviewDecision"));
+        assertEquals("SUCCESS", result.get("status"));
     }
 }
