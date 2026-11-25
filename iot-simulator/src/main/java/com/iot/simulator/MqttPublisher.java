@@ -93,6 +93,41 @@ public class MqttPublisher {
     }
 
     /**
+     * Gửi (publish) bản tin kèm cơ chế tự động thử lại theo cấp số nhân (Exponential Backoff)
+     * khi gặp nghẽn mạng tạm thời hoặc vượt ngưỡng gói tin đang bay (MaxInflight).
+     *
+     * @param topic      Topic MQTT đích
+     * @param payload    Nội dung JSON cần gửi
+     * @param maxRetries Số lần thử lại tối đa (ví dụ: 3)
+     * @return Thời gian gửi thành công ở lần hoàn tất (ms)
+     * @throws MqttException nếu vẫn thất bại sau khi hết số lần thử lại
+     */
+    public double publishWithRetry(String topic, String payload, int maxRetries) throws MqttException {
+        int attempts = Math.max(0, maxRetries);
+        MqttException lastException = null;
+        for (int attempt = 0; attempt <= attempts; attempt++) {
+            try {
+                return publishWithLatency(topic, payload);
+            } catch (MqttException ex) {
+                lastException = ex;
+                if (attempt == attempts) {
+                    break;
+                }
+                long backoffMs = Math.min(2_000L, 200L * (1L << attempt));
+                try {
+                    Thread.sleep(backoffMs);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    throw ex;
+                }
+            }
+        }
+        throw lastException != null
+                ? lastException
+                : new MqttException(MqttException.REASON_CODE_CLIENT_EXCEPTION);
+    }
+
+    /**
      * Ngắt kết nối khỏi Broker.
      */
     public void disconnect() {
