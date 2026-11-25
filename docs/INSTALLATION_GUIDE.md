@@ -88,6 +88,12 @@ docker ps
 docker logs -f smart-farm-backend
 ```
 
+### Bước 2b: Kiểm tra nhanh Healthcheck Endpoint của Container
+```bash
+curl -i http://localhost:8080/api/v1/health
+```
+* Nếu kết nối MQTT Broker đám mây từ bên trong Container, truyền biến môi trường `MQTT_BROKER_URL=tcp://broker.hivemq.com:1883` trong `docker-compose.yml`.
+
 ### Bước 3: Dừng Container khi không sử dụng
 ```bash
 docker compose down
@@ -155,8 +161,8 @@ Sau khi các dịch vụ đã khởi chạy, kiểm tra nhanh theo bảng sau:
 | **2. Swagger UI / OpenAPI** | `http://localhost:8080/api/v1/swagger-ui/index.html` | Hiển thị đủ 64 REST API paths |
 | **3. H2 Database Console** | `http://localhost:8080/api/v1/h2-console` *(JDBC URL: `jdbc:h2:mem:smartfarmdb`, User: `sa`, Pass: trống)* | Đăng nhập xem được các bảng `USERS`, `FARMS`, `ZONES`, `SENSORS`, `UAVS`, `MISSIONS`... |
 | **4. Giao diện Web SPA** | `http://localhost:5173` | Hiển thị trang đăng nhập (tài khoản mẫu `admin` / `admin123` hoặc `farmer` / `farmer123`) |
-| **5. Unit Test Backend** | `cd backend && .\mvnw.cmd test` | `56/56` tests PASS (`BUILD SUCCESS`) |
-| **6. Unit Test Simulator** | `cd iot-simulator && .\gradlew.bat test` | `20/20` tests PASS (`BUILD SUCCESSFUL`) |
+| **5. Unit Test Backend** | `cd backend && .\mvnw.cmd test` | `83/83` tests PASS (`BUILD SUCCESS`) |
+| **6. Unit Test Simulator** | `cd iot-simulator && .\gradlew.bat test` | `25/25` tests PASS (`BUILD SUCCESSFUL`) |
 | **7. End-to-End System Test** | `cd iot-simulator && .\gradlew.bat run --args="--system-test http://localhost:8080/api/v1 tcp://broker.hivemq.com:1883" --console=plain` | `12/12` kịch bản E2E PASS (`100.0%`) |
 
 ---
