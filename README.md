@@ -55,8 +55,8 @@ cd iot-simulator && .\gradlew.bat run --args="--system-test" --console=plain
 
 ## 👥 Thành Viên Nhóm & Phân Công
 
-* **Nguyễn Trần Đình Hiệu** (Dev 1 — Backend Core, Security, Email Alert & Docker)
-* **Đào Nguyễn Thiện Hiếu** (Dev 2 — Gateway / MQTT, UAV Telemetry & Mission API)
-* **Hồ Nguyễn Huy Long** (Dev 3 — Frontend Core, Dashboard & Realtime Map)
-* **Nguyễn Trường An** (Dev 4 — UI/UX, Wireframe, Mission Planner, Alert & Excel Export)
-* **Trần Nguyễn Bảo Hoàng** (Dev 5 — IoT Simulator, System Architecture UML & QA / System Testing)
+* **Nguyễn Trần Đình Hiệu** — [@hieuclet249-bot](https://github.com/hieuclet249-bot) (Dev 1 — Backend Core, Security, Email Alert & Docker)
+* **Đào Nguyễn Thiện Hiếu** — [@hieudnt0126-12072006](https://github.com/hieudnt0126-12072006) (Dev 2 — Gateway / MQTT, UAV Telemetry & Mission API)
+* **Hồ Nguyễn Huy Long** — [@Longho2606](https://github.com/Longho2606) (Dev 3 — Frontend Core, Dashboard & Realtime Map)
+* **Nguyễn Trường An** — [@Quatrungvoon](https://github.com/Quatrungvoon) (Dev 4 — UI/UX, Wireframe, Mission Planner, Alert & Excel Export)
+* **Trần Nguyễn Bảo Hoàng** — [@hocthem711-gif](https://github.com/hocthem711-gif) (Dev 5 — IoT Simulator, System Architecture UML & QA / System Testing)
