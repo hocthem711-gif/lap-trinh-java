@@ -99,7 +99,7 @@ const INITIAL_MISSION_REVIEWS: MissionReviewRecord[] = [
   {
     missionId: 'MSN-2026-071',
     missionCode: 'MSN-2026-071',
-    missionTitle: 'Bay Khảo sát Đa phổ & Đo Ви Khí hậu Nhà kính Khu A',
+    missionTitle: 'Bay Khảo sát Đa phổ & Đo Vi Khí hậu Nhà kính Khu A',
     farmName: 'Nông trại Công nghệ cao Đà Lạt',
     zoneId: 'ZONE-A',
     zoneName: 'Khu A - Nhà kính Dâu tây Công nghệ cao',
@@ -1661,23 +1661,25 @@ export const missionReviewExportApi = {
 
   /**
    * Cập nhật chấm điểm 5 tiêu chí và phê duyệt kết quả Nghiệm thu Mission (F17)
+   * Đồng bộ lên Backend Dev 2 (PUT /uav/missions/{id}/review) rồi merge an toàn vào bản ghi đầy đủ
    */
   async submitMissionReview(
     payload: SubmitMissionReviewPayload
   ): Promise<MissionReviewRecord> {
+    let backendReviewedAt: string | null = null;
     try {
-      const response = await apiRequest<MissionReviewRecord>(
-        `/uav/missions/${payload.missionId}/review`,
+      const response = await apiRequest<{ reviewedAt?: string }>(
+        `/uav/missions/${encodeURIComponent(payload.missionId)}/review`,
         {
           method: 'PUT',
           body: JSON.stringify(payload),
         }
       );
-      if (response.data && response.data.missionId) {
-        return response.data;
+      if (response.data && typeof response.data.reviewedAt === 'string') {
+        backendReviewedAt = response.data.reviewedAt;
       }
     } catch {
-      // Fallback sang Hybrid LocalStorage
+      // Fallback sang Hybrid LocalStorage khi Backend offline
     }
 
     const allReviews = loadStoredMissionReviews();
@@ -1700,7 +1702,7 @@ export const missionReviewExportApi = {
         reviewSummaryNote: payload.reviewSummaryNote.trim() || rev.reviewSummaryNote,
         correctiveActionPlan:
           payload.correctiveActionPlan.trim() || rev.correctiveActionPlan,
-        reviewedAt: new Date().toISOString(),
+        reviewedAt: backendReviewedAt || new Date().toISOString(),
       };
     });
 
@@ -1757,21 +1759,26 @@ export const missionReviewExportApi = {
       const mappedZoneId = zoneIdMap[config.zoneFilter];
 
       let backendUrl: string | null = null;
-      if (
-        config.fileFormat === 'XLSX' &&
-        (config.datasetType === 'SENSOR_TELEMETRY' ||
-          config.datasetType === 'ALERT_REPORT' ||
-          config.datasetType === 'FULL_WORKBOOK')
-      ) {
-        const typeParam =
-          config.datasetType === 'SENSOR_TELEMETRY'
-            ? 'sensors'
-            : config.datasetType === 'ALERT_REPORT'
-              ? 'alerts'
-              : 'all';
-        const params = new URLSearchParams({ type: typeParam });
-        if (mappedZoneId) params.set('zoneId', mappedZoneId);
-        backendUrl = `${API_BASE_URL}/reports/export/excel?${params.toString()}`;
+      if (config.fileFormat === 'XLSX') {
+        if (config.datasetType === 'FULL_WORKBOOK') {
+          backendUrl = `${API_BASE_URL}/reports/export/full-workbook`;
+        } else if (config.datasetType === 'SENSOR_TELEMETRY') {
+          const params = new URLSearchParams({ type: 'sensors' });
+          if (mappedZoneId) params.set('zoneId', mappedZoneId);
+          backendUrl = `${API_BASE_URL}/reports/export/excel?${params.toString()}`;
+        } else if (config.datasetType === 'ALERT_REPORT') {
+          const params = new URLSearchParams({ type: 'alerts' });
+          if (mappedZoneId) params.set('zoneId', mappedZoneId);
+          backendUrl = `${API_BASE_URL}/reports/export/excel?${params.toString()}`;
+        } else if (config.datasetType === 'UAV_OFFLINE_SYNC') {
+          backendUrl = `${API_BASE_URL}/reports/export/uav-sync?format=xlsx`;
+        } else if (config.datasetType === 'MISSION_FLIGHT_NOTES') {
+          const params = new URLSearchParams({ format: 'xlsx' });
+          if (config.missionIdFilter && config.missionIdFilter !== 'ALL') {
+            params.set('missionId', config.missionIdFilter);
+          }
+          backendUrl = `${API_BASE_URL}/reports/export/missions?${params.toString()}`;
+        }
       } else if (
         config.fileFormat === 'HTML_PRINT' &&
         (config.datasetType === 'SENSOR_TELEMETRY' ||
