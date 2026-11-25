@@ -22,6 +22,7 @@ public class OfflineStorageManager implements AutoCloseable {
     public OfflineStorageManager(String dbPath) throws SQLException {
         conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath);
         try (Statement st = conn.createStatement()) {
+            st.execute("PRAGMA busy_timeout = 5000");
             st.execute("CREATE TABLE IF NOT EXISTS offline_telemetry ("
                     + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
                     + "payload TEXT NOT NULL, "
