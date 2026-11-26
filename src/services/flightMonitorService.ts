@@ -982,6 +982,33 @@ export async function updateMissionFlightStatusApi(
   return { missionId, status: newStatus };
 }
 
+function normalizeMissionNote(raw: Partial<MissionNote>): MissionNote {
+  const nowIso = new Date().toISOString();
+  return {
+    id: typeof raw.id === 'number' ? raw.id : Date.now(),
+    missionId: typeof raw.missionId === 'number' ? raw.missionId : 701,
+    missionCode: raw.missionCode || `MSN-${raw.missionId ?? 701}`,
+    missionName: raw.missionName || 'Nhiệm vụ bay UAV',
+    uavId: raw.uavId || 'UAV-001',
+    uavName: raw.uavName || `UAV ${raw.uavId ?? '001'}`,
+    zoneId: typeof raw.zoneId === 'number' ? raw.zoneId : 1,
+    zoneName: raw.zoneName || `Khu vực #${raw.zoneId ?? 1}`,
+    category: raw.category || 'OBSERVATION',
+    priority: raw.priority || 'NORMAL',
+    title: raw.title || 'Ghi chú thực địa',
+    content: raw.content || '',
+    author: raw.author || 'Nguyễn Trường An (Operator)',
+    waypointOrder: typeof raw.waypointOrder === 'number' ? raw.waypointOrder : 1,
+    latitude: typeof raw.latitude === 'number' ? raw.latitude : 11.9416,
+    longitude: typeof raw.longitude === 'number' ? raw.longitude : 108.4595,
+    batteryAtNote: typeof raw.batteryAtNote === 'number' ? raw.batteryAtNote : 80,
+    flightStatusAtNote: raw.flightStatusAtNote || 'FLYING',
+    isPinned: Boolean(raw.isPinned),
+    createdAt: raw.createdAt || nowIso,
+    updatedAt: raw.updatedAt || raw.createdAt || nowIso,
+  };
+}
+
 /**
  * Lấy danh sách Ghi chú Nhiệm vụ (Note Mission - F16)
  */
@@ -994,7 +1021,9 @@ export async function fetchMissionNotes(): Promise<MissionNote[]> {
       ? json
       : (json as { data?: unknown } | null)?.data;
     if (Array.isArray(list) && list.length > 0) {
-      return list as MissionNote[];
+      const normalized = (list as Partial<MissionNote>[]).map(normalizeMissionNote);
+      saveStoredNotes(normalized);
+      return normalized;
     }
   } catch {
     // Fallback local
@@ -1010,8 +1039,7 @@ export async function createMissionNoteApi(
   session: UavFlightSession,
 ): Promise<MissionNote> {
   const nowIso = new Date().toISOString();
-  const newNote: MissionNote = {
-    id: Date.now(),
+  const noteBase = {
     missionId: session.missionId,
     missionCode: session.missionCode,
     missionName: session.missionName,
@@ -1030,28 +1058,45 @@ export async function createMissionNoteApi(
     batteryAtNote: session.batteryPercent,
     flightStatusAtNote: session.status,
     isPinned: draft.priority === 'URGENT',
+  };
+
+  let createdNote: MissionNote = {
+    id: Date.now(),
+    ...noteBase,
     createdAt: nowIso,
     updatedAt: nowIso,
   };
 
   try {
-    await missionApiRequest(
+    // Không gửi id & createdAt/updatedAt có đuôi Z để JPA @GeneratedValue & @PrePersist (LocalDateTime) xử lý chuẩn
+    const response = await missionApiRequest(
       `${MISSION_API_URL}/${session.missionId}/notes`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newNote),
+        body: JSON.stringify(noteBase),
       },
-      2000,
+      2500,
     );
+    const json = (await response.json().catch(() => null)) as
+      | { data?: Partial<MissionNote> }
+      | Partial<MissionNote>
+      | null;
+    const saved =
+      json && typeof json === 'object' && 'data' in json && json.data
+        ? json.data
+        : (json as Partial<MissionNote> | null);
+    if (saved && typeof saved.id === 'number') {
+      createdNote = normalizeMissionNote({ ...createdNote, ...saved });
+    }
   } catch {
     // Hybrid fallback (mạng lỗi hoặc HTTP 4xx/5xx): persist in localStorage
   }
 
   const current = loadStoredNotes();
-  const updated = [newNote, ...current];
+  const updated = [createdNote, ...current.filter((n) => n.id !== createdNote.id)];
   saveStoredNotes(updated);
-  return newNote;
+  return createdNote;
 }
 
 /**
@@ -1067,26 +1112,27 @@ export async function updateMissionNoteApi(
   >,
 ): Promise<{ noteId: number; updates: Partial<MissionNote> }> {
   const nowIso = new Date().toISOString();
-  const payload = { ...updates, updatedAt: nowIso };
+  const localPayload = { ...updates, updatedAt: nowIso };
 
   try {
+    // Không gửi updatedAt dạng UTC Z để @PreUpdate LocalDateTime trên Spring Boot tự gán
     await missionApiRequest(
       `${MISSION_API_URL}/notes/${noteId}`,
       {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(updates),
       },
-      2000,
+      2500,
     );
   } catch {
     // Hybrid fallback
   }
 
   const current = loadStoredNotes();
-  const next = current.map((n) => (n.id === noteId ? { ...n, ...payload } : n));
+  const next = current.map((n) => (n.id === noteId ? { ...n, ...localPayload } : n));
   saveStoredNotes(next);
-  return { noteId, updates: payload };
+  return { noteId, updates: localPayload };
 }
 
 /**
