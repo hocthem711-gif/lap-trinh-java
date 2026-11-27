@@ -162,10 +162,32 @@ public class AlertEngineWorker {
                     alert.setStatus(AlertStatus.RESOLVED);
                     alert.setResolvedAt(LocalDateTime.now());
                     alert.setResolvedNote("Hệ thống tự động đóng: Dữ liệu đo đã trở lại ngưỡng bình thường (" + val + ")");
-                    alertRepository.save(alert);
+                    Alert savedResolved = alertRepository.save(alert);
 
                     log.info("[ALERT-ENGINE] Cảm biến {} đã an toàn. Đã đóng Alert ID: {}",
                             sensor.getSensorCode(), alert.getId());
+
+                    // Broadcast sự kiện RESOLVED qua WebSocket & SSE để frontend cập nhật realtime
+                    try {
+                        AlertResponse alertDto = new AlertResponse(
+                                savedResolved.getId(),
+                                savedResolved.getMessage(),
+                                savedResolved.getAlertLevel(),
+                                savedResolved.getIsRead(),
+                                savedResolved.getStatus(),
+                                savedResolved.getResolvedNote(),
+                                savedResolved.getResolvedAt(),
+                                sensor.getZone().getId(),
+                                sensor.getZone().getName(),
+                                sensor.getId(),
+                                sensor.getName(),
+                                savedResolved.getCreatedAt()
+                        );
+                        telemetryRealtimeService.broadcastAlert(alertDto);
+                        log.info("[ALERT-ENGINE] Đã broadcast RESOLVED Alert ID {} qua WebSocket & SSE", savedResolved.getId());
+                    } catch (Exception ex) {
+                        log.warn("[ALERT-ENGINE] Không thể broadcast RESOLVED Alert: {}", ex.getMessage());
+                    }
                 }
             }
         }

@@ -108,6 +108,40 @@ public class ThresholdServiceImpl implements ThresholdService {
         thresholdRepository.delete(threshold);
     }
 
+    @Override
+    @Transactional
+    public List<ThresholdResponse> resetZoneThresholds(Long zoneId) {
+        Zone zone = zoneRepository.findById(zoneId)
+                .orElseThrow(() -> new ResourceNotFoundException("Zone", "id", zoneId));
+
+        // Xóa tất cả threshold cũ trong zone
+        List<Threshold> existingThresholds = thresholdRepository.findByZoneId(zoneId);
+        if (!existingThresholds.isEmpty()) {
+            thresholdRepository.deleteAll(existingThresholds);
+        }
+
+        // Tạo lại threshold mặc định cho các loại cảm biến chuẩn nông nghiệp
+        Object[][] defaults = {
+                { com.smartfarm.backend.entity.SensorType.TEMPERATURE,   10.0, 18.0, 32.0, 40.0 },
+                { com.smartfarm.backend.entity.SensorType.HUMIDITY,      30.0, 50.0, 85.0, 95.0 },
+                { com.smartfarm.backend.entity.SensorType.SOIL_MOISTURE, 20.0, 40.0, 80.0, 95.0 },
+                { com.smartfarm.backend.entity.SensorType.LIGHT,         0.0, 200.0, 80000.0, 100000.0 },
+                { com.smartfarm.backend.entity.SensorType.CO2,           200.0, 350.0, 1000.0, 2000.0 }
+        };
+
+        List<Threshold> newThresholds = new java.util.ArrayList<>();
+        for (Object[] d : defaults) {
+            Threshold t = new Threshold((com.smartfarm.backend.entity.SensorType) d[0], (Double) d[2], (Double) d[3], zone);
+            t.setCriticalMin((Double) d[1]);
+            t.setCriticalMax((Double) d[4]);
+            t.setEnabled(true);
+            newThresholds.add(t);
+        }
+
+        List<Threshold> saved = thresholdRepository.saveAll(newThresholds);
+        return saved.stream().map(this::toResponse).collect(Collectors.toList());
+    }
+
     private void validateThresholdBands(Double critMin, Double minVal, Double maxVal, Double critMax) {
         if (minVal != null && maxVal != null && minVal > maxVal) {
             throw new IllegalArgumentException(String.format(

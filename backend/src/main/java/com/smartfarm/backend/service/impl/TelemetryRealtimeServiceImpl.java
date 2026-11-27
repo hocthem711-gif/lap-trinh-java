@@ -73,8 +73,12 @@ public class TelemetryRealtimeServiceImpl implements TelemetryRealtimeService {
         if (sseEmitters.size() >= MAX_SSE_EMITTERS) {
             log.warn("Đã đạt giới hạn kết nối SSE tối đa ({}). Tự động dọn dẹp kết nối cũ nhất.", MAX_SSE_EMITTERS);
             if (!sseEmitters.isEmpty()) {
-                SseEmitter oldest = sseEmitters.remove(0);
-                oldest.complete();
+                try {
+                    SseEmitter oldest = sseEmitters.remove(0);
+                    oldest.complete();
+                } catch (Exception e) {
+                    log.debug("Lỗi khi đóng SSE emitter cũ nhất: {}", e.getMessage());
+                }
             }
         }
 

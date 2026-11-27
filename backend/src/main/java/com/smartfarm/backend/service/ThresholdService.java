@@ -12,4 +12,5 @@ public interface ThresholdService {
     List<ThresholdResponse> getThresholdsByZoneId(Long zoneId);
     ThresholdResponse updateThreshold(Long id, ThresholdRequest request);
     void deleteThreshold(Long id);
+    List<ThresholdResponse> resetZoneThresholds(Long zoneId);
 }
