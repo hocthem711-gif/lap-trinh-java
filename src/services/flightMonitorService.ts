@@ -1224,6 +1224,63 @@ export async function deleteMissionNoteApi(noteId: number): Promise<number> {
   return noteId;
 }
 
+let lastSyncedBackendSignature = '';
+
+/**
+ * Đồng bộ danh sách Waypoints hiện hành trên màn hình Giám sát lên Backend (/api/v1/missions)
+ * để IoT Simulator (--flight-sim) luôn bay khớp 100% với lộ trình đang vẽ trên bản đồ Web.
+ */
+export async function syncSessionsWaypointsToBackend(
+  sessions: UavFlightSession[],
+): Promise<void> {
+  const sig = sessions
+    .map(
+      (s) =>
+        `${s.uavId}:${s.waypoints
+          .map((w) => `${w.latitude.toFixed(5)},${w.longitude.toFixed(5)}`)
+          .join('|')}`,
+    )
+    .join(';');
+  if (!sig || sig === lastSyncedBackendSignature) return;
+  lastSyncedBackendSignature = sig;
+
+  for (const s of sessions) {
+    if (!s.waypoints || s.waypoints.length < 2) continue;
+    try {
+      const wps = s.waypoints.map((w, idx) => ({
+        order: idx + 1,
+        latitude: w.latitude,
+        longitude: w.longitude,
+        altitude: w.altitudeM,
+        speed: w.targetSpeedMs,
+        type:
+          idx === 0
+            ? 'TAKEOFF'
+            : idx === s.waypoints.length - 1
+              ? 'LANDING'
+              : 'NORMAL',
+      }));
+      await missionApiRequest(
+        MISSION_API_URL,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: s.missionName,
+            missionName: s.missionName,
+            uavId: s.uavId,
+            zoneId: s.zoneId,
+            waypoints: wps,
+          }),
+        },
+        2000,
+      );
+    } catch {
+      // Bỏ qua nếu Backend tạm ngắt
+    }
+  }
+}
+
 /**
  * Khôi phục dữ liệu mẫu ban đầu cho cả Phiên bay & Note Mission
  */
@@ -1233,6 +1290,7 @@ export function resetFlightMonitorDemoData(): {
 } {
   saveStoredSessions(INITIAL_FLIGHT_SESSIONS);
   saveStoredNotes(INITIAL_MISSION_NOTES);
+  void syncSessionsWaypointsToBackend(INITIAL_FLIGHT_SESSIONS);
   return {
     sessions: INITIAL_FLIGHT_SESSIONS,
     notes: INITIAL_MISSION_NOTES,

@@ -848,7 +848,7 @@ export default function FlightPathPlanner() {
               type="button"
               className="mc-btn start"
               disabled={waypoints.length < 2 || missionStatus === MissionStatus.ACTIVE}
-              onClick={() => {
+              onClick={async () => {
                 if (hasOOB) {
                   setSaveMessage(
                     `⚠ Khóa an toàn Geofence: Không thể cất cánh khi điểm ${oobPointLabels} nằm ngoài khung ${activeZoneLabel}!`,
@@ -860,7 +860,23 @@ export default function FlightPathPlanner() {
                 dispatch(setStatus(MissionStatus.ACTIVE));
                 const resolvedName =
                   missionName || `Mission ${new Date().toLocaleDateString('vi-VN')}`;
-                pushRouteToFlightMonitor(resolvedName);
+                let createdMissionId: number | undefined;
+                try {
+                  const res = await apiRequest<{ id?: number }>('/missions', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                      ...missionPayload,
+                      name: resolvedName,
+                      missionName: resolvedName,
+                    }),
+                  });
+                  if (typeof res.data?.id === 'number') {
+                    createdMissionId = res.data.id;
+                  }
+                } catch {
+                  // Fallback local
+                }
+                pushRouteToFlightMonitor(resolvedName, createdMissionId);
               }}
             >
               <Play size={13} /> Bay

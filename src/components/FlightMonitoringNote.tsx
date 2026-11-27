@@ -51,6 +51,10 @@ import {
 } from '../store/slices/flightMonitorSlice';
 import { telemetrySocketClient } from '../services/telemetrySocketClient';
 import {
+  loadStoredSessions,
+  syncSessionsWaypointsToBackend,
+} from '../services/flightMonitorService';
+import {
   updateDroneDetails,
   SignalLevel,
 } from '../store/slices/missionSlice';
@@ -205,6 +209,28 @@ export default function FlightMonitoringNote({
     });
     return () => unsubscribe();
   }, [dispatch, sessions.length]);
+
+  const allRoutesSignature = useMemo(
+    () =>
+      sessions
+        .map(
+          (s) =>
+            `${s.uavId}:${s.waypoints
+              .map((w) => `${w.latitude.toFixed(5)},${w.longitude.toFixed(5)}`)
+              .join('|')}`,
+        )
+        .join(';'),
+    [sessions],
+  );
+
+  useEffect(() => {
+    const current = sessions.length > 0 ? sessions : loadStoredSessions();
+    if (current.length > 0) {
+      void syncSessionsWaypointsToBackend(current);
+    }
+    // Chỉ đẩy lên Backend khi danh sách tọa độ Waypoint thực sự thay đổi (không gọi lại mỗi nhịp bay)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allRoutesSignature]);
 
   useEffect(() => {
     if (!isStreaming) return undefined;

@@ -1,5 +1,10 @@
 package com.iot.simulator;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -297,25 +302,39 @@ public class IoTSimulatorApp {
                 isFastMode);
     }
 
+    private record PlannedRouteInfo(String title, long zoneId, List<WaypointMissionValidator.WaypointItem> waypoints) {}
+
     public static void runUavFlightSimulation(String targetUavId, String brokerUrl, String backendApiUrl, boolean isFastMode) {
         String uavCode = (targetUavId == null || targetUavId.isBlank()) ? "UAV-001" : targetUavId.trim().toUpperCase();
-        String missionName = "Mission-Live-" + uavCode;
-        List<WaypointMissionValidator.WaypointItem> route = UavFlightSimulator.buildZoneWaypoints(uavCode);
+        String missionName = "Mission-Live-" + uavCode + "-" + System.currentTimeMillis();
 
-        printHeader("SMART FARM IOT - GIA LAP UAV BAY REALTIME TELEMETRY (LTJ-35)",
-                "Ma UAV      : " + uavCode + " (" + route.size() + " Waypoints)",
-                "MQTT Broker : " + brokerUrl + " | Backend API: " + backendApiUrl,
-                "Che do chay : " + (isFastMode ? "TEST NHANH (Fast Mode)" : "REALTIME (1 giay/buoc)"),
-                "Topic       : " + UavFlightSimulator.TELEMETRY_TOPIC);
-
-        MqttPublisher publisher = connectOptional(brokerUrl, "UavFlightSim_");
         HttpClient httpClient = (backendApiUrl == null || backendApiUrl.isBlank()) ? null
                 : HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
         String baseApi = (backendApiUrl != null && backendApiUrl.endsWith("/"))
                 ? backendApiUrl.substring(0, backendApiUrl.length() - 1) : backendApiUrl;
 
+        long defaultZoneId = "UAV-002".equals(uavCode) ? 2L : ("UAV-003".equals(uavCode) ? 3L : 1L);
+        PlannedRouteInfo dynamicPlan = (httpClient != null && baseApi != null && !baseApi.isBlank())
+                ? fetchLatestPlannedRoute(httpClient, baseApi, uavCode, defaultZoneId)
+                : null;
+
+        List<WaypointMissionValidator.WaypointItem> route = (dynamicPlan != null)
+                ? dynamicPlan.waypoints()
+                : UavFlightSimulator.buildZoneWaypoints(uavCode);
+        long zoneId = (dynamicPlan != null) ? dynamicPlan.zoneId() : defaultZoneId;
+        String routeSource = (dynamicPlan != null)
+                ? ("Dong bo tu Web (" + dynamicPlan.title() + ")")
+                : "Lo trinh mac dinh Khu vuc";
+
+        printHeader("SMART FARM IOT - GIA LAP UAV BAY REALTIME TELEMETRY (LTJ-35)",
+                "Ma UAV      : " + uavCode + " (" + route.size() + " chang bay - " + routeSource + ")",
+                "MQTT Broker : " + brokerUrl + " | Backend API: " + backendApiUrl,
+                "Che do chay : " + (isFastMode ? "TEST NHANH (Fast Mode)" : "REALTIME (1 giay/buoc)"),
+                "Topic       : " + UavFlightSimulator.TELEMETRY_TOPIC);
+
+        MqttPublisher publisher = connectOptional(brokerUrl, "UavFlightSim_");
+
         // Đăng ký phiên Mission tương ứng trên Backend để đồng bộ đúng mã UAV lên Web SSE
-        long zoneId = "UAV-002".equals(uavCode) ? 2L : ("UAV-003".equals(uavCode) ? 3L : 1L);
         String sensorDeviceId = String.format("DEV-Z%d-001", zoneId);
         String sensorTopic = String.format("%s/zone-%d/%s", TOPIC_BASE, zoneId, sensorDeviceId.toLowerCase());
 
@@ -379,6 +398,85 @@ public class IoTSimulatorApp {
             System.out.println(">> Khong ket noi duoc MQTT Broker -> Chuyen sang che do cuc bo / SQLite.");
         }
         return publisher;
+    }
+
+    private static PlannedRouteInfo fetchLatestPlannedRoute(HttpClient httpClient, String baseApi, String uavCode, long fallbackZoneId) {
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(baseApi + "/missions"))
+                    .timeout(Duration.ofSeconds(3))
+                    .GET()
+                    .build();
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() != 200 || resp.body() == null || resp.body().isBlank()) {
+                return null;
+            }
+            Gson gson = new Gson();
+            JsonObject root = gson.fromJson(resp.body(), JsonObject.class);
+            if (root == null || !root.has("data") || !root.get("data").isJsonArray()) {
+                return null;
+            }
+            JsonArray arr = root.getAsJsonArray("data");
+            for (int i = arr.size() - 1; i >= 0; i--) {
+                if (!arr.get(i).isJsonObject()) continue;
+                JsonObject m = arr.get(i).getAsJsonObject();
+                String name = m.has("name") && !m.get("name").isJsonNull() ? m.get("name").getAsString() : "";
+                if (name.startsWith("Mission-Live-")) continue;
+
+                String mUav = m.has("uavId") && !m.get("uavId").isJsonNull() ? m.get("uavId").getAsString() : "";
+                if (mUav.isBlank() && m.has("uav") && m.get("uav").isJsonObject()) {
+                    JsonObject uObj = m.getAsJsonObject("uav");
+                    if (uObj.has("code") && !uObj.get("code").isJsonNull()) {
+                        mUav = uObj.get("code").getAsString();
+                    }
+                }
+                if (!uavCode.equalsIgnoreCase(mUav.trim())) continue;
+                if (!m.has("waypoints") || !m.get("waypoints").isJsonArray()) continue;
+
+                JsonArray wpArr = m.getAsJsonArray("waypoints");
+                if (wpArr.size() < 2) continue;
+
+                List<WaypointMissionValidator.WaypointItem> parsed = new ArrayList<>();
+                for (int wIdx = 0; wIdx < wpArr.size(); wIdx++) {
+                    if (!wpArr.get(wIdx).isJsonObject()) continue;
+                    JsonObject w = wpArr.get(wIdx).getAsJsonObject();
+                    if (!w.has("latitude") || !w.has("longitude")) continue;
+                    WaypointMissionValidator.WaypointItem item = new WaypointMissionValidator.WaypointItem();
+                    item.order = parsed.size() + 1;
+                    item.latitude = w.get("latitude").getAsDouble();
+                    item.longitude = w.get("longitude").getAsDouble();
+                    item.altitude = (w.has("altitude") && !w.get("altitude").isJsonNull()) ? w.get("altitude").getAsDouble() : 35.0;
+                    item.speed = (w.has("speed") && !w.get("speed").isJsonNull()) ? w.get("speed").getAsDouble() : 8.5;
+                    String rawType = (w.has("actionType") && !w.get("actionType").isJsonNull())
+                            ? w.get("actionType").getAsString()
+                            : ((w.has("type") && !w.get("type").isJsonNull()) ? w.get("type").getAsString() : "NORMAL");
+                    item.type = (parsed.isEmpty()) ? "TAKEOFF" : rawType;
+                    parsed.add(item);
+                }
+                if (parsed.size() < 2) continue;
+
+                // Tự động nối thêm chặng Về trạm (RETURN_HOME) quay về điểm xuất phát WP1 nếu điểm cuối chưa trùng WP1
+                WaypointMissionValidator.WaypointItem first = parsed.get(0);
+                WaypointMissionValidator.WaypointItem last = parsed.get(parsed.size() - 1);
+                double distBackM = WaypointMissionValidator.haversineDistanceMeters(
+                        last.latitude, last.longitude, first.latitude, first.longitude);
+                if (distBackM > 3.0) {
+                    WaypointMissionValidator.WaypointItem returnWp = new WaypointMissionValidator.WaypointItem();
+                    returnWp.order = parsed.size() + 1;
+                    returnWp.latitude = first.latitude;
+                    returnWp.longitude = first.longitude;
+                    returnWp.altitude = 20.0;
+                    returnWp.speed = 8.5;
+                    returnWp.type = "RETURN_HOME";
+                    parsed.add(returnWp);
+                }
+
+                long mZone = (m.has("zoneId") && !m.get("zoneId").isJsonNull()) ? m.get("zoneId").getAsLong() : fallbackZoneId;
+                return new PlannedRouteInfo(name.isBlank() ? ("Lo trinh " + uavCode) : name, mZone, parsed);
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     private static boolean isAtWaypoint(List<WaypointMissionValidator.WaypointItem> route, int wpOrder, double lat, double lng) {
