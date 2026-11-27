@@ -34,11 +34,18 @@ import {
   CheckCircle2,
   Plane,
 } from 'lucide-react';
-import type { RootState } from '../store';
+import type { RootState, AppDispatch } from '../store';
 import { apiRequest } from '../services/api';
+import { loadStoredSessions } from '../services/flightMonitorService';
+import { fetchUAVs } from '../store/slices/deviceSlice';
+import {
+  initFlightMonitorData,
+  syncPlannedMissionToMonitor,
+} from '../store/slices/flightMonitorSlice';
 import {
   setMissionMetadata,
   loadPresetWaypoints,
+  loadRouteForUav,
   addWaypoint,
   removeWaypoint,
   undoLastWaypoint,
@@ -57,7 +64,7 @@ import {
   selectHasOutOfBoundsWaypoints,
   selectMissionPayload,
   WaypointType,
-  GEOFENCE_BOUNDS,
+  ZONE_GEOFENCE_BOUNDS,
   PRESET_DEMO_WAYPOINTS,
 } from '../store/slices/waypointSlice';
 import {
@@ -84,9 +91,68 @@ import './FlightPathPlanner.css';
  * 6. Quản lý trạng thái Mission (Start / Pause / RTH Abort) & Export JSON payload (LTJ-17)
  */
 
-// ==================== Map Center (SmartFarm Đà Lạt — đồng nhất Sprint 4/7/8) ====================
-const MAP_CENTER: [number, number] = [11.9418, 108.4596];
+// ==================== Map Center & Sub-Zone Areas (SmartFarm Đà Lạt) ====================
+const MAP_CENTER: [number, number] = [11.9378, 108.4652];
 const MAP_ZOOM = 15;
+
+const ZONE_FLIGHT_AREAS: Record<
+  number,
+  {
+    name: string;
+    color: string;
+    bounds: [[number, number], [number, number]];
+    presetWaypoints: Array<{
+      latitude: number;
+      longitude: number;
+      altitude: number;
+      speed: number;
+      type: WaypointType;
+    }>;
+  }
+> = {
+  1: {
+    name: 'Zone A1 — Khu A Nhà Kính Dâu Tây',
+    color: '#10b981',
+    bounds: [
+      [ZONE_GEOFENCE_BOUNDS[1].minLat, ZONE_GEOFENCE_BOUNDS[1].minLng],
+      [ZONE_GEOFENCE_BOUNDS[1].maxLat, ZONE_GEOFENCE_BOUNDS[1].maxLng],
+    ],
+    presetWaypoints: [
+      { latitude: 11.9389, longitude: 108.4654, altitude: 30, speed: 8, type: WaypointType.TAKEOFF },
+      { latitude: 11.9402, longitude: 108.4658, altitude: 50, speed: 10, type: WaypointType.NORMAL },
+      { latitude: 11.9401, longitude: 108.4676, altitude: 50, speed: 8, type: WaypointType.HOVER },
+      { latitude: 11.9390, longitude: 108.4672, altitude: 20, speed: 5, type: WaypointType.LANDING },
+    ],
+  },
+  2: {
+    name: 'Zone B1 — Khu B Thủy Canh Trung Tâm',
+    color: '#0ea5e9',
+    bounds: [
+      [ZONE_GEOFENCE_BOUNDS[2].minLat, ZONE_GEOFENCE_BOUNDS[2].minLng],
+      [ZONE_GEOFENCE_BOUNDS[2].maxLat, ZONE_GEOFENCE_BOUNDS[2].maxLng],
+    ],
+    presetWaypoints: [
+      { latitude: 11.9374, longitude: 108.4654, altitude: 35, speed: 9, type: WaypointType.TAKEOFF },
+      { latitude: 11.9383, longitude: 108.4658, altitude: 50, speed: 9.5, type: WaypointType.NORMAL },
+      { latitude: 11.9382, longitude: 108.4676, altitude: 50, speed: 9, type: WaypointType.HOVER },
+      { latitude: 11.9373, longitude: 108.4673, altitude: 25, speed: 6, type: WaypointType.LANDING },
+    ],
+  },
+  3: {
+    name: 'Zone C1 — Khu C Vườn Cây Ăn Quả',
+    color: '#f59e0b',
+    bounds: [
+      [ZONE_GEOFENCE_BOUNDS[3].minLat, ZONE_GEOFENCE_BOUNDS[3].minLng],
+      [ZONE_GEOFENCE_BOUNDS[3].maxLat, ZONE_GEOFENCE_BOUNDS[3].maxLng],
+    ],
+    presetWaypoints: [
+      { latitude: 11.9352, longitude: 108.4655, altitude: 30, speed: 7.5, type: WaypointType.TAKEOFF },
+      { latitude: 11.9365, longitude: 108.4659, altitude: 45, speed: 8, type: WaypointType.NORMAL },
+      { latitude: 11.9364, longitude: 108.4678, altitude: 50, speed: 8, type: WaypointType.HOVER },
+      { latitude: 11.9353, longitude: 108.4676, altitude: 25, speed: 5, type: WaypointType.LANDING },
+    ],
+  },
+};
 
 const WAYPOINT_TYPE_LABELS: Record<WaypointType, string> = {
   TAKEOFF: '🛫 Cất cánh (TAKEOFF)',
@@ -104,6 +170,18 @@ const MISSION_STATUS_LABELS: Record<MissionStatus, string> = {
   COMPLETED: 'Hoàn thành',
   ABORTED: 'Khẩn cấp (RTH)',
 };
+
+function inferWaypointType(label: string, idx: number, total: number): WaypointType {
+  const upper = label.toUpperCase();
+  if (upper.includes('TAKEOFF')) return WaypointType.TAKEOFF;
+  if (upper.includes('HOVER')) return WaypointType.HOVER;
+  if (upper.includes('RETURN_HOME') || upper.includes('RTH')) return WaypointType.RETURN_HOME;
+  if (upper.includes('LANDING')) return WaypointType.LANDING;
+  if (upper.includes('NORMAL')) return WaypointType.NORMAL;
+  if (idx === 0) return WaypointType.TAKEOFF;
+  if (idx === total - 1) return WaypointType.LANDING;
+  return WaypointType.NORMAL;
+}
 
 // ==================== Custom Marker Icon (Cached) ====================
 const waypointIconCache = new Map<string, L.DivIcon>();
@@ -148,7 +226,7 @@ function MapClickHandler() {
 
 // ==================== Main Component ====================
 export default function FlightPathPlanner() {
-  const dispatch = useDispatch();
+  const dispatch = useDispatch<AppDispatch>();
   const waypoints = useSelector(selectWaypoints);
   const telemetry = useSelector(selectTelemetry);
   const isDrawing = useSelector(selectIsDrawingMode);
@@ -161,6 +239,94 @@ export default function FlightPathPlanner() {
   const uavId = useSelector((state: RootState) => state.waypoint.uavId);
   const zoneId = useSelector((state: RootState) => state.waypoint.zoneId);
   const missionStatus = useSelector((state: RootState) => state.mission.status);
+  const deviceUavs = useSelector((state: RootState) => state.device.uavs);
+  const monitorSessions = useSelector((state: RootState) => state.flightMonitor.sessions);
+
+  const uavOptions = useMemo(() => {
+    const baseFleet = [
+      { id: 'UAV-001', name: 'UAV Trinh sát 01', model: 'DJI Matrice 300 RTK' },
+      { id: 'UAV-002', name: 'UAV Giám sát 02', model: 'DJI Matrice 30T' },
+      { id: 'UAV-003', name: 'UAV Tuần tra 03', model: 'Autel EVO II Dual 640T' },
+    ];
+    const seen = new Set(baseFleet.map((u) => u.id));
+    const extras = deviceUavs
+      .filter((u) => !seen.has(u.id) && u.id !== 'UAV-004')
+      .map((u) => ({ id: u.id, name: u.name, model: u.model }));
+    return [...baseFleet, ...extras];
+  }, [deviceUavs]);
+
+  const loadUavCurrentRoute = useCallback(
+    (rawTargetUavId: string, mapInstance: L.Map | null) => {
+      const targetUavId = rawTargetUavId === 'UAV-004' ? 'UAV-001' : rawTargetUavId;
+      const hasStaleSession = monitorSessions.some(
+        (s) =>
+          s.uavId === 'UAV-004' ||
+          s.zoneId > 3 ||
+          s.waypoints.some((w) => w.longitude < 108.4645),
+      );
+      if (hasStaleSession) {
+        dispatch(initFlightMonitorData());
+      }
+      const sessions =
+        monitorSessions.length > 0 && !hasStaleSession
+          ? monitorSessions
+          : loadStoredSessions();
+      const matched = sessions.find((s) => s.uavId === targetUavId);
+
+      if (matched && matched.waypoints.length > 0) {
+        const mappedWaypoints = matched.waypoints.map((wp, idx, arr) => ({
+          latitude: wp.latitude,
+          longitude: wp.longitude,
+          altitude: wp.altitudeM,
+          speed: wp.targetSpeedMs,
+          type: inferWaypointType(wp.label, idx, arr.length),
+        }));
+
+        dispatch(
+          loadRouteForUav({
+            uavId: targetUavId,
+            missionName: matched.missionName,
+            zoneId: matched.zoneId,
+            waypoints: mappedWaypoints,
+          }),
+        );
+
+        const mappedStatus =
+          matched.status === 'FLYING'
+            ? MissionStatus.ACTIVE
+            : matched.status === 'RETURNING'
+              ? MissionStatus.ABORTED
+              : matched.status === 'COMPLETED'
+                ? MissionStatus.COMPLETED
+                : MissionStatus.STANDBY;
+        dispatch(setStatus(mappedStatus));
+
+        if (mapInstance && mappedWaypoints.length >= 1) {
+          const zoneArea = ZONE_FLIGHT_AREAS[matched.zoneId] ?? ZONE_FLIGHT_AREAS[1];
+          const bounds = L.latLngBounds(zoneArea.bounds);
+          mappedWaypoints.forEach((w) => bounds.extend([w.latitude, w.longitude]));
+          mapInstance.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+        }
+      } else {
+        dispatch(
+          loadRouteForUav({
+            uavId: targetUavId,
+            missionName: `Tuần tra định kỳ (${targetUavId})`,
+            zoneId: 1,
+            waypoints: [],
+          }),
+        );
+        dispatch(setStatus(MissionStatus.STANDBY));
+      }
+    },
+    [dispatch, monitorSessions],
+  );
+
+  useEffect(() => {
+    if (deviceUavs.length === 0) {
+      dispatch(fetchUAVs());
+    }
+  }, [dispatch, deviceUavs.length]);
 
   const [showJsonModal, setShowJsonModal] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -176,6 +342,16 @@ export default function FlightPathPlanner() {
 
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didInitialRouteLoadRef = useRef(false);
+
+  // Tự động nạp lộ trình bay hiện tại của UAV đang chọn ngay khi mở trang Lộ trình bay
+  useEffect(() => {
+    if (!mapRef || didInitialRouteLoadRef.current) return;
+    didInitialRouteLoadRef.current = true;
+    if (!isDrawing) {
+      loadUavCurrentRoute(uavId, mapRef);
+    }
+  }, [mapRef, isDrawing, uavId, loadUavCurrentRoute]);
 
   useEffect(() => {
     return () => {
@@ -240,24 +416,47 @@ export default function FlightPathPlanner() {
     [waypoints],
   );
 
-  // Geofence rectangle
-  const geofenceCorners: [[number, number], [number, number]] = [
-    [GEOFENCE_BOUNDS.minLat, GEOFENCE_BOUNDS.minLng],
-    [GEOFENCE_BOUNDS.maxLat, GEOFENCE_BOUNDS.maxLng],
-  ];
+  const activeZoneLabel = ZONE_GEOFENCE_BOUNDS[zoneId]?.code ?? 'Zone A1';
+  const oobPointLabels = useMemo(
+    () => waypoints.filter((w) => w.isOutOfBounds).map((w) => `#${w.order}`).join(', '),
+    [waypoints],
+  );
 
-  // Fit all waypoints in view
+  // Fit all waypoints & active flight zone frame in view
   const fitBounds = useCallback(() => {
-    if (mapRef && waypoints.length > 0) {
-      const bounds = L.latLngBounds(
-        waypoints.map(wp => [wp.latitude, wp.longitude] as [number, number]),
-      );
-      mapRef.fitBounds(bounds, { padding: [50, 50] });
-    }
-  }, [mapRef, waypoints]);
+    if (!mapRef) return;
+    const zoneArea = ZONE_FLIGHT_AREAS[zoneId] ?? ZONE_FLIGHT_AREAS[1];
+    const bounds = L.latLngBounds(zoneArea.bounds);
+    waypoints.forEach((wp) => bounds.extend([wp.latitude, wp.longitude]));
+    mapRef.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
+  }, [mapRef, zoneId, waypoints]);
 
-  // Load Preset Demo Route (Đà Lạt — khớp PRESET_DEMO_WAYPOINTS)
+  const applyZonePresetToMap = useCallback(
+    (targetZoneId: number) => {
+      const zoneCfg = ZONE_FLIGHT_AREAS[targetZoneId] ?? ZONE_FLIGHT_AREAS[1];
+      dispatch(
+        loadRouteForUav({
+          uavId,
+          missionName: `Tuần tra ${zoneCfg.name} (${uavId})`,
+          zoneId: targetZoneId,
+          waypoints: zoneCfg.presetWaypoints,
+        }),
+      );
+      if (mapRef) {
+        const bounds = L.latLngBounds(zoneCfg.bounds);
+        mapRef.fitBounds(bounds, { padding: [45, 45], maxZoom: 16 });
+      }
+    },
+    [dispatch, uavId, mapRef],
+  );
+
+  // Load Preset Demo Route theo đúng Zone đang chọn
   const handleLoadPreset = useCallback(() => {
+    const zoneCfg = ZONE_FLIGHT_AREAS[zoneId];
+    if (zoneCfg) {
+      applyZonePresetToMap(zoneId);
+      return;
+    }
     dispatch(loadPresetWaypoints());
     if (mapRef && PRESET_DEMO_WAYPOINTS.length > 0) {
       const bounds = L.latLngBounds(
@@ -265,7 +464,7 @@ export default function FlightPathPlanner() {
       );
       mapRef.fitBounds(bounds, { padding: [60, 60] });
     }
-  }, [dispatch, mapRef]);
+  }, [zoneId, applyZonePresetToMap, dispatch, mapRef]);
 
   // Handle marker drag end
   const handleDragEnd = useCallback((waypointId: number, e: L.DragEndEvent) => {
@@ -286,9 +485,45 @@ export default function FlightPathPlanner() {
     }
   }, [dispatch, mapRef]);
 
-  // Save mission (Hybrid: gửi POST /api/v1/missions lên Backend Dev 2 + lưu Redux local)
+  const pushRouteToFlightMonitor = useCallback(
+    (resolvedName: string, backendMissionId?: number) => {
+      if (waypoints.length < 2) return;
+      const chosenUav = uavOptions.find((u) => u.id === uavId);
+      dispatch(
+        syncPlannedMissionToMonitor({
+          uavId,
+          uavName: chosenUav?.name,
+          uavModel: chosenUav?.model,
+          missionName: resolvedName,
+          zoneId,
+          totalDistanceM: telemetry.totalDistanceM,
+          estimatedTimeSeconds: telemetry.estimatedTimeSeconds,
+          backendMissionId,
+          waypoints: waypoints.map((wp) => ({
+            order: wp.order,
+            latitude: wp.latitude,
+            longitude: wp.longitude,
+            altitude: wp.altitude,
+            speed: wp.speed,
+            type: wp.type,
+          })),
+        }),
+      );
+    },
+    [dispatch, uavId, uavOptions, waypoints, zoneId, telemetry],
+  );
+
+  // Save mission (Hybrid: gửi POST /api/v1/missions lên Backend + đồng bộ sang Giám sát Chuyến bay)
   const handleSaveMission = useCallback(async () => {
     if (waypoints.length < 2) return;
+    if (hasOOB) {
+      setSaveMessage(
+        `⚠ Không thể lưu lộ trình: Điểm ${oobPointLabels} đang nằm ngoài khung bay an toàn của ${activeZoneLabel}! Hãy kéo điểm đỏ vào lại trong khung.`,
+      );
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => setSaveMessage(null), 4500);
+      return;
+    }
     const resolvedName = missionName || `Mission ${new Date().toLocaleDateString('vi-VN')}`;
     dispatch(saveMissionRoute({
       missionName: resolvedName,
@@ -301,8 +536,9 @@ export default function FlightPathPlanner() {
     }));
 
     let syncedBackend = false;
+    let createdMissionId: number | undefined;
     try {
-      await apiRequest('/missions', {
+      const res = await apiRequest<{ id?: number }>('/missions', {
         method: 'POST',
         body: JSON.stringify({
           ...missionPayload,
@@ -311,18 +547,34 @@ export default function FlightPathPlanner() {
         }),
       });
       syncedBackend = true;
+      if (typeof res.data?.id === 'number') {
+        createdMissionId = res.data.id;
+      }
     } catch {
       // Hybrid fallback khi Backend chưa bật
     }
 
+    pushRouteToFlightMonitor(resolvedName, createdMissionId);
+
     setSaveMessage(
       syncedBackend
-        ? `Đã lưu và đồng bộ nhiệm vụ "${resolvedName}" lên Backend (${waypoints.length} WP · ${telemetry.totalDistanceM}m)`
-        : `Đã lưu nhiệm vụ "${resolvedName}" (${waypoints.length} WP · ${telemetry.totalDistanceM}m)`,
+        ? `Đã lưu & đồng bộ lộ trình "${resolvedName}" cho ${uavId} sang Giám sát & Backend (${waypoints.length} WP · ${telemetry.totalDistanceM}m)`
+        : `Đã lưu & đồng bộ lộ trình "${resolvedName}" cho ${uavId} sang Giám sát (${waypoints.length} WP · ${telemetry.totalDistanceM}m)`,
     );
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(() => setSaveMessage(null), 4000);
-  }, [dispatch, waypoints, telemetry, missionPayload, missionName]);
+  }, [
+    dispatch,
+    waypoints,
+    hasOOB,
+    oobPointLabels,
+    activeZoneLabel,
+    telemetry,
+    missionPayload,
+    missionName,
+    uavId,
+    pushRouteToFlightMonitor,
+  ]);
 
   // Copy JSON (an toàn với try/catch & cleanup timer)
   const handleCopyJson = useCallback(async () => {
@@ -356,17 +608,33 @@ export default function FlightPathPlanner() {
 
           <MapClickHandler />
 
-          {/* Geofence boundary rectangle */}
-          <Rectangle
-            bounds={geofenceCorners}
-            pathOptions={{
-              color: '#6366f1',
-              weight: 2,
-              dashArray: '8 6',
-              fillColor: '#6366f1',
-              fillOpacity: 0.04,
-            }}
-          />
+          {/* Ranh giới 4 khung bay phân khu canh tác (Zone A1, B1, C1, D1) */}
+          {Object.entries(ZONE_FLIGHT_AREAS).map(([idStr, area]) => {
+            const zNum = Number(idStr);
+            const isActiveZone = zNum === zoneId;
+            const zoneBorderColor = isActiveZone && hasOOB ? '#ef4444' : area.color;
+            return (
+              <Rectangle
+                key={zNum}
+                bounds={area.bounds}
+                pathOptions={{
+                  color: zoneBorderColor,
+                  weight: isActiveZone ? 3 : 1.3,
+                  dashArray: isActiveZone ? (hasOOB ? '8 5' : undefined) : '5 5',
+                  fillColor: zoneBorderColor,
+                  fillOpacity: isActiveZone ? 0.14 : 0.03,
+                }}
+              >
+                <Popup>
+                  <strong>{area.name}</strong>
+                  <br />
+                  {isActiveZone
+                    ? 'Khung bay an toàn đang kích hoạt (Kéo điểm ra ngoài khung sẽ bật cảnh báo đỏ)'
+                    : 'Phân khu bay lân cận'}
+                </Popup>
+              </Rectangle>
+            );
+          })}
 
           {/* Flight path polyline */}
           {polylinePositions.length >= 2 && (
@@ -405,7 +673,9 @@ export default function FlightPathPlanner() {
                   {wp.isOutOfBounds && (
                     <>
                       <br />
-                      <span style={{ color: '#f87171' }}>⚠ Ngoài vùng an toàn</span>
+                      <span style={{ color: '#dc2626', fontWeight: 700 }}>
+                        ⚠ Vượt ra ngoài khung bay {activeZoneLabel}!
+                      </span>
                     </>
                   )}
                 </div>
@@ -475,8 +745,11 @@ export default function FlightPathPlanner() {
         {/* Geofence warning */}
         {hasOOB && (
           <div className="geofence-warning">
-            <AlertTriangle size={16} />
-            Cảnh báo: Có điểm bay nằm ngoài ranh giới an toàn của nông trại!
+            <AlertTriangle size={17} />
+            <span>
+              Cảnh báo vượt khung bay: Điểm <strong>{oobPointLabels}</strong> đang nằm ngoài khung cho phép của{' '}
+              <strong>{activeZoneLabel}</strong>! Hãy kéo điểm đỏ vào lại trong khung màu.
+            </span>
           </div>
         )}
       </div>
@@ -544,20 +817,24 @@ export default function FlightPathPlanner() {
 
           <div className="config-row">
             <label>Thiết bị / Zone</label>
-            <div style={{ display: 'flex', gap: 6, flex: 1, justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: 6, flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
               <select
                 className="config-select-input"
+                style={{ flex: 1, minWidth: 0, textOverflow: 'ellipsis' }}
                 value={uavId}
-                onChange={(e) => dispatch(setMissionMetadata({ uavId: e.target.value }))}
+                onChange={(e) => loadUavCurrentRoute(e.target.value, mapRef)}
               >
-                <option value="UAV-001">UAV-001 (Agras T30)</option>
-                <option value="UAV-002">UAV-002 (Mavic 3M)</option>
-                <option value="UAV-005">UAV-005 (Phantom 4 RTK)</option>
+                {uavOptions.map((uav) => (
+                  <option key={uav.id} value={uav.id}>
+                    {uav.id} ({uav.model})
+                  </option>
+                ))}
               </select>
               <select
                 className="config-select-input"
+                style={{ flexShrink: 0, width: 92 }}
                 value={zoneId}
-                onChange={(e) => dispatch(setMissionMetadata({ zoneId: Number(e.target.value) }))}
+                onChange={(e) => applyZonePresetToMap(Number(e.target.value))}
               >
                 <option value={1}>Zone A1</option>
                 <option value={2}>Zone B1</option>
@@ -571,7 +848,20 @@ export default function FlightPathPlanner() {
               type="button"
               className="mc-btn start"
               disabled={waypoints.length < 2 || missionStatus === MissionStatus.ACTIVE}
-              onClick={() => dispatch(setStatus(MissionStatus.ACTIVE))}
+              onClick={() => {
+                if (hasOOB) {
+                  setSaveMessage(
+                    `⚠ Khóa an toàn Geofence: Không thể cất cánh khi điểm ${oobPointLabels} nằm ngoài khung ${activeZoneLabel}!`,
+                  );
+                  if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+                  saveTimerRef.current = setTimeout(() => setSaveMessage(null), 4500);
+                  return;
+                }
+                dispatch(setStatus(MissionStatus.ACTIVE));
+                const resolvedName =
+                  missionName || `Mission ${new Date().toLocaleDateString('vi-VN')}`;
+                pushRouteToFlightMonitor(resolvedName);
+              }}
             >
               <Play size={13} /> Bay
             </button>
@@ -685,7 +975,9 @@ export default function FlightPathPlanner() {
                       </div>
                       <div className="meta">
                         Alt: {wp.altitude}m · Spd: {wp.speed}m/s · {wp.type}
-                        {wp.isOutOfBounds && ' · ⚠ OOB'}
+                        {wp.isOutOfBounds && (
+                          <strong style={{ color: '#dc2626' }}> · ⚠ Ngoài khung bay</strong>
+                        )}
                       </div>
                     </div>
                     <button

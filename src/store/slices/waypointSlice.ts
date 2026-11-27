@@ -32,20 +32,51 @@ export const DEFAULT_ALTITUDE = 50;   // meters
 export const DEFAULT_SPEED = 8;       // m/s
 export const BATTERY_DRAIN_RATE = 0.35; // % per minute of flight
 
-/** Geofence boundary — SmartFarm Đà Lạt area (polygon bounding box quanh 11.94, 108.45) */
+/** Geofence boundary tổng khu vực nông trại Đà Lạt */
 export const GEOFENCE_BOUNDS = {
-  minLat: 11.925,
-  maxLat: 11.955,
-  minLng: 108.440,
-  maxLng: 108.475,
+  minLat: 11.9340,
+  maxLat: 11.9415,
+  minLng: 108.4605,
+  maxLng: 108.4692,
 };
 
-/** Preset Demo Waypoints (Khu A Đà Lạt — Khớp tọa độ chuẩn 11.94, 108.45 của Sprint 7 & 8) */
+/** Khung bay an toàn (Geofence) riêng cho 3 Phân khu chuẩn Backend (Zone A1, B1, C1) */
+export const ZONE_GEOFENCE_BOUNDS: Record<
+  number,
+  { minLat: number; maxLat: number; minLng: number; maxLng: number; code: string; label: string }
+> = {
+  1: {
+    minLat: 11.9386,
+    maxLat: 11.9406,
+    minLng: 108.4650,
+    maxLng: 108.4682,
+    code: 'Zone A1',
+    label: 'Khu A - Nhà Kính Bắc Thung Lũng',
+  },
+  2: {
+    minLat: 11.9370,
+    maxLat: 11.9385,
+    minLng: 108.4650,
+    maxLng: 108.4682,
+    code: 'Zone B1',
+    label: 'Khu B - Thủy Canh Trung Tâm',
+  },
+  3: {
+    minLat: 11.9348,
+    maxLat: 11.9368,
+    minLng: 108.4650,
+    maxLng: 108.4684,
+    code: 'Zone C1',
+    label: 'Khu C - Vườn Cây Ăn Quả Phía Nam',
+  },
+};
+
+/** Preset Demo Waypoints (Khu A Đà Lạt — Thung lũng canh tác trống trải Đông Nam Đà Lạt) */
 export const PRESET_DEMO_WAYPOINTS: Omit<Waypoint, 'id' | 'isOutOfBounds'>[] = [
-  { order: 1, latitude: 11.9404, longitude: 108.4583, altitude: 30, speed: 8, type: WaypointType.TAKEOFF },
-  { order: 2, latitude: 11.9416, longitude: 108.4595, altitude: 50, speed: 10, type: WaypointType.NORMAL },
-  { order: 3, latitude: 11.9428, longitude: 108.4608, altitude: 50, speed: 8, type: WaypointType.HOVER },
-  { order: 4, latitude: 11.9435, longitude: 108.4599, altitude: 20, speed: 5, type: WaypointType.LANDING },
+  { order: 1, latitude: 11.9389, longitude: 108.4654, altitude: 30, speed: 8, type: WaypointType.TAKEOFF },
+  { order: 2, latitude: 11.9402, longitude: 108.4658, altitude: 50, speed: 10, type: WaypointType.NORMAL },
+  { order: 3, latitude: 11.9401, longitude: 108.4676, altitude: 50, speed: 8, type: WaypointType.HOVER },
+  { order: 4, latitude: 11.9390, longitude: 108.4672, altitude: 20, speed: 5, type: WaypointType.LANDING },
 ];
 
 // ==================== Interfaces ====================
@@ -108,13 +139,14 @@ const haversineDistance = (
   return R * c;
 };
 
-/** Check if a coordinate is within the geofence boundary */
-const isWithinGeofence = (lat: number, lng: number): boolean => {
+/** Kiểm tra tọa độ điểm bay có nằm gọn trong Khung bay an toàn của Zone đang chọn hay không */
+export const isWithinZoneGeofence = (lat: number, lng: number, zoneId = 1): boolean => {
+  const box = ZONE_GEOFENCE_BOUNDS[zoneId] ?? ZONE_GEOFENCE_BOUNDS[1];
   return (
-    lat >= GEOFENCE_BOUNDS.minLat &&
-    lat <= GEOFENCE_BOUNDS.maxLat &&
-    lng >= GEOFENCE_BOUNDS.minLng &&
-    lng <= GEOFENCE_BOUNDS.maxLng
+    lat >= box.minLat &&
+    lat <= box.maxLat &&
+    lng >= box.minLng &&
+    lng <= box.maxLng
   );
 };
 
@@ -202,19 +234,59 @@ const waypointSlice = createSlice({
     }>) => {
       if (action.payload.missionName !== undefined) state.missionName = action.payload.missionName;
       if (action.payload.uavId !== undefined) state.uavId = action.payload.uavId;
-      if (action.payload.zoneId !== undefined) state.zoneId = action.payload.zoneId;
+      if (action.payload.zoneId !== undefined) {
+        state.zoneId = action.payload.zoneId;
+        state.waypoints = state.waypoints.map((wp) => ({
+          ...wp,
+          isOutOfBounds: !isWithinZoneGeofence(wp.latitude, wp.longitude, state.zoneId),
+        }));
+      }
     },
 
-    /** Load the 4-waypoint Preset Demo route in Khu A */
+    /** Load the 4-waypoint Preset Demo route in Khu A (preserving selected UAV) */
     loadPresetWaypoints: (state) => {
       nextWaypointId = 1;
-      state.missionName = 'Tuần tra Khu A - Sáng';
-      state.uavId = 'UAV-001';
+      state.missionName = `Tuần tra Khu A (${state.uavId})`;
       state.zoneId = 1;
       state.waypoints = PRESET_DEMO_WAYPOINTS.map(wp => ({
         ...wp,
         id: nextWaypointId++,
-        isOutOfBounds: !isWithinGeofence(wp.latitude, wp.longitude),
+        isOutOfBounds: !isWithinZoneGeofence(wp.latitude, wp.longitude, 1),
+      }));
+      state.selectedWaypointId = state.waypoints[0]?.id ?? null;
+      state.isDrawingMode = false;
+      state.telemetry = recalcTelemetry(state.waypoints);
+    },
+
+    /** Load the active route of a specific UAV session into the planner */
+    loadRouteForUav: (
+      state,
+      action: PayloadAction<{
+        uavId: string;
+        missionName: string;
+        zoneId: number;
+        waypoints: Array<{
+          latitude: number;
+          longitude: number;
+          altitude: number;
+          speed: number;
+          type: WaypointType;
+        }>;
+      }>,
+    ) => {
+      nextWaypointId = 1;
+      state.uavId = action.payload.uavId;
+      state.missionName = action.payload.missionName;
+      state.zoneId = action.payload.zoneId;
+      state.waypoints = action.payload.waypoints.map((wp, idx) => ({
+        id: nextWaypointId++,
+        order: idx + 1,
+        latitude: wp.latitude,
+        longitude: wp.longitude,
+        altitude: wp.altitude,
+        speed: wp.speed,
+        type: wp.type,
+        isOutOfBounds: !isWithinZoneGeofence(wp.latitude, wp.longitude, action.payload.zoneId),
       }));
       state.selectedWaypointId = state.waypoints[0]?.id ?? null;
       state.isDrawingMode = false;
@@ -239,7 +311,7 @@ const waypointSlice = createSlice({
         speed: action.payload.speed ?? state.defaultSpeed,
         type: action.payload.type ?? defaultType,
         order: state.waypoints.length + 1,
-        isOutOfBounds: !isWithinGeofence(latitude, longitude),
+        isOutOfBounds: !isWithinZoneGeofence(latitude, longitude, state.zoneId),
       };
       state.waypoints.push(newWaypoint);
       state.telemetry = recalcTelemetry(state.waypoints);
@@ -285,7 +357,11 @@ const waypointSlice = createSlice({
         const updated = { ...state.waypoints[index], ...sanitizedPayload };
         // Re-check geofence if coordinates changed
         if (action.payload.latitude !== undefined || action.payload.longitude !== undefined) {
-          updated.isOutOfBounds = !isWithinGeofence(updated.latitude, updated.longitude);
+          updated.isOutOfBounds = !isWithinZoneGeofence(
+            updated.latitude,
+            updated.longitude,
+            state.zoneId,
+          );
         }
         state.waypoints[index] = updated;
         state.telemetry = recalcTelemetry(state.waypoints);
@@ -358,6 +434,7 @@ const waypointSlice = createSlice({
 export const {
   setMissionMetadata,
   loadPresetWaypoints,
+  loadRouteForUav,
   addWaypoint,
   removeWaypoint,
   undoLastWaypoint,

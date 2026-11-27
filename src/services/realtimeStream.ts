@@ -19,16 +19,15 @@ import type {
   RealtimeStats,
 } from '../types/realtime';
 import { DEFAULT_THRESHOLDS } from '../types/realtime';
-import type { SensorType } from '../types';
+import type { SensorType, SensorNode } from '../types';
+import { apiRequest } from './api';
 
-// ==================== Dữ liệu Mock cảm biến Realtime ====================
+// ==================== Dữ liệu cảm biến Realtime (Đặt chuẩn vào các thung lũng/đồi canh tác Đà Lạt, tránh Quốc lộ) ====================
 
 const ZONE_LOCATIONS: Record<number, { name: string; center: { lat: number; lng: number } }> = {
-  1: { name: 'Lúa nước - Zone A1', center: { lat: 10.8505, lng: 106.7720 } },
-  2: { name: 'Rau màu - Zone B1', center: { lat: 10.8515, lng: 106.7735 } },
-  3: { name: 'Nhà kính - Zone C1', center: { lat: 10.8498, lng: 106.7745 } },
-  4: { name: 'Cây ăn quả - Zone D1', center: { lat: 10.8520, lng: 106.7710 } },
-  5: { name: 'Thí nghiệm - Zone E1', center: { lat: 10.8490, lng: 106.7730 } },
+  1: { name: 'Khu Vực A - Dâu Tây Thủy Canh', center: { lat: 11.9396, lng: 108.4666 } },
+  2: { name: 'Khu Vực B - Rau Xà Lách Thủy Canh', center: { lat: 11.9378, lng: 108.4665 } },
+  3: { name: 'Khu Vực C - Cà Chua Bi Nhà Kính', center: { lat: 11.9358, lng: 108.4666 } },
 };
 
 function randomOffset(base: number, range: number): number {
@@ -92,24 +91,54 @@ function generateStatus(battery: number, signal: number): RealtimeStatus {
  * Dùng để khởi tạo Redux Store, tương tự MOCK_SENSORS nhưng có thêm
  * chỉ số đo realtime, pin, tín hiệu, và tọa độ trên bản đồ.
  */
+export const IOT_VALLEY_SENSOR_COORDS: Record<string, { lat: number; lng: number; zoneId: number }> = {
+  // Khu A (Zone A1 — 4 cảm biến IoT chuẩn: TEMP, HUM, SOIL, LIGHT)
+  'DEV-Z1-001-TEMP': { lat: 11.9401, lng: 108.4659, zoneId: 1 },
+  'DEV-Z1-001-HUM': { lat: 11.9399, lng: 108.4674, zoneId: 1 },
+  'DEV-Z1-001-SOIL': { lat: 11.9391, lng: 108.4658, zoneId: 1 },
+  'DEV-Z1-001-LIGHT': { lat: 11.9392, lng: 108.4673, zoneId: 1 },
+
+  // Khu B (Zone B1 — 4 cảm biến IoT chuẩn: TEMP, HUM, SOIL, LIGHT)
+  'DEV-Z2-001-TEMP': { lat: 11.9382, lng: 108.4658, zoneId: 2 },
+  'DEV-Z2-001-HUM': { lat: 11.9381, lng: 108.4674, zoneId: 2 },
+  'DEV-Z2-001-SOIL': { lat: 11.9374, lng: 108.4657, zoneId: 2 },
+  'DEV-Z2-001-LIGHT': { lat: 11.9373, lng: 108.4673, zoneId: 2 },
+
+  // Khu C (Zone C1 — 4 cảm biến IoT chuẩn: TEMP, HUM, SOIL, LIGHT)
+  'DEV-Z3-001-TEMP': { lat: 11.9363, lng: 108.4658, zoneId: 3 },
+  'DEV-Z3-001-HUM': { lat: 11.9362, lng: 108.4676, zoneId: 3 },
+  'DEV-Z3-001-SOIL': { lat: 11.9353, lng: 108.4657, zoneId: 3 },
+  'DEV-Z3-001-LIGHT': { lat: 11.9354, lng: 108.4674, zoneId: 3 },
+};
+
 export function generateInitialSensors(): RealtimeSensorNode[] {
-  const sensorConfigs: { code: string; type: SensorType; zoneId: number }[] = [
-    { code: 'TEMP-001', type: 'TEMPERATURE', zoneId: 1 },
-    { code: 'HUMI-001', type: 'HUMIDITY', zoneId: 1 },
-    { code: 'SOIL-001', type: 'SOIL_MOISTURE', zoneId: 2 },
-    { code: 'LIGHT-001', type: 'LIGHT', zoneId: 2 },
-    { code: 'CO2-001', type: 'CO2', zoneId: 3 },
-    { code: 'TEMP-002', type: 'TEMPERATURE', zoneId: 3 },
-    { code: 'HUMI-002', type: 'HUMIDITY', zoneId: 1 },
-    { code: 'SOIL-002', type: 'SOIL_MOISTURE', zoneId: 4 },
-    { code: 'TEMP-003', type: 'TEMPERATURE', zoneId: 4 },
-    { code: 'CO2-002', type: 'CO2', zoneId: 5 },
+  const sensorConfigs: {
+    code: string;
+    type: SensorType;
+    zoneId: number;
+    lat: number;
+    lng: number;
+  }[] = [
+    { code: 'DEV-Z1-001-TEMP', type: 'TEMPERATURE', zoneId: 1, lat: 11.9401, lng: 108.4659 },
+    { code: 'DEV-Z1-001-HUM', type: 'HUMIDITY', zoneId: 1, lat: 11.9399, lng: 108.4674 },
+    { code: 'DEV-Z1-001-SOIL', type: 'SOIL_MOISTURE', zoneId: 1, lat: 11.9391, lng: 108.4658 },
+    { code: 'DEV-Z1-001-LIGHT', type: 'LIGHT', zoneId: 1, lat: 11.9392, lng: 108.4673 },
+
+    { code: 'DEV-Z2-001-TEMP', type: 'TEMPERATURE', zoneId: 2, lat: 11.9382, lng: 108.4658 },
+    { code: 'DEV-Z2-001-HUM', type: 'HUMIDITY', zoneId: 2, lat: 11.9381, lng: 108.4674 },
+    { code: 'DEV-Z2-001-SOIL', type: 'SOIL_MOISTURE', zoneId: 2, lat: 11.9374, lng: 108.4657 },
+    { code: 'DEV-Z2-001-LIGHT', type: 'LIGHT', zoneId: 2, lat: 11.9373, lng: 108.4673 },
+
+    { code: 'DEV-Z3-001-TEMP', type: 'TEMPERATURE', zoneId: 3, lat: 11.9363, lng: 108.4658 },
+    { code: 'DEV-Z3-001-HUM', type: 'HUMIDITY', zoneId: 3, lat: 11.9362, lng: 108.4676 },
+    { code: 'DEV-Z3-001-SOIL', type: 'SOIL_MOISTURE', zoneId: 3, lat: 11.9353, lng: 108.4657 },
+    { code: 'DEV-Z3-001-LIGHT', type: 'LIGHT', zoneId: 3, lat: 11.9354, lng: 108.4674 },
   ];
 
   return sensorConfigs.map((config, index) => {
     const zone = ZONE_LOCATIONS[config.zoneId];
-    const battery = 30 + Math.floor(Math.random() * 70);
-    const signal = 40 + Math.floor(Math.random() * 60);
+    const battery = 45 + ((index * 11) % 52);
+    const signal = 68 + ((index * 7) % 30);
 
     return {
       id: index + 1,
@@ -119,8 +148,8 @@ export function generateInitialSensors(): RealtimeSensorNode[] {
       zoneName: zone.name,
       zoneId: config.zoneId,
       location: {
-        lat: randomOffset(zone.center.lat, 0.001),
-        lng: randomOffset(zone.center.lng, 0.001),
+        lat: config.lat,
+        lng: config.lng,
       },
       battery,
       signal,
@@ -250,6 +279,151 @@ export function computeRealtimeStats(sensors: RealtimeSensorNode[]): RealtimeSta
     avgTemperature: Math.round(avgTemperature * 10) / 10,
     avgHumidity: Math.round(avgHumidity * 10) / 10,
   };
+}
+
+export function createRealtimeSensorFromNode(node: SensorNode): RealtimeSensorNode {
+  const fallbackZone = ZONE_LOCATIONS[node.zoneId] ?? ZONE_LOCATIONS[1];
+  const battery = 88;
+  const signal = 92;
+  return {
+    id: node.id,
+    sensorCode: node.sensorCode,
+    sensorType: node.sensorType,
+    status: node.status === 'INACTIVE' || node.status === 'ERROR' ? 'OFFLINE' : 'ONLINE',
+    zoneName: node.zoneName || fallbackZone.name,
+    zoneId: node.zoneId,
+    location: {
+      lat: randomOffset(fallbackZone.center.lat, 0.0008),
+      lng: randomOffset(fallbackZone.center.lng, 0.0008),
+    },
+    battery,
+    signal,
+    readings: generateInitialReadings(node.sensorType),
+    lastUpdated: new Date().toISOString(),
+  };
+}
+
+interface BackendLatestTelemetryDto {
+  sensorId: number;
+  sensorCode: string;
+  name?: string;
+  sensorType: SensorType;
+  sensorStatus?: string;
+  zoneId: number;
+  zoneName: string;
+  latestValue?: number | null;
+  unit?: string;
+  batteryLevel?: number | null;
+  dataStatus?: string | null;
+  lastUpdated?: string | null;
+}
+
+/**
+ * Đồng bộ trực tiếp dữ liệu thật từ Backend (/api/v1/sensor-data/latest) do IoT Simulator bắn lên.
+ * Nếu Backend tạm ngắt kết nối thì tự động fallback về bộ dao động mô phỏng cục bộ.
+ */
+export async function fetchBackendOrSimulateTick(
+  currentSensors: RealtimeSensorNode[],
+): Promise<{
+  updatedSensors: RealtimeSensorNode[];
+  newAlerts: SensorAlert[];
+}> {
+  try {
+    const res = await apiRequest<BackendLatestTelemetryDto[]>('/sensor-data/latest');
+    const list = Array.isArray(res.data) ? res.data : [];
+    if (list.length > 0) {
+      const baseList = currentSensors.length > 0 ? currentSensors : generateInitialSensors();
+      const prevByCode = new Map(baseList.map((s) => [s.sensorCode, s]));
+
+      // Gom chỉ số thực của từng Zone (TEMP, HUM, SOIL, LIGHT) để đồng bộ đầy đủ các cột
+      const zoneMetrics = new Map<
+        number,
+        Partial<Pick<SensorReading, 'temperature' | 'airHumidity' | 'soilMoisture' | 'light' | 'co2'>>
+      >();
+      for (const item of list) {
+        if (typeof item.latestValue !== 'number') continue;
+        const bucket = zoneMetrics.get(item.zoneId) ?? {};
+        if (item.sensorType === 'TEMPERATURE') bucket.temperature = item.latestValue;
+        else if (item.sensorType === 'HUMIDITY') bucket.airHumidity = item.latestValue;
+        else if (item.sensorType === 'SOIL_MOISTURE') bucket.soilMoisture = item.latestValue;
+        else if (item.sensorType === 'LIGHT') bucket.light = item.latestValue;
+        else if (item.sensorType === 'CO2') bucket.co2 = item.latestValue;
+        zoneMetrics.set(item.zoneId, bucket);
+      }
+
+      const newAlerts: SensorAlert[] = [];
+      const updatedSensors: RealtimeSensorNode[] = list.map((item, idx) => {
+        const prev = prevByCode.get(item.sensorCode);
+        const valley = IOT_VALLEY_SENSOR_COORDS[item.sensorCode];
+        const fallbackZone = ZONE_LOCATIONS[item.zoneId] ?? ZONE_LOCATIONS[1];
+        const zm = zoneMetrics.get(item.zoneId) ?? {};
+        const prevReadings = prev?.readings ?? generateInitialReadings(item.sensorType);
+
+        const nextReadings: SensorReading = {
+          temperature: zm.temperature ?? prevReadings.temperature,
+          airHumidity: zm.airHumidity ?? prevReadings.airHumidity,
+          soilMoisture: zm.soilMoisture ?? prevReadings.soilMoisture,
+          light: zm.light ?? prevReadings.light,
+          co2: zm.co2 ?? prevReadings.co2,
+          ph: prevReadings.ph,
+        };
+        if (typeof item.latestValue === 'number') {
+          if (item.sensorType === 'TEMPERATURE') nextReadings.temperature = item.latestValue;
+          else if (item.sensorType === 'HUMIDITY') nextReadings.airHumidity = item.latestValue;
+          else if (item.sensorType === 'SOIL_MOISTURE') nextReadings.soilMoisture = item.latestValue;
+          else if (item.sensorType === 'LIGHT') nextReadings.light = item.latestValue;
+          else if (item.sensorType === 'CO2') nextReadings.co2 = item.latestValue;
+        }
+
+        const battery = Math.round(item.batteryLevel ?? prev?.battery ?? 95);
+        const signal = prev?.signal ?? 88 + (idx % 10);
+        const rawDataStatus = String(item.dataStatus ?? 'NORMAL').toUpperCase();
+        const rawSensorStatus = String(item.sensorStatus ?? 'ACTIVE').toUpperCase();
+
+        let status: RealtimeStatus = 'ONLINE';
+        if (rawSensorStatus === 'INACTIVE' || rawSensorStatus === 'ERROR' || battery <= 10) {
+          status = 'OFFLINE';
+        } else if (
+          rawDataStatus === 'WARNING' ||
+          rawDataStatus === 'CRITICAL' ||
+          rawDataStatus === 'ANOMALY' ||
+          battery <= 25
+        ) {
+          status = 'WARNING';
+        }
+
+        const alerts = checkThresholds(
+          item.sensorId ?? idx + 1,
+          item.sensorCode,
+          nextReadings,
+          DEFAULT_THRESHOLDS,
+        );
+        newAlerts.push(...alerts);
+
+        return {
+          id: item.sensorId ?? prev?.id ?? idx + 1,
+          sensorCode: item.sensorCode,
+          sensorType: item.sensorType,
+          status,
+          zoneName: item.zoneName || fallbackZone.name,
+          zoneId: item.zoneId,
+          location: valley
+            ? { lat: valley.lat, lng: valley.lng }
+            : (prev?.location ?? { lat: fallbackZone.center.lat, lng: fallbackZone.center.lng }),
+          battery,
+          signal,
+          readings: nextReadings,
+          lastUpdated: item.lastUpdated || new Date().toISOString(),
+        };
+      });
+
+      return { updatedSensors, newAlerts };
+    }
+  } catch {
+    // Fallback khi Backend offline
+  }
+
+  return tickRealtimeUpdate(currentSensors);
 }
 
 // ==================== Export Zone Locations cho Map ====================

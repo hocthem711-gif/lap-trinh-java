@@ -133,23 +133,23 @@ public class DataInitializer implements CommandLineRunner {
 
             LocalDateTime now = LocalDateTime.now();
 
-            // Zone 1 Sensors
-            Sensor s1 = new Sensor("DEV-Z1-001-TEMP", "Cảm biến Nhiệt độ Zone A", SensorType.TEMPERATURE, z1, 11.940412, 108.458312);
-            Sensor s2 = new Sensor("DEV-Z1-001-HUM", "Cảm biến Độ ẩm KK Zone A", SensorType.HUMIDITY, z1, 11.940520, 108.458450);
-            Sensor s3 = new Sensor("DEV-Z1-001-SOIL", "Cảm biến Độ ẩm đất Zone A", SensorType.SOIL_MOISTURE, z1, 11.940350, 108.458120);
-            Sensor s4 = new Sensor("DEV-Z1-001-LIGHT", "Cảm biến Ánh sáng Zone A", SensorType.LIGHT, z1, 11.940600, 108.458280);
+            // Zone 1 Sensors (Thung lũng nông trại Đông Nam Đà Lạt - Khu A)
+            Sensor s1 = new Sensor("DEV-Z1-001-TEMP", "Cảm biến Nhiệt độ Zone A", SensorType.TEMPERATURE, z1, 11.940100, 108.465900);
+            Sensor s2 = new Sensor("DEV-Z1-001-HUM", "Cảm biến Độ ẩm KK Zone A", SensorType.HUMIDITY, z1, 11.939900, 108.467400);
+            Sensor s3 = new Sensor("DEV-Z1-001-SOIL", "Cảm biến Độ ẩm đất Zone A", SensorType.SOIL_MOISTURE, z1, 11.939100, 108.465800);
+            Sensor s4 = new Sensor("DEV-Z1-001-LIGHT", "Cảm biến Ánh sáng Zone A", SensorType.LIGHT, z1, 11.939200, 108.467300);
 
-            // Zone 2 Sensors
-            Sensor s5 = new Sensor("DEV-Z2-001-TEMP", "Cảm biến Nhiệt độ Zone B", SensorType.TEMPERATURE, z2, 11.942100, 108.460100);
-            Sensor s6 = new Sensor("DEV-Z2-001-HUM", "Cảm biến Độ ẩm KK Zone B", SensorType.HUMIDITY, z2, 11.942250, 108.460250);
-            Sensor s7 = new Sensor("DEV-Z2-001-SOIL", "Cảm biến Độ ẩm đất Zone B", SensorType.SOIL_MOISTURE, z2, 11.941950, 108.459950);
-            Sensor s8 = new Sensor("DEV-Z2-001-LIGHT", "Cảm biến Ánh sáng Zone B", SensorType.LIGHT, z2, 11.942300, 108.460400);
+            // Zone 2 Sensors (Thung lũng nông trại Đông Nam Đà Lạt - Khu B)
+            Sensor s5 = new Sensor("DEV-Z2-001-TEMP", "Cảm biến Nhiệt độ Zone B", SensorType.TEMPERATURE, z2, 11.938200, 108.465800);
+            Sensor s6 = new Sensor("DEV-Z2-001-HUM", "Cảm biến Độ ẩm KK Zone B", SensorType.HUMIDITY, z2, 11.938100, 108.467400);
+            Sensor s7 = new Sensor("DEV-Z2-001-SOIL", "Cảm biến Độ ẩm đất Zone B", SensorType.SOIL_MOISTURE, z2, 11.937400, 108.465700);
+            Sensor s8 = new Sensor("DEV-Z2-001-LIGHT", "Cảm biến Ánh sáng Zone B", SensorType.LIGHT, z2, 11.937300, 108.467300);
 
-            // Zone 3 Sensors
-            Sensor s9 = new Sensor("DEV-Z3-001-TEMP", "Cảm biến Nhiệt độ Zone C", SensorType.TEMPERATURE, z3, 11.944200, 108.462100);
-            Sensor s10 = new Sensor("DEV-Z3-001-HUM", "Cảm biến Độ ẩm KK Zone C", SensorType.HUMIDITY, z3, 11.944350, 108.462250);
-            Sensor s11 = new Sensor("DEV-Z3-001-SOIL", "Cảm biến Độ ẩm đất Zone C", SensorType.SOIL_MOISTURE, z3, 11.944050, 108.461950);
-            Sensor s12 = new Sensor("DEV-Z3-001-LIGHT", "Cảm biến Ánh sáng Zone C", SensorType.LIGHT, z3, 11.944400, 108.462400);
+            // Zone 3 Sensors (Thung lũng nông trại Đông Nam Đà Lạt - Khu C)
+            Sensor s9 = new Sensor("DEV-Z3-001-TEMP", "Cảm biến Nhiệt độ Zone C", SensorType.TEMPERATURE, z3, 11.936300, 108.465800);
+            Sensor s10 = new Sensor("DEV-Z3-001-HUM", "Cảm biến Độ ẩm KK Zone C", SensorType.HUMIDITY, z3, 11.936200, 108.467600);
+            Sensor s11 = new Sensor("DEV-Z3-001-SOIL", "Cảm biến Độ ẩm đất Zone C", SensorType.SOIL_MOISTURE, z3, 11.935300, 108.465700);
+            Sensor s12 = new Sensor("DEV-Z3-001-LIGHT", "Cảm biến Ánh sáng Zone C", SensorType.LIGHT, z3, 11.935400, 108.467400);
 
             List<Sensor> savedSensors = sensorRepository.saveAll(Arrays.asList(s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12));
             log.info("Đã tạo {} cảm biến mẫu kèm tọa độ GPS Đà Lạt", savedSensors.size());
@@ -184,8 +184,8 @@ public class DataInitializer implements CommandLineRunner {
             uav.setStatus("ACTIVE");
             uav.setToken("UAV-TOKEN-ALPHA-01");
             uav.setIsConnected(true);
-            uav.setLatitude(11.9404);
-            uav.setLongitude(108.4583);
+            uav.setLatitude(11.9396);
+            uav.setLongitude(108.4662);
             uav.setAltitude(30.0);
             uav.setSpeed(8.0);
             uav.setBatteryLevel(100.0);
@@ -210,10 +210,10 @@ public class DataInitializer implements CommandLineRunner {
             mission.setProgressPercent(0.0);
             mission.setLastTelemetryAt(LocalDateTime.now());
 
-            Waypoint w1 = new Waypoint(1, 11.9404, 108.4583, 30.0, 8.0, "TAKEOFF", "PENDING", mission);
-            Waypoint w2 = new Waypoint(2, 11.9416, 108.4595, 50.0, 10.0, "NORMAL", "PENDING", mission);
-            Waypoint w3 = new Waypoint(3, 11.9428, 108.4608, 50.0, 8.0, "HOVER", "PENDING", mission);
-            Waypoint w4 = new Waypoint(4, 11.9435, 108.4599, 20.0, 5.0, "LANDING", "PENDING", mission);
+            Waypoint w1 = new Waypoint(1, 11.9389, 108.4654, 30.0, 8.0, "TAKEOFF", "PENDING", mission);
+            Waypoint w2 = new Waypoint(2, 11.9402, 108.4658, 50.0, 10.0, "NORMAL", "PENDING", mission);
+            Waypoint w3 = new Waypoint(3, 11.9401, 108.4676, 50.0, 8.0, "HOVER", "PENDING", mission);
+            Waypoint w4 = new Waypoint(4, 11.9390, 108.4672, 20.0, 5.0, "LANDING", "PENDING", mission);
 
             mission.setWaypoints(new java.util.ArrayList<>(Arrays.asList(w1, w2, w3, w4)));
             missionRepository.save(mission);

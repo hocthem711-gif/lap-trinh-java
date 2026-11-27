@@ -25,7 +25,7 @@ import {
   selectSensorForPopup,
   selectSelectedSensor,
 } from '../store/slices/sensorRealtimeSlice';
-import { tickRealtimeUpdate } from '../services/realtimeStream';
+import { fetchBackendOrSimulateTick } from '../services/realtimeStream';
 import { READING_LABELS } from '../types/realtime';
 import type { RealtimeSensorNode, RealtimeStatus } from '../types/realtime';
 import { SENSOR_TYPE_LABELS } from '../types';
@@ -188,14 +188,23 @@ function SensorMapPopup() {
   const mapRef = useRef<L.Map | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Giữ luồng cập nhật realtime ngay cả khi đang mở trang Bản đồ & Popup
-  const doTick = useCallback(() => {
-    const { updatedSensors, newAlerts } = tickRealtimeUpdate(sensors);
+  const sensorsRef = useRef(sensors);
+  useEffect(() => {
+    sensorsRef.current = sensors;
+  }, [sensors]);
+
+  // Giữ luồng cập nhật realtime từ Backend ngay cả khi đang mở trang Bản đồ & Popup
+  const doTick = useCallback(async () => {
+    const { updatedSensors, newAlerts } = await fetchBackendOrSimulateTick(sensorsRef.current);
     dispatch(updateSensors(updatedSensors));
     if (newAlerts.length > 0) {
       dispatch(addAlerts(newAlerts));
     }
-  }, [sensors, dispatch]);
+  }, [dispatch]);
+
+  useEffect(() => {
+    void doTick();
+  }, [doTick]);
 
   useEffect(() => {
     if (isStreaming) {
@@ -206,9 +215,9 @@ function SensorMapPopup() {
     };
   }, [isStreaming, streamInterval, doTick]);
 
-  // Trung tâm bản đồ (trung bình tọa độ các Zone)
-  const defaultCenter: [number, number] = [10.8505, 106.7730];
-  const defaultZoom = 16;
+  // Trung tâm bản đồ đặt ngay tại khu thung lũng canh tác trống trải Đà Lạt
+  const defaultCenter: [number, number] = [11.9378, 108.4652];
+  const defaultZoom = 15;
 
   return (
     <div className="map-container">

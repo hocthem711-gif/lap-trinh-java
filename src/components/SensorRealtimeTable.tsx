@@ -32,7 +32,7 @@ import {
   selectRealtimeStats,
   selectAlerts,
 } from '../store/slices/sensorRealtimeSlice';
-import { tickRealtimeUpdate, ZONE_LOCATIONS } from '../services/realtimeStream';
+import { fetchBackendOrSimulateTick, ZONE_LOCATIONS } from '../services/realtimeStream';
 import { READING_LABELS } from '../types/realtime';
 import type { RealtimeStatus } from '../types/realtime';
 import type { SensorType } from '../types';
@@ -54,14 +54,25 @@ function SensorRealtimeTable({ onViewOnMap }: SensorRealtimeTableProps) {
   const streamInterval = useSelector((state: RootState) => state.sensorRealtime.streamIntervalMs);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ===== Realtime tick =====
-  const doTick = useCallback(() => {
-    const { updatedSensors, newAlerts } = tickRealtimeUpdate(allSensors);
+  const allSensorsRef = useRef(allSensors);
+  useEffect(() => {
+    allSensorsRef.current = allSensors;
+  }, [allSensors]);
+
+  // ===== Realtime tick (Đồng bộ trực tiếp từ Backend /sensor-data/latest + Fallback) =====
+  const doTick = useCallback(async () => {
+    const { updatedSensors, newAlerts } = await fetchBackendOrSimulateTick(
+      allSensorsRef.current,
+    );
     dispatch(updateSensors(updatedSensors));
     if (newAlerts.length > 0) {
       dispatch(addAlerts(newAlerts));
     }
-  }, [allSensors, dispatch]);
+  }, [dispatch]);
+
+  useEffect(() => {
+    void doTick();
+  }, [doTick]);
 
   useEffect(() => {
     if (isStreaming) {

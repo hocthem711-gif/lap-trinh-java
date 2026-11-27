@@ -22,7 +22,12 @@ import type {
   RealtimeStatus,
 } from '../../types/realtime';
 import type { SensorType } from '../../types';
-import { generateInitialSensors, computeRealtimeStats } from '../../services/realtimeStream';
+import {
+  generateInitialSensors,
+  computeRealtimeStats,
+  createRealtimeSensorFromNode,
+} from '../../services/realtimeStream';
+import { addSensor, removeSensor } from './sensorSlice';
 
 // ==================== State Interface ====================
 
@@ -128,6 +133,29 @@ const sensorRealtimeSlice = createSlice({
         searchQuery: '',
       };
     },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(addSensor.fulfilled, (state, action) => {
+        const exists = state.sensors.some(
+          (s) =>
+            s.id === action.payload.id ||
+            s.sensorCode.toLowerCase() === action.payload.sensorCode.toLowerCase(),
+        );
+        if (!exists) {
+          const next = [...state.sensors, createRealtimeSensorFromNode(action.payload)];
+          state.sensors = next;
+          state.stats = computeRealtimeStats(next);
+        }
+      })
+      .addCase(removeSensor.fulfilled, (state, action) => {
+        const next = state.sensors.filter((s) => s.id !== action.payload);
+        state.sensors = next;
+        if (state.selectedSensorId === action.payload) {
+          state.selectedSensorId = null;
+        }
+        state.stats = computeRealtimeStats(next);
+      });
   },
 });
 
