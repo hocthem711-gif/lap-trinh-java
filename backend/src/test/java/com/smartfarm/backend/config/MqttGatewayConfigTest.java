@@ -68,6 +68,19 @@ class MqttGatewayConfigTest {
     }
 
     @Test
+    @DisplayName("LTJ-12: Malformed JSON payload must not consume node rate limit window")
+    void testHandleIncomingSensorMessage_InvalidJsonDoesNotBlockNextValidMessage() {
+        MqttMessage invalidMsg = new MqttMessage("{broken-json".getBytes(StandardCharsets.UTF_8));
+        String validJson = "{\"deviceId\":\"SN-NODE-01\",\"farmId\":1,\"zoneId\":1,\"temperature\":26.5,\"humidity\":68.0,\"soilMoisture\":55.0,\"light\":1200.0,\"status\":\"OK\",\"timestamp\":1730000000}";
+        MqttMessage validMsg = new MqttMessage(validJson.getBytes(StandardCharsets.UTF_8));
+
+        mqttGatewayConfig.handleIncomingMqttMessage("iot/ltj/sensor/SN-NODE-01", invalidMsg);
+        mqttGatewayConfig.handleIncomingMqttMessage("iot/ltj/sensor/SN-NODE-01", validMsg);
+
+        verify(sensorDataService, times(1)).ingestSimulatorPayload(any(IoTSimulatorPayload.class));
+    }
+
+    @Test
     @DisplayName("LTJ-12: Route UAV telemetry topic directly to UavService without sensor rate limiter blocking")
     void testHandleIncomingUavTelemetry_RoutesToUavService() {
         String uavJson = "{\"uavId\":\"UAV-ALPHA-01\",\"missionName\":\"Mission-KhuA\",\"latitude\":10.845,\"longitude\":106.765,\"altitude\":35.0,\"speed\":8.5,\"battery\":92.0,\"waypointIndex\":1,\"totalWaypoints\":4}";
