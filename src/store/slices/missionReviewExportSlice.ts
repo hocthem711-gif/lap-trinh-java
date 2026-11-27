@@ -90,9 +90,13 @@ const initialState: MissionReviewExportState = {
 
 export const initializeMissionReviewExportData = createAsyncThunk(
   'missionReviewExport/initialize',
-  async () => {
+  async (_, { getState }) => {
+    const state = getState() as RootState;
     const reviews = await missionReviewExportApi.getMissionReviews();
-    const previewRows = await buildExportPreviewDataset(reviews);
+    const previewRows = await buildExportPreviewDataset(
+      reviews,
+      state.sensorRealtime.sensors
+    );
     const history = loadStoredExportHistory();
     return { reviews, previewRows, history };
   }
@@ -100,10 +104,14 @@ export const initializeMissionReviewExportData = createAsyncThunk(
 
 export const submitMissionReviewSignOff = createAsyncThunk(
   'missionReviewExport/submitSignOff',
-  async (payload: SubmitMissionReviewPayload) => {
+  async (payload: SubmitMissionReviewPayload, { getState }) => {
+    const state = getState() as RootState;
     const updatedRecord = await missionReviewExportApi.submitMissionReview(payload);
     const allReviews = await missionReviewExportApi.getMissionReviews();
-    const previewRows = await buildExportPreviewDataset(allReviews);
+    const previewRows = await buildExportPreviewDataset(
+      allReviews,
+      state.sensorRealtime.sensors
+    );
     return { updatedRecord, allReviews, previewRows };
   }
 );
@@ -219,8 +227,14 @@ export const triggerDatasetFileExport = createAsyncThunk(
           : sliceState.exportConfig.selectedColumnKeys),
     };
 
+    const freshReviews = await missionReviewExportApi.getMissionReviews();
+    const freshPreviewRows = await buildExportPreviewDataset(
+      freshReviews,
+      state.sensorRealtime.sensors
+    );
+
     const filteredRows = filterExportRowsByConfig(
-      sliceState.allPreviewRows,
+      freshPreviewRows,
       effectiveConfig
     );
 
@@ -232,7 +246,7 @@ export const triggerDatasetFileExport = createAsyncThunk(
       effectiveConfig.zoneFilter !== 'ALL'
         ? ZONE_PREFIX_PATTERNS[effectiveConfig.zoneFilter]
         : undefined;
-    const filteredReviews = sliceState.missionReviews.filter((rev) => {
+    const filteredReviews = freshReviews.filter((rev) => {
       if (
         effectiveConfig.missionIdFilter !== 'ALL' &&
         rev.missionId !== effectiveConfig.missionIdFilter &&
@@ -252,10 +266,22 @@ export const triggerDatasetFileExport = createAsyncThunk(
       return true;
     });
 
+    const singleFlightSensorRows =
+      effectiveConfig.missionIdFilter &&
+      effectiveConfig.missionIdFilter !== 'ALL' &&
+      filteredReviews.length > 0
+        ? freshPreviewRows.filter(
+            (r) =>
+              r.datasetType === 'SENSOR_TELEMETRY' &&
+              String(r.rawValues?.zoneTag ?? '') === filteredReviews[0].zoneId
+          )
+        : [];
+
     const result = await missionReviewExportApi.executeFileExport(
       effectiveConfig,
       filteredRows,
-      filteredReviews
+      filteredReviews,
+      singleFlightSensorRows
     );
     return result;
   }

@@ -19,6 +19,8 @@ import {
 } from '../types/missionReviewExport';
 import { fetchFlightSessions, fetchMissionNotes } from './flightMonitorService';
 import { alertApi } from './alertService';
+import { generateInitialSensors, IOT_VALLEY_SENSOR_COORDS } from './realtimeStream';
+import { DEFAULT_THRESHOLDS, type RealtimeSensorNode } from '../types/realtime';
 import type {
   FlightWaypointNode,
   MissionNote,
@@ -29,6 +31,42 @@ const API_BASE_URL = 'http://localhost:8080/api/v1';
 
 const STORAGE_KEY_MISSION_REVIEWS = 'smartfarm_mission_reviews_v1';
 const STORAGE_KEY_EXPORT_HISTORY = 'smartfarm_excel_export_history_v1';
+
+/**
+ * Định dạng mốc thời gian sang chuẩn Giờ Địa Phương Việt Nam (YYYY-MM-DD HH:mm:ss).
+ * Khắc phục lỗi toISOString() bị lệch lùi 7 tiếng về múi giờ UTC (VD: 21:00 -> 14:00).
+ */
+function formatLocalDateTimeStr(input?: string | Date | null, fallbackOffsetSec = 0): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const formatObj = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(
+      d.getMinutes()
+    )}:${pad(d.getSeconds())}`;
+
+  if (input instanceof Date && !Number.isNaN(input.getTime())) {
+    return formatObj(new Date(input.getTime() + fallbackOffsetSec * 1000));
+  }
+
+  if (typeof input === 'string' && input.trim().length > 0) {
+    const raw = input.trim();
+    // Dạng "HH:mm:ss" (VD: wp.reachedAt = "21:04:18")
+    if (/^\d{2}:\d{2}(:\d{2})?$/.test(raw)) {
+      const now = new Date();
+      const timeFull = raw.length === 5 ? `${raw}:00` : raw;
+      return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${timeFull}`;
+    }
+    // Backend Spring Boot LocalDateTime không có 'Z' hay offset (VD: "2026-11-27T21:06:28.515") -> đã là giờ VN!
+    if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}/.test(raw) && !/[Zz]|[+-]\d{2}:?\d{2}$/.test(raw)) {
+      return raw.replace('T', ' ').slice(0, 19);
+    }
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return formatObj(new Date(parsed.getTime() + fallbackOffsetSec * 1000));
+    }
+  }
+
+  return formatObj(new Date(Date.now() + fallbackOffsetSec * 1000));
+}
 
 // ============================================================================
 // 1. CÔNG THỨC TOÁN HỌC: HAVERSINE GPS DRIFT & CHẤM ĐIỂM NGHIỆM THU MISSION
@@ -701,9 +739,10 @@ function loadStoredMissionReviews(): MissionReviewRecord[] {
       return INITIAL_MISSION_REVIEWS;
     }
     const parsed = JSON.parse(raw) as MissionReviewRecord[];
-    return Array.isArray(parsed) && parsed.length > 0
-      ? parsed
-      : INITIAL_MISSION_REVIEWS;
+    const cleaned = Array.isArray(parsed)
+      ? parsed.filter((r) => r.uavId !== 'UAV-004' && r.missionCode !== 'MSN-2026-074')
+      : [];
+    return cleaned.length > 0 ? cleaned : INITIAL_MISSION_REVIEWS;
   } catch {
     return INITIAL_MISSION_REVIEWS;
   }
@@ -831,8 +870,7 @@ function buildPendingReviewFromSession(s: UavFlightSession): MissionReviewRecord
         packetLossPercent: wpTotal > 0 ? Math.round((wp.errorPackets / wpTotal) * 1000) / 10 : 0,
         batteryAtWaypointPercent: s.batteryPercent,
         signalRssiDbm: rssiDbm,
-        reachedTimestamp:
-          wp.reachedAt && !Number.isNaN(Date.parse(wp.reachedAt)) ? wp.reachedAt : null,
+        reachedTimestamp: wp.reachedAt || null,
         auditRemark: 'Tự động tạo từ Telemetry phiên bay Sprint 7 — chờ đối soát thực địa.',
       };
     }),
@@ -921,105 +959,285 @@ function appendExportHistoryItem(item: ExportExecutionHistoryItem): ExportExecut
  * Sinh danh sách dòng dữ liệu chuẩn hóa cho bảng Preview & Xuất Excel (F11)
  * Tự động kết hợp dữ liệu thực tế từ Sprint 5 (Sync), Sprint 6 (Alert), Sprint 7 (Note Mission)
  */
+interface BackendSensorHistoryItem {
+  id: number;
+  sensorId: number;
+  sensorCode: string;
+  sensorType: 'TEMPERATURE' | 'HUMIDITY' | 'SOIL_MOISTURE' | 'LIGHT' | 'CO2';
+  zoneId: number;
+  zoneName: string;
+  value: number;
+  unit: string;
+  batteryLevel?: number;
+  status?: string;
+  recordedAt: string;
+}
+
+interface BackendPagedSensorHistory {
+  content: BackendSensorHistoryItem[];
+}
+
+interface BackendLatestSensorItem {
+  sensorId: number;
+  sensorCode: string;
+  name?: string;
+  sensorType: 'TEMPERATURE' | 'HUMIDITY' | 'SOIL_MOISTURE' | 'LIGHT' | 'CO2';
+  zoneId: number;
+  zoneName: string;
+  latitude?: number;
+  longitude?: number;
+  latestValue: number;
+  unit: string;
+  batteryLevel?: number;
+  dataStatus?: string;
+  lastUpdated: string;
+}
+
 export async function buildExportPreviewDataset(
-  reviews: MissionReviewRecord[]
+  reviews: MissionReviewRecord[],
+  liveSensors?: RealtimeSensorNode[]
 ): Promise<NormalizedExportRow[]> {
   const rows: NormalizedExportRow[] = [];
 
-  // 4.1. Dữ liệu Cảm biến Quan trắc (SENSOR_TELEMETRY)
-  const sensorSamples: NormalizedExportRow[] = [
-    {
-      id: 'SEN-REC-801',
-      datasetType: 'SENSOR_TELEMETRY',
-      timestamp: '2026-11-18 16:40:00',
-      zoneName: 'Khu A - Nhà kính Dâu tây Công nghệ cao',
-      sourceCode: 'TEMP-A1-01',
-      categoryLabel: 'Nhiệt độ Không khí (°C)',
-      primaryMetric: '24.6 °C',
-      secondaryMetric: '15.0 - 30.0 °C',
-      statusLabel: 'An toàn (NORMAL)',
-      severityLevel: 'NORMAL',
-      gpsCoordinates: '11.9416, 108.4595',
-      operatorOrNote: 'Vi khí hậu nhà kính A1 ổn định, quạt đối lưu chạy 60% công suất.',
-      rawValues: { value: 24.6, unit: '°C', min: 15, max: 30 },
-    },
-    {
-      id: 'SEN-REC-802',
-      datasetType: 'SENSOR_TELEMETRY',
-      timestamp: '2026-11-18 16:35:00',
-      zoneName: 'Khu A - Nhà kính Dâu tây Công nghệ cao',
-      sourceCode: 'SOIL-A2-04',
-      categoryLabel: 'Độ ẩm Đất (%)',
-      primaryMetric: '41.5 %',
-      secondaryMetric: '45.0 - 80.0 %',
-      statusLabel: 'Cảnh báo Thấp (WARNING)',
-      severityLevel: 'WARNING',
-      gpsCoordinates: '11.9428, 108.4608',
-      operatorOrNote: 'Độ ẩm đất luống B4-B6 giảm nhẹ dưới ngưỡng 45%, khớp ảnh đa phổ UAV-001.',
-      rawValues: { value: 41.5, unit: '%', min: 45, max: 80 },
-    },
-    {
-      id: 'SEN-REC-803',
-      datasetType: 'SENSOR_TELEMETRY',
-      timestamp: '2026-11-18 16:30:00',
-      zoneName: 'Khu B - Cánh đồng Rau Thủy canh & Trạm Khí tượng',
-      sourceCode: 'TEMP-B1-02',
-      categoryLabel: 'Nhiệt độ Dung dịch (°C)',
-      primaryMetric: '21.8 °C',
-      secondaryMetric: '18.0 - 26.0 °C',
-      statusLabel: 'An toàn (NORMAL)',
-      severityLevel: 'NORMAL',
-      gpsCoordinates: '11.9378, 108.4534',
-      operatorOrNote: 'Nhiệt độ máng thủy canh đạt chuẩn hấp thụ dinh dưỡng.',
-      rawValues: { value: 21.8, unit: '°C', min: 18, max: 26 },
-    },
-    {
-      id: 'SEN-REC-804',
-      datasetType: 'SENSOR_TELEMETRY',
-      timestamp: '2026-11-18 16:25:00',
-      zoneName: 'Khu B - Cánh đồng Rau Thủy canh & Trạm Khí tượng',
-      sourceCode: 'CO2-B2-07',
+  const mapSensorZoneDisplay = (zoneId: number): { zoneTag: string; zoneTitle: string; uavCode: string } => {
+    if (zoneId === 1) {
+      return {
+        zoneTag: 'ZONE-A',
+        zoneTitle: 'Khu A - Dâu Tây Thủy Canh & Nhà Kính Công Nghệ Cao',
+        uavCode: 'UAV-001',
+      };
+    }
+    if (zoneId === 2) {
+      return {
+        zoneTag: 'ZONE-B',
+        zoneTitle: 'Khu B - Rau Xà Lách Thủy Canh Trung Tâm',
+        uavCode: 'UAV-002',
+      };
+    }
+    return {
+      zoneTag: 'ZONE-C',
+      zoneTitle: 'Khu C - Cà Chua Bi & Vườn Cây Ăn Quả',
+      uavCode: 'UAV-003',
+    };
+  };
+
+  const describeSensorMetric = (
+    sensorType: string,
+    val: number,
+    rawUnit?: string
+  ): { categoryLabel: string; primaryMetric: string; secondaryMetric: string; outOfRange: boolean } => {
+    if (sensorType === 'TEMPERATURE') {
+      return {
+        categoryLabel: 'Nhiệt độ Không khí (°C)',
+        primaryMetric: `${val.toFixed(1)} °C`,
+        secondaryMetric: `${DEFAULT_THRESHOLDS.temperature.min} - ${DEFAULT_THRESHOLDS.temperature.max} °C`,
+        outOfRange:
+          val < DEFAULT_THRESHOLDS.temperature.min || val > DEFAULT_THRESHOLDS.temperature.max,
+      };
+    }
+    if (sensorType === 'HUMIDITY') {
+      return {
+        categoryLabel: 'Độ ẩm Không khí (%)',
+        primaryMetric: `${val.toFixed(1)} %`,
+        secondaryMetric: `${DEFAULT_THRESHOLDS.airHumidity.min} - ${DEFAULT_THRESHOLDS.airHumidity.max} %`,
+        outOfRange:
+          val < DEFAULT_THRESHOLDS.airHumidity.min || val > DEFAULT_THRESHOLDS.airHumidity.max,
+      };
+    }
+    if (sensorType === 'SOIL_MOISTURE') {
+      return {
+        categoryLabel: 'Độ ẩm Đất (%)',
+        primaryMetric: `${val.toFixed(1)} %`,
+        secondaryMetric: `${DEFAULT_THRESHOLDS.soilMoisture.min} - ${DEFAULT_THRESHOLDS.soilMoisture.max} %`,
+        outOfRange:
+          val < DEFAULT_THRESHOLDS.soilMoisture.min || val > DEFAULT_THRESHOLDS.soilMoisture.max,
+      };
+    }
+    if (sensorType === 'LIGHT') {
+      return {
+        categoryLabel: 'Cường độ Ánh sáng (lux)',
+        primaryMetric: `${Number(val.toFixed(1)).toLocaleString('vi-VN')} ${rawUnit || 'lux'}`,
+        secondaryMetric: `300 - ${DEFAULT_THRESHOLDS.light.max.toLocaleString('vi-VN')} lux`,
+        outOfRange: val < 200 || val > DEFAULT_THRESHOLDS.light.max,
+      };
+    }
+    return {
       categoryLabel: 'Nồng độ CO₂ (ppm)',
-      primaryMetric: '1,180 ppm',
-      secondaryMetric: '350 - 1,200 ppm',
-      statusLabel: 'An toàn (NORMAL)',
-      severityLevel: 'NORMAL',
-      gpsCoordinates: '11.9389, 108.4548',
-      operatorOrNote: 'Quang hợp buổi chiều diễn ra mạnh, nồng độ CO₂ trong ngưỡng tối ưu.',
-      rawValues: { value: 1180, unit: 'ppm', min: 350, max: 1200 },
-    },
-    {
-      id: 'SEN-REC-805',
-      datasetType: 'SENSOR_TELEMETRY',
-      timestamp: '2026-11-18 16:20:00',
-      zoneName: 'Khu C - Vườn Ươm Giống & Cảm biến Đất sâu',
-      sourceCode: 'PH-C2-09',
-      categoryLabel: 'Độ pH Đất (pH)',
-      primaryMetric: '5.1 pH',
-      secondaryMetric: '5.5 - 7.0 pH',
-      statusLabel: 'Cảnh báo Chua (WARNING)',
-      severityLevel: 'WARNING',
-      gpsCoordinates: '11.9346, 108.4639',
-      operatorOrNote: 'Đất vườn ươm C2 hơi chua nhẹ, cần bổ sung vôi nông nghiệp CaCO₃.',
-      rawValues: { value: 5.1, unit: 'pH', min: 5.5, max: 7.0 },
-    },
-    {
-      id: 'SEN-REC-806',
-      datasetType: 'SENSOR_TELEMETRY',
-      timestamp: '2026-11-18 16:15:00',
-      zoneName: 'Khu A - Nhà kính Dâu tây Công nghệ cao',
-      sourceCode: 'LIGHT-A1-03',
-      categoryLabel: 'Cường độ Ánh sáng (lux)',
-      primaryMetric: '28,450 lux',
-      secondaryMetric: '10,000 - 45,000 lux',
-      statusLabel: 'An toàn (NORMAL)',
-      severityLevel: 'NORMAL',
-      gpsCoordinates: '11.9412, 108.4589',
-      operatorOrNote: 'Hệ thống rèm che nắng tự động mở 75%.',
-      rawValues: { value: 28450, unit: 'lux', min: 10000, max: 45000 },
-    },
-  ];
-  rows.push(...sensorSamples);
+      primaryMetric: `${Math.round(val).toLocaleString('vi-VN')} ${rawUnit || 'ppm'}`,
+      secondaryMetric: `${DEFAULT_THRESHOLDS.co2.min} - ${DEFAULT_THRESHOLDS.co2.max} ppm`,
+      outOfRange: val < DEFAULT_THRESHOLDS.co2.min || val > DEFAULT_THRESHOLDS.co2.max,
+    };
+  };
+
+  // 4.1. Ưu tiên lấy DỮ LIỆU THẬT từ Backend (/sensor-data/latest & /sensor-data/history/paged) do IoT Simulator bắn lên!
+  let loadedRealBackendIoT = false;
+  try {
+    const [latestRes, histZ1, histZ2, histZ3] = await Promise.all([
+      apiRequest<BackendLatestSensorItem[]>('/sensor-data/latest').catch(() => null),
+      apiRequest<BackendPagedSensorHistory>('/sensor-data/history/paged?zoneId=1&page=0&size=12').catch(
+        () => null
+      ),
+      apiRequest<BackendPagedSensorHistory>('/sensor-data/history/paged?zoneId=2&page=0&size=12').catch(
+        () => null
+      ),
+      apiRequest<BackendPagedSensorHistory>('/sensor-data/history/paged?zoneId=3&page=0&size=12').catch(
+        () => null
+      ),
+    ]);
+
+    const latestItems = Array.isArray(latestRes?.data) ? latestRes.data : [];
+    const historyItems = [
+      ...(Array.isArray(histZ1?.data?.content) ? histZ1.data.content : []),
+      ...(Array.isArray(histZ2?.data?.content) ? histZ2.data.content : []),
+      ...(Array.isArray(histZ3?.data?.content) ? histZ3.data.content : []),
+    ];
+
+    if (latestItems.length > 0 || historyItems.length > 0) {
+      loadedRealBackendIoT = true;
+      const seenKeys = new Set<string>();
+
+      // Đưa đủ 4 chỉ số mới nhất của từng Zone (TEMP, HUM, SOIL, LIGHT) lên đầu tiên
+      const sensorOrder: Record<string, number> = {
+        TEMPERATURE: 1,
+        HUMIDITY: 2,
+        SOIL_MOISTURE: 3,
+        LIGHT: 4,
+        CO2: 5,
+      };
+      const sortedLatest = [...latestItems].sort((a, b) => {
+        if (a.zoneId !== b.zoneId) return a.zoneId - b.zoneId;
+        return (sensorOrder[a.sensorType] ?? 9) - (sensorOrder[b.sensorType] ?? 9);
+      });
+
+      for (const item of sortedLatest) {
+        if (typeof item.latestValue !== 'number') continue;
+        const { zoneTag, zoneTitle, uavCode } = mapSensorZoneDisplay(item.zoneId);
+        const ts = formatLocalDateTimeStr(item.lastUpdated);
+        const dedupKey = `${item.sensorCode}|${ts}`;
+        seenKeys.add(dedupKey);
+
+        const valleyCoord = IOT_VALLEY_SENSOR_COORDS[item.sensorCode];
+        const lat = valleyCoord ? valleyCoord.lat : (item.latitude ?? 11.9396);
+        const lng = valleyCoord ? valleyCoord.lng : (item.longitude ?? 108.4662);
+        const metricMeta = describeSensorMetric(item.sensorType, item.latestValue, item.unit);
+        const rawStatus = String(item.dataStatus || 'NORMAL').toUpperCase();
+        const isCritical = rawStatus === 'CRITICAL';
+        const isWarning = rawStatus === 'WARNING' || metricMeta.outOfRange;
+        const bat = Math.round(item.batteryLevel ?? 100);
+
+        rows.push({
+          id: `IOT-LATEST-${item.sensorCode}`,
+          datasetType: 'SENSOR_TELEMETRY',
+          timestamp: ts,
+          zoneName: zoneTitle,
+          sourceCode: item.sensorCode,
+          categoryLabel: metricMeta.categoryLabel,
+          primaryMetric: metricMeta.primaryMetric,
+          secondaryMetric: metricMeta.secondaryMetric,
+          statusLabel: isCritical
+            ? 'Vượt ngưỡng Nguy hiểm (CRITICAL)'
+            : isWarning
+              ? 'Cảnh báo Ngưỡng (WARNING)'
+              : 'An toàn (NORMAL)',
+          severityLevel: isCritical ? 'CRITICAL' : isWarning ? 'WARNING' : 'NORMAL',
+          gpsCoordinates: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+          operatorOrNote: `Chỉ số mới nhất từ IoT Simulator → Đồng bộ qua ${uavCode} | Pin cảm biến: ${bat}%`,
+          rawValues: {
+            zoneTag,
+            sensorCode: item.sensorCode,
+            sensorType: item.sensorType,
+            value: item.latestValue,
+            unit: item.unit,
+          },
+        });
+      }
+
+      // Bổ sung thêm các gói lịch sử vừa bắn lên theo từng giây thực tế từ /sensor-data/history/paged
+      for (const h of historyItems) {
+        if (typeof h.value !== 'number') continue;
+        const ts = formatLocalDateTimeStr(h.recordedAt);
+        const dedupKey = `${h.sensorCode}|${ts}`;
+        if (seenKeys.has(dedupKey)) continue;
+        seenKeys.add(dedupKey);
+
+        const { zoneTag, zoneTitle, uavCode } = mapSensorZoneDisplay(h.zoneId);
+        const valleyCoord = IOT_VALLEY_SENSOR_COORDS[h.sensorCode];
+        const lat = valleyCoord ? valleyCoord.lat : 11.9396;
+        const lng = valleyCoord ? valleyCoord.lng : 108.4662;
+        const metricMeta = describeSensorMetric(h.sensorType, h.value, h.unit);
+        const rawStatus = String(h.status || 'NORMAL').toUpperCase();
+        const isCritical = rawStatus === 'CRITICAL';
+        const isWarning = rawStatus === 'WARNING' || metricMeta.outOfRange;
+        const bat = Math.round(h.batteryLevel ?? 100);
+
+        rows.push({
+          id: `IOT-${h.id}`,
+          datasetType: 'SENSOR_TELEMETRY',
+          timestamp: ts,
+          zoneName: zoneTitle,
+          sourceCode: h.sensorCode,
+          categoryLabel: metricMeta.categoryLabel,
+          primaryMetric: metricMeta.primaryMetric,
+          secondaryMetric: metricMeta.secondaryMetric,
+          statusLabel: isCritical
+            ? 'Vượt ngưỡng Nguy hiểm (CRITICAL)'
+            : isWarning
+              ? 'Cảnh báo Ngưỡng (WARNING)'
+              : 'An toàn (NORMAL)',
+          severityLevel: isCritical ? 'CRITICAL' : isWarning ? 'WARNING' : 'NORMAL',
+          gpsCoordinates: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+          operatorOrNote: `Bản ghi MQTT #${h.id} từ IoT Simulator → Thu qua ${uavCode} | Pin cảm biến: ${bat}%`,
+          rawValues: {
+            zoneTag,
+            sensorCode: h.sensorCode,
+            sensorType: h.sensorType,
+            value: h.value,
+            unit: h.unit,
+          },
+        });
+      }
+    }
+  } catch {
+    // Fallback xuống cảm biến local nếu Backend chưa khởi chạy
+  }
+
+  // Fallback nếu Backend đang tắt: lấy từ Redux sensorRealtime với mốc giờ VN lệch nhau tự nhiên
+  if (!loadedRealBackendIoT) {
+    const activeSensors =
+      liveSensors && liveSensors.length > 0 ? liveSensors : generateInitialSensors();
+    activeSensors.forEach((s, idx) => {
+      const r = s.readings;
+      const { zoneTag, zoneTitle, uavCode } = mapSensorZoneDisplay(s.zoneId);
+      const ts = formatLocalDateTimeStr(new Date(), -idx * 3);
+      const rawVal =
+        s.sensorType === 'TEMPERATURE'
+          ? r.temperature
+          : s.sensorType === 'HUMIDITY'
+            ? r.airHumidity
+            : s.sensorType === 'SOIL_MOISTURE'
+              ? r.soilMoisture
+              : s.sensorType === 'LIGHT'
+                ? r.light
+                : r.co2;
+      const metricMeta = describeSensorMetric(s.sensorType, rawVal);
+
+      rows.push({
+        id: `IOT-LOCAL-${s.sensorCode}`,
+        datasetType: 'SENSOR_TELEMETRY',
+        timestamp: ts,
+        zoneName: zoneTitle,
+        sourceCode: s.sensorCode,
+        categoryLabel: metricMeta.categoryLabel,
+        primaryMetric: metricMeta.primaryMetric,
+        secondaryMetric: metricMeta.secondaryMetric,
+        statusLabel: metricMeta.outOfRange ? 'Cảnh báo Ngưỡng (WARNING)' : 'An toàn (NORMAL)',
+        severityLevel: metricMeta.outOfRange ? 'WARNING' : 'NORMAL',
+        gpsCoordinates: `${s.location.lat.toFixed(5)}, ${s.location.lng.toFixed(5)}`,
+        operatorOrNote: `Thu thập qua ${uavCode} | Pin cảm biến: ${Math.round(s.battery)}%`,
+        rawValues: { zoneTag, sensorCode: s.sensorCode, value: rawVal },
+      });
+    });
+  }
 
   // 4.2. Dữ liệu Cảnh báo Vượt ngưỡng từ Sprint 6 (ALERT_REPORT - LTJ-29 / LTJ-37)
   try {
@@ -1112,17 +1330,50 @@ export async function buildExportPreviewDataset(
   ];
   rows.push(...syncSamples);
 
-  // 4.4. Dữ liệu Nhật ký Chuyến bay & Note Mission từ Sprint 7 & 8 (MISSION_FLIGHT_NOTES - LTJ-34 / LTJ-39)
+  // 4.4. Dữ liệu Chi tiết Điểm bay Waypoints & Note Mission của từng chuyến bay (MISSION_FLIGHT_NOTES)
   for (const rev of reviews) {
+    const totalWps = rev.waypointAudits.length;
+    rev.waypointAudits.forEach((wp, wpIdx) => {
+      const fallbackSecOffset = -(totalWps - 1 - wpIdx) * 6;
+      const wpTimestamp = wp.reachedTimestamp
+        ? formatLocalDateTimeStr(wp.reachedTimestamp)
+        : formatLocalDateTimeStr(rev.completedAt || rev.startedAt, fallbackSecOffset);
+      rows.push({
+        id: `${rev.uavId}-WP${wp.sequenceNumber}`,
+        datasetType: 'MISSION_FLIGHT_NOTES',
+        timestamp: wpTimestamp,
+        zoneName: `${rev.missionCode} · ${rev.zoneName}`,
+        sourceCode: `${rev.uavId} (Điểm #${wp.sequenceNumber})`,
+        categoryLabel: `Điểm bay #${wp.sequenceNumber}: ${wp.label}`,
+        primaryMetric: `Đã thu ${wp.sensorPacketsCollected} gói cảm biến · Cao ${wp.actualAltitudeM}m · Tốc độ ${wp.actualSpeedMS}m/s`,
+        secondaryMetric: `Pin cuối ${rev.endBatteryPercent}% · Tổng thu cả tuyến: ${rev.totalSensorPackets} gói`,
+        statusLabel:
+          wp.executionStatus === 'REACHED'
+            ? 'Đã bay qua (COMPLETED)'
+            : wp.executionStatus === 'SKIPPED_ERROR'
+              ? 'Lỗi thu thập (ERROR)'
+              : 'Đang chờ (PENDING)',
+        severityLevel: wp.executionStatus === 'SKIPPED_ERROR' ? 'CRITICAL' : 'NORMAL',
+        gpsCoordinates: `${wp.actualLat.toFixed(5)}, ${wp.actualLng.toFixed(5)}`,
+        operatorOrNote: `Nhiệm vụ: ${rev.missionTitle} (${rev.completedWaypoints}/${rev.totalWaypoints} điểm)`,
+        rawValues: {
+          missionId: rev.missionId,
+          uavId: rev.uavId,
+          score: rev.overallScore,
+          battery: rev.endBatteryPercent,
+        },
+      });
+    });
+
     for (const note of rev.fieldNotesSummary) {
       rows.push({
         id: note.id,
         datasetType: 'MISSION_FLIGHT_NOTES',
-        timestamp: note.createdAt.replace('T', ' ').slice(0, 19),
+        timestamp: formatLocalDateTimeStr(note.createdAt),
         zoneName: `${rev.missionCode} · ${rev.zoneName}`,
         sourceCode: `${rev.uavId} (${note.waypointLabel ? note.waypointLabel.split(':')[0] : 'Toàn tuyến'})`,
-        categoryLabel: `Note: ${note.title}`,
-        primaryMetric: `Pin ${note.batterySnapshotPercent ?? rev.endBatteryPercent}% · Điểm ${rev.overallScore}/100`,
+        categoryLabel: `Ghi chú: ${note.title}`,
+        primaryMetric: `Pin lúc ghi ${note.batterySnapshotPercent ?? rev.endBatteryPercent}% · Điểm ${rev.overallScore}/100`,
         secondaryMetric: `Sai số GPS: ±${rev.avgGpsDriftMeters}m`,
         statusLabel: MISSION_REVIEW_DECISION_META[rev.reviewDecision].shortLabel,
         severityLevel:
@@ -1135,6 +1386,7 @@ export async function buildExportPreviewDataset(
         operatorOrNote: `[${note.authorName}] ${note.content}`,
         rawValues: {
           missionId: rev.missionId,
+          uavId: rev.uavId,
           score: rev.overallScore,
           battery: note.batterySnapshotPercent ?? rev.endBatteryPercent,
         },
@@ -1178,7 +1430,8 @@ function escapeXml(value: string | number | null | undefined): string {
 function generateMultiSheetExcelXml(
   config: ExcelExportFilterConfig,
   filteredRows: NormalizedExportRow[],
-  reviews: MissionReviewRecord[]
+  reviews: MissionReviewRecord[],
+  singleFlightSensorRows: NormalizedExportRow[] = []
 ): { xmlContent: string; sheetCount: number } {
   const nowStr = new Date().toLocaleString('vi-VN');
   const resolveColumnsForDataset = (
@@ -1369,6 +1622,34 @@ function generateMultiSheetExcelXml(
         resolveColumnsForDataset('MISSION_FLIGHT_NOTES', false)
       ),
     ].join('\n');
+  } else if (
+    config.datasetType === 'MISSION_FLIGHT_NOTES' &&
+    config.missionIdFilter &&
+    config.missionIdFilter !== 'ALL' &&
+    reviews.length > 0
+  ) {
+    const targetRev = reviews[0];
+    sheetCount = singleFlightSensorRows.length > 0 ? 3 : 2;
+    const sheets = [
+      buildMissionReviewWorksheetXml(),
+      buildDataWorksheetXml(
+        '2_HanhTrinh_Waypoints',
+        `CHI TIẾT LỘ TRÌNH WAYPOINTS & GHI CHÚ THỰC ĐỊA — ${targetRev.uavId} (${targetRev.missionTitle})`,
+        filteredRows,
+        resolveColumnsForDataset('MISSION_FLIGHT_NOTES', false)
+      ),
+    ];
+    if (singleFlightSensorRows.length > 0) {
+      sheets.push(
+        buildDataWorksheetXml(
+          '3_DuLieuCamBien_ThuDuoc',
+          `DỮ LIỆU CẢM BIẾN MÔI TRƯỜNG THU THẬP TẠI ${targetRev.zoneName.toUpperCase()} (${targetRev.uavId})`,
+          singleFlightSensorRows,
+          resolveColumnsForDataset('SENSOR_TELEMETRY', false)
+        )
+      );
+    }
+    worksheetsXml = sheets.join('\n');
   } else {
     const meta = EXPORT_DATASET_CATALOG[config.datasetType];
     worksheetsXml = buildDataWorksheetXml(
@@ -1620,15 +1901,43 @@ export const missionReviewExportApi = {
           (s) =>
             s.missionCode === normalizedCode ||
             s.missionCode === rev.missionId ||
-            String(s.missionId) === rev.missionId
+            String(s.missionId) === rev.missionId ||
+            s.uavId === rev.uavId
         );
         const mappedNotes = matchNotesForMission(normalizedCode, rev.missionId);
+
+        if (liveMatch) {
+          const liveSynced = buildPendingReviewFromSession(liveMatch);
+          const preserveSignedReview =
+            rev.reviewedAt !== null &&
+            liveMatch.missionName === rev.missionTitle &&
+            liveMatch.totalWaypoints === rev.totalWaypoints;
+
+          return {
+            ...liveSynced,
+            missionId: rev.missionId,
+            missionCode: normalizedCode,
+            endBatteryPercent: Math.round(liveMatch.batteryPercent),
+            reviewDecision: preserveSignedReview ? rev.reviewDecision : liveSynced.reviewDecision,
+            rubricScores: preserveSignedReview ? rev.rubricScores : liveSynced.rubricScores,
+            overallScore: preserveSignedReview ? rev.overallScore : liveSynced.overallScore,
+            qualityGrade: preserveSignedReview ? rev.qualityGrade : liveSynced.qualityGrade,
+            reviewerName: preserveSignedReview ? rev.reviewerName : liveSynced.reviewerName,
+            reviewerRole: preserveSignedReview ? rev.reviewerRole : liveSynced.reviewerRole,
+            reviewedAt: preserveSignedReview ? rev.reviewedAt : liveSynced.reviewedAt,
+            reviewSummaryNote: preserveSignedReview
+              ? rev.reviewSummaryNote
+              : liveSynced.reviewSummaryNote,
+            correctiveActionPlan: preserveSignedReview
+              ? rev.correctiveActionPlan
+              : liveSynced.correctiveActionPlan,
+            fieldNotesSummary: mappedNotes,
+          };
+        }
 
         return {
           ...rev,
           missionCode: normalizedCode,
-          operationalState: liveMatch ? liveMatch.status : rev.operationalState,
-          // Dùng trực tiếp danh sách liveNotes từ Sprint 7 làm nguồn chuẩn để Note đã xóa không bị "hồi sinh"
           fieldNotesSummary: mappedNotes,
         };
       });
@@ -1721,7 +2030,8 @@ export const missionReviewExportApi = {
   async executeFileExport(
     config: ExcelExportFilterConfig,
     filteredRows: NormalizedExportRow[],
-    reviews: MissionReviewRecord[]
+    reviews: MissionReviewRecord[],
+    singleFlightSensorRows: NormalizedExportRow[] = []
   ): Promise<{
     historyItem: ExportExecutionHistoryItem;
     updatedHistory: ExportExecutionHistoryItem[];
@@ -1772,11 +2082,11 @@ export const missionReviewExportApi = {
           backendUrl = `${API_BASE_URL}/reports/export/excel?${params.toString()}`;
         } else if (config.datasetType === 'UAV_OFFLINE_SYNC') {
           backendUrl = `${API_BASE_URL}/reports/export/uav-sync?format=xlsx`;
-        } else if (config.datasetType === 'MISSION_FLIGHT_NOTES') {
+        } else if (
+          config.datasetType === 'MISSION_FLIGHT_NOTES' &&
+          (!config.missionIdFilter || config.missionIdFilter === 'ALL')
+        ) {
           const params = new URLSearchParams({ format: 'xlsx' });
-          if (config.missionIdFilter && config.missionIdFilter !== 'ALL') {
-            params.set('missionId', config.missionIdFilter);
-          }
           backendUrl = `${API_BASE_URL}/reports/export/missions?${params.toString()}`;
         }
       } else if (
@@ -1828,7 +2138,8 @@ export const missionReviewExportApi = {
         const { xmlContent, sheetCount: sc } = generateMultiSheetExcelXml(
           config,
           rowsToExport,
-          reviews
+          reviews,
+          singleFlightSensorRows
         );
         sheetCount = sc;
         extension = 'xls';

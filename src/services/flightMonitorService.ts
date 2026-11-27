@@ -20,7 +20,7 @@ import type {
 
 const API_BASE_URL = 'http://localhost:8080/api/v1';
 const MISSION_API_URL = `${API_BASE_URL}/missions`;
-const SESSIONS_STORAGE_KEY = 'smartfarm_flight_sessions_v1';
+const SESSIONS_STORAGE_KEY = 'smartfarm_flight_sessions_v5';
 const NOTES_STORAGE_KEY = 'smartfarm_mission_notes_v1';
 
 /** Đọc JWT theo đúng key mà authService lưu khi đăng nhập */
@@ -163,19 +163,19 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
     speedMs: 8.5,
     headingDeg: 58,
     satellites: 18,
-    latitude: 11.9416,
-    longitude: 108.4595,
-    homeLatitude: 11.9404,
-    homeLongitude: 108.4583,
+    latitude: 11.9396,
+    longitude: 108.4662,
+    homeLatitude: 11.9389,
+    homeLongitude: 108.4654,
     currentWaypointOrder: 3,
     completedWaypoints: 2,
     totalWaypoints: 5,
     segmentProgress: 0.45,
     progressPercent: 52,
-    distanceTraveledM: 1290,
-    totalRouteDistanceM: 2480,
-    elapsedSeconds: 185,
-    estimatedRemainingSeconds: 165,
+    distanceTraveledM: 490,
+    totalRouteDistanceM: 940,
+    elapsedSeconds: 85,
+    estimatedRemainingSeconds: 75,
     packetsCollected: 142,
     packetErrors: 0,
     errorReason: null,
@@ -185,8 +185,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 1,
         label: 'WP-01 • Trạm Xuất phát Khu A (Takeoff)',
-        latitude: 11.9404,
-        longitude: 108.4583,
+        latitude: 11.9389,
+        longitude: 108.4654,
         altitudeM: 30,
         targetSpeedMs: 8,
         visitState: 'COMPLETED',
@@ -197,8 +197,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 2,
         label: 'WP-02 • Cụm Cảm biến Nhiệt độ Bắc Khu A',
-        latitude: 11.9416,
-        longitude: 108.4595,
+        latitude: 11.9402,
+        longitude: 108.4658,
         altitudeM: 48,
         targetSpeedMs: 8.5,
         visitState: 'COMPLETED',
@@ -208,9 +208,9 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       },
       {
         order: 3,
-        label: 'WP-03 • Trung tâm Nhà kính Cà chua (Hover)',
-        latitude: 11.9428,
-        longitude: 108.4608,
+        label: 'WP-03 • Trung tâm Nhà kính (Hover)',
+        latitude: 11.9401,
+        longitude: 108.4676,
         altitudeM: 50,
         targetSpeedMs: 8.5,
         visitState: 'ACTIVE',
@@ -220,9 +220,9 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       },
       {
         order: 4,
-        label: 'WP-04 • Trạm Bơm Tưới Tự động Đông Nam',
-        latitude: 11.9435,
-        longitude: 108.4599,
+        label: 'WP-04 • Trạm Bơm Tưới Đông Bắc',
+        latitude: 11.9392,
+        longitude: 108.4678,
         altitudeM: 45,
         targetSpeedMs: 8,
         visitState: 'PENDING',
@@ -233,8 +233,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 5,
         label: 'WP-05 • Bãi đáp Gateway Khu A (Landing)',
-        latitude: 11.9421,
-        longitude: 108.4586,
+        latitude: 11.9390,
+        longitude: 108.4664,
         altitudeM: 20,
         targetSpeedMs: 5,
         visitState: 'PENDING',
@@ -252,29 +252,29 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
     uavName: 'UAV Giám sát 02',
     uavModel: 'DJI Matrice 30T',
     zoneId: 2,
-    zoneName: 'Khu B - Cánh Đồng Lúa Chất Lượng Cao',
+    zoneName: 'Khu B - Cánh Đồng Rau Thủy Canh',
     status: 'RETURNING',
     batteryPercent: 26,
     batteryVoltageV: 45.1,
     batteryTempC: 38.6,
     signalStrength: 82,
-    altitudeM: 60,
-    speedMs: 10.2,
+    altitudeM: 50,
+    speedMs: 9.5,
     headingDeg: 238,
     satellites: 16,
-    latitude: 11.9374,
-    longitude: 108.4555,
-    homeLatitude: 11.9365,
-    homeLongitude: 108.4521,
+    latitude: 11.9378,
+    longitude: 108.4668,
+    homeLatitude: 11.9374,
+    homeLongitude: 108.4654,
     currentWaypointOrder: 4,
     completedWaypoints: 3,
     totalWaypoints: 4,
     segmentProgress: 0.6,
     progressPercent: 82,
-    distanceTraveledM: 1940,
-    totalRouteDistanceM: 2360,
-    elapsedSeconds: 310,
-    estimatedRemainingSeconds: 65,
+    distanceTraveledM: 640,
+    totalRouteDistanceM: 780,
+    elapsedSeconds: 110,
+    estimatedRemainingSeconds: 35,
     packetsCollected: 218,
     packetErrors: 1,
     errorReason: null,
@@ -284,8 +284,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 1,
         label: 'WP-01 • Trạm Gateway Khu B (Takeoff)',
-        latitude: 11.9365,
-        longitude: 108.4521,
+        latitude: 11.9374,
+        longitude: 108.4654,
         altitudeM: 35,
         targetSpeedMs: 9,
         visitState: 'COMPLETED',
@@ -295,10 +295,10 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       },
       {
         order: 2,
-        label: 'WP-02 • Cảm biến Độ ẩm đất Cánh đồng Tây',
-        latitude: 11.9378,
-        longitude: 108.4534,
-        altitudeM: 55,
+        label: 'WP-02 • Cảm biến Độ ẩm đất Giữa Thung lũng',
+        latitude: 11.9383,
+        longitude: 108.4658,
+        altitudeM: 50,
         targetSpeedMs: 9.5,
         visitState: 'COMPLETED',
         reachedAt: '08:07:15',
@@ -307,11 +307,11 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       },
       {
         order: 3,
-        label: 'WP-03 • Trạm Quan trắc Kênh Tưới Khu B',
-        latitude: 11.9389,
-        longitude: 108.4548,
-        altitudeM: 60,
-        targetSpeedMs: 10,
+        label: 'WP-03 • Trạm Quan trắc Đông Khu B',
+        latitude: 11.9382,
+        longitude: 108.4676,
+        altitudeM: 55,
+        targetSpeedMs: 9.5,
         visitState: 'COMPLETED',
         reachedAt: '08:09:10',
         collectedPackets: 76,
@@ -319,11 +319,11 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       },
       {
         order: 4,
-        label: 'WP-04 • Quay về Trạm Sạc Trung tâm (RTH)',
-        latitude: 11.9365,
-        longitude: 108.4521,
-        altitudeM: 60,
-        targetSpeedMs: 10.2,
+        label: 'WP-04 • Bãi thu hồi Nam Khu B (Landing)',
+        latitude: 11.9373,
+        longitude: 108.4673,
+        altitudeM: 25,
+        targetSpeedMs: 6,
         visitState: 'ACTIVE',
         reachedAt: null,
         collectedPackets: 0,
@@ -349,19 +349,19 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
     speedMs: 0.4,
     headingDeg: 112,
     satellites: 11,
-    latitude: 11.9334,
-    longitude: 108.4625,
-    homeLatitude: 11.9321,
-    homeLongitude: 108.4612,
+    latitude: 11.9364,
+    longitude: 108.4659,
+    homeLatitude: 11.9352,
+    homeLongitude: 108.4655,
     currentWaypointOrder: 2,
     completedWaypoints: 1,
     totalWaypoints: 4,
     segmentProgress: 0.35,
     progressPercent: 35,
-    distanceTraveledM: 760,
-    totalRouteDistanceM: 2150,
-    elapsedSeconds: 240,
-    estimatedRemainingSeconds: 210,
+    distanceTraveledM: 260,
+    totalRouteDistanceM: 760,
+    elapsedSeconds: 90,
+    estimatedRemainingSeconds: 110,
     packetsCollected: 54,
     packetErrors: 14,
     errorReason:
@@ -372,8 +372,8 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 1,
         label: 'WP-01 • Bãi phóng Khu C (Takeoff)',
-        latitude: 11.9321,
-        longitude: 108.4612,
+        latitude: 11.9352,
+        longitude: 108.4655,
         altitudeM: 30,
         targetSpeedMs: 7,
         visitState: 'COMPLETED',
@@ -383,9 +383,9 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       },
       {
         order: 2,
-        label: 'WP-02 • Cụm Cảm biến Độ ẩm đất Sườn Đồi C2',
-        latitude: 11.9334,
-        longitude: 108.4625,
+        label: 'WP-02 • Cụm Cảm biến Độ ẩm đất Khu C',
+        latitude: 11.9365,
+        longitude: 108.4659,
         altitudeM: 42,
         targetSpeedMs: 7.5,
         visitState: 'ERROR',
@@ -395,10 +395,10 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       },
       {
         order: 3,
-        label: 'WP-03 • Đỉnh Đồi Cây Ăn Quả Khu C3',
-        latitude: 11.9346,
-        longitude: 108.4639,
-        altitudeM: 55,
+        label: 'WP-03 • Vườn Cây Ăn Quả Đông Nam',
+        latitude: 11.9364,
+        longitude: 108.4678,
+        altitudeM: 50,
         targetSpeedMs: 7.5,
         visitState: 'PENDING',
         reachedAt: null,
@@ -408,96 +408,9 @@ const INITIAL_FLIGHT_SESSIONS: UavFlightSession[] = [
       {
         order: 4,
         label: 'WP-04 • Trạm Thu hồi Khu C (Landing)',
-        latitude: 11.9338,
-        longitude: 108.4648,
+        latitude: 11.9353,
+        longitude: 108.4676,
         altitudeM: 25,
-        targetSpeedMs: 5,
-        visitState: 'PENDING',
-        reachedAt: null,
-        collectedPackets: 0,
-        errorPackets: 0,
-      },
-    ],
-  },
-  {
-    missionId: 704,
-    missionCode: 'MSN-2026-074',
-    missionName: 'Bay Kiểm tra Nhiệt độ & Ánh sáng Toàn Nông trại',
-    uavId: 'UAV-004',
-    uavName: 'UAV Trinh sát 04',
-    uavModel: 'DJI Matrice 300 RTK',
-    zoneId: 1,
-    zoneName: 'Khu A - Nhà Kính Cà Chua Công Nghệ Cao',
-    status: 'STANDBY',
-    batteryPercent: 98,
-    batteryVoltageV: 52.4,
-    batteryTempC: 29.5,
-    signalStrength: 99,
-    altitudeM: 0,
-    speedMs: 0,
-    headingDeg: 0,
-    satellites: 20,
-    latitude: 11.9404,
-    longitude: 108.4583,
-    homeLatitude: 11.9404,
-    homeLongitude: 108.4583,
-    currentWaypointOrder: 1,
-    completedWaypoints: 0,
-    totalWaypoints: 4,
-    segmentProgress: 0,
-    progressPercent: 0,
-    distanceTraveledM: 0,
-    totalRouteDistanceM: 1890,
-    elapsedSeconds: 0,
-    estimatedRemainingSeconds: 240,
-    packetsCollected: 0,
-    packetErrors: 0,
-    errorReason: null,
-    startedAt: '2026-11-13T08:30:00.000Z',
-    lastTelemetryAt: new Date().toISOString(),
-    waypoints: [
-      {
-        order: 1,
-        label: 'WP-01 • Điểm xuất phát Trạm Chính',
-        latitude: 11.9404,
-        longitude: 108.4583,
-        altitudeM: 35,
-        targetSpeedMs: 8,
-        visitState: 'PENDING',
-        reachedAt: null,
-        collectedPackets: 0,
-        errorPackets: 0,
-      },
-      {
-        order: 2,
-        label: 'WP-02 • Hành lang Đông Khu A',
-        latitude: 11.9418,
-        longitude: 108.4598,
-        altitudeM: 50,
-        targetSpeedMs: 8,
-        visitState: 'PENDING',
-        reachedAt: null,
-        collectedPackets: 0,
-        errorPackets: 0,
-      },
-      {
-        order: 3,
-        label: 'WP-03 • Phân khu Bắc Khu B',
-        latitude: 11.9432,
-        longitude: 108.4606,
-        altitudeM: 50,
-        targetSpeedMs: 8,
-        visitState: 'PENDING',
-        reachedAt: null,
-        collectedPackets: 0,
-        errorPackets: 0,
-      },
-      {
-        order: 4,
-        label: 'WP-04 • Bãi đáp Trung tâm',
-        latitude: 11.9406,
-        longitude: 108.4582,
-        altitudeM: 20,
         targetSpeedMs: 5,
         visitState: 'PENDING',
         reachedAt: null,
@@ -609,16 +522,22 @@ const INITIAL_MISSION_NOTES: MissionNote[] = [
 
 // ==================== 3. LOCAL STORAGE HELPERS ====================
 
-function loadStoredSessions(): UavFlightSession[] {
+export function loadStoredSessions(): UavFlightSession[] {
   try {
     const raw = localStorage.getItem(SESSIONS_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as UavFlightSession[];
-      // Tự động bỏ qua bản lưu cũ còn tọa độ TP.HCM (< 11.5) để đồng nhất về chuẩn Đà Lạt
       if (
         Array.isArray(parsed) &&
         parsed.length > 0 &&
-        parsed.every((s) => s.latitude >= 11.5)
+        parsed.every(
+          (s) =>
+            s.uavId !== 'UAV-004' &&
+            s.latitude >= 11.934 &&
+            s.zoneId >= 1 &&
+            s.zoneId <= 3 &&
+            s.waypoints.every((w) => w.longitude >= 108.4645),
+        )
       ) {
         return parsed;
       }
@@ -639,6 +558,160 @@ export function saveStoredSessions(sessions: UavFlightSession[]): void {
   } catch {
     // Ignore storage quota errors
   }
+}
+
+export interface PlannedMissionSyncPayload {
+  uavId: string;
+  uavName?: string;
+  uavModel?: string;
+  missionName: string;
+  zoneId: number;
+  totalDistanceM: number;
+  estimatedTimeSeconds: number;
+  backendMissionId?: number;
+  waypoints: Array<{
+    order: number;
+    latitude: number;
+    longitude: number;
+    altitude: number;
+    speed: number;
+    type: string;
+  }>;
+}
+
+const MONITOR_ZONE_NAMES: Record<number, string> = {
+  1: 'Khu A - Nhà Kính Cà Chua Công Nghệ Cao',
+  2: 'Khu B - Cánh Đồng Rau Thủy Canh',
+  3: 'Khu C - Vườn Cây Ăn Quả Đặc Sản',
+};
+
+export function upsertPlannedRouteIntoSessions(
+  currentSessions: UavFlightSession[],
+  payload: PlannedMissionSyncPayload,
+): UavFlightSession[] {
+  const baseSessions =
+    currentSessions.length > 0 ? currentSessions : loadStoredSessions();
+  if (payload.waypoints.length < 2) {
+    return baseSessions;
+  }
+
+  const nowIso = new Date().toISOString();
+  const timeStr = new Date().toTimeString().slice(0, 8);
+
+  const nodes: FlightWaypointNode[] = payload.waypoints.map((wp, idx) => ({
+    order: idx + 1,
+    label: `WP-${String(idx + 1).padStart(2, '0')} • Điểm hành trình (${wp.type})`,
+    latitude: Number(wp.latitude.toFixed(6)),
+    longitude: Number(wp.longitude.toFixed(6)),
+    altitudeM: wp.altitude,
+    targetSpeedMs: wp.speed,
+    visitState: idx === 0 ? 'COMPLETED' : idx === 1 ? 'ACTIVE' : 'PENDING',
+    reachedAt: idx === 0 ? timeStr : null,
+    collectedPackets: idx === 0 ? 24 : 0,
+    errorPackets: 0,
+  }));
+
+  const firstWp = nodes[0];
+  const secondWp = nodes[1] ?? nodes[0];
+  const heading = calculateBearingDeg(
+    firstWp.latitude,
+    firstWp.longitude,
+    secondWp.latitude,
+    secondWp.longitude,
+  );
+  const resolvedZoneName =
+    MONITOR_ZONE_NAMES[payload.zoneId] ??
+    `Khu vực #${payload.zoneId} - Trang Trại Công Nghệ Cao Đà Lạt`;
+  const totalDist = Math.max(10, Math.round(payload.totalDistanceM));
+  const estRemaining = Math.max(15, Math.round(payload.estimatedTimeSeconds));
+
+  const existingIdx = baseSessions.findIndex((s) => s.uavId === payload.uavId);
+  let nextSessions: UavFlightSession[];
+
+  if (existingIdx !== -1) {
+    nextSessions = baseSessions.map((s, idx) => {
+      if (idx !== existingIdx) return s;
+      const safeBattery = s.batteryPercent <= 25 ? 92 : s.batteryPercent;
+      return {
+        ...s,
+        missionId: payload.backendMissionId ?? s.missionId,
+        missionName: payload.missionName,
+        uavName: payload.uavName || s.uavName,
+        uavModel: payload.uavModel || s.uavModel,
+        zoneId: payload.zoneId,
+        zoneName: resolvedZoneName,
+        status: 'FLYING',
+        batteryPercent: safeBattery,
+        batteryVoltageV: Number((42 + (safeBattery / 100) * 10.4).toFixed(1)),
+        latitude: firstWp.latitude,
+        longitude: firstWp.longitude,
+        homeLatitude: firstWp.latitude,
+        homeLongitude: firstWp.longitude,
+        altitudeM: firstWp.altitudeM,
+        speedMs: firstWp.targetSpeedMs,
+        headingDeg: heading,
+        currentWaypointOrder: nodes.length > 1 ? 2 : 1,
+        completedWaypoints: 1,
+        totalWaypoints: nodes.length,
+        segmentProgress: 0,
+        progressPercent: 0,
+        distanceTraveledM: 0,
+        totalRouteDistanceM: totalDist,
+        elapsedSeconds: 0,
+        estimatedRemainingSeconds: estRemaining,
+        packetsCollected: 24,
+        packetErrors: 0,
+        errorReason: null,
+        startedAt: nowIso,
+        lastTelemetryAt: nowIso,
+        waypoints: nodes,
+      };
+    });
+  } else {
+    const seqNum = 70 + baseSessions.length + 1;
+    const newSession: UavFlightSession = {
+      missionId: payload.backendMissionId ?? 700 + baseSessions.length + 1,
+      missionCode: `MSN-2026-${String(seqNum).padStart(3, '0')}`,
+      missionName: payload.missionName,
+      uavId: payload.uavId,
+      uavName: payload.uavName || `UAV ${payload.uavId}`,
+      uavModel: payload.uavModel || 'DJI Matrice 300 RTK',
+      zoneId: payload.zoneId,
+      zoneName: resolvedZoneName,
+      status: 'FLYING',
+      batteryPercent: 95,
+      batteryVoltageV: Number((42 + 0.95 * 10.4).toFixed(1)),
+      batteryTempC: 31.5,
+      signalStrength: 96,
+      altitudeM: firstWp.altitudeM,
+      speedMs: firstWp.targetSpeedMs,
+      headingDeg: heading,
+      satellites: 18,
+      latitude: firstWp.latitude,
+      longitude: firstWp.longitude,
+      homeLatitude: firstWp.latitude,
+      homeLongitude: firstWp.longitude,
+      currentWaypointOrder: nodes.length > 1 ? 2 : 1,
+      completedWaypoints: 1,
+      totalWaypoints: nodes.length,
+      segmentProgress: 0,
+      progressPercent: 0,
+      distanceTraveledM: 0,
+      totalRouteDistanceM: totalDist,
+      elapsedSeconds: 0,
+      estimatedRemainingSeconds: estRemaining,
+      packetsCollected: 24,
+      packetErrors: 0,
+      errorReason: null,
+      startedAt: nowIso,
+      lastTelemetryAt: nowIso,
+      waypoints: nodes,
+    };
+    nextSessions = [...baseSessions, newSession];
+  }
+
+  saveStoredSessions(nextSessions);
+  return nextSessions;
 }
 
 function loadStoredNotes(): MissionNote[] {
@@ -904,7 +977,7 @@ export function advanceFlightSessionTick(
     lerpScalar(activeFrom.targetSpeedMs, activeTo.targetSpeedMs, nextAlpha).toFixed(1),
   );
 
-  const nextBattery = drainBattery(session.batteryPercent, 1, 10);
+  const nextBattery = drainBattery(session.batteryPercent, 0.4, 10);
   // Nếu pin tụt xuống <= 20% khi đang bay thì tự động chuyển sang Về trạm (RTH)
   if (nextBattery <= 20 && nextStatus === 'FLYING') {
     nextStatus = 'RETURNING';
@@ -999,8 +1072,8 @@ function normalizeMissionNote(raw: Partial<MissionNote>): MissionNote {
     content: raw.content || '',
     author: raw.author || 'Nguyễn Trường An (Operator)',
     waypointOrder: typeof raw.waypointOrder === 'number' ? raw.waypointOrder : 1,
-    latitude: typeof raw.latitude === 'number' ? raw.latitude : 11.9416,
-    longitude: typeof raw.longitude === 'number' ? raw.longitude : 108.4595,
+    latitude: typeof raw.latitude === 'number' ? raw.latitude : 11.9396,
+    longitude: typeof raw.longitude === 'number' ? raw.longitude : 108.4662,
     batteryAtNote: typeof raw.batteryAtNote === 'number' ? raw.batteryAtNote : 80,
     flightStatusAtNote: raw.flightStatusAtNote || 'FLYING',
     isPinned: Boolean(raw.isPinned),

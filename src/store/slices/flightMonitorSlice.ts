@@ -30,7 +30,11 @@ import {
   saveStoredSessions,
   updateMissionFlightStatusApi,
   updateMissionNoteApi,
+  upsertPlannedRouteIntoSessions,
+  loadStoredSessions,
+  type PlannedMissionSyncPayload,
 } from '../../services/flightMonitorService';
+import { createUAV, deleteUAV } from './deviceSlice';
 
 // ==================== STATE INTERFACE ====================
 
@@ -308,6 +312,19 @@ const flightMonitorSlice = createSlice({
         'Đã khôi phục toàn bộ dữ liệu mẫu cho 4 chuyến bay UAV và danh sách Note Mission (F16).';
     },
 
+    syncPlannedMissionToMonitor: (
+      state,
+      action: PayloadAction<PlannedMissionSyncPayload>,
+    ) => {
+      state.sessions = upsertPlannedRouteIntoSessions(
+        state.sessions,
+        action.payload,
+      );
+      state.selectedUavId = action.payload.uavId;
+      state.isStreaming = true;
+      state.lastActionMessage = `Đã đồng bộ lộ trình "${action.payload.missionName}" (${action.payload.waypoints.length} Waypoints) cho ${action.payload.uavId}.`;
+    },
+
     clearFlightActionMessage: (state) => {
       state.lastActionMessage = null;
     },
@@ -335,21 +352,22 @@ const flightMonitorSlice = createSlice({
           // tự động reset lộ trình về Waypoint #1 -> #2 để không bị advanceFlightSessionTick giật ngược về RETURNING sau 2s.
           const isRouteFinished =
             s.status === 'COMPLETED' ||
+            s.status === 'STANDBY' ||
             s.completedWaypoints >= s.totalWaypoints ||
             (s.currentWaypointOrder >= s.totalWaypoints && s.segmentProgress >= 1);
           const shouldRestartRoute = newStatus === 'FLYING' && isRouteFinished;
-          const needsSafeBattery = newStatus === 'FLYING' && s.batteryPercent <= 20;
+          const needsSafeBattery = newStatus === 'FLYING' && s.batteryPercent < 45;
 
           if (shouldRestartRoute || needsSafeBattery) {
             restartedNote = needsSafeBattery
-              ? ' (Đã nạp pin an toàn 85% & khởi hành lại từ WP #1)'
-              : ' (Đã khởi hành lại lộ trình từ WP #1)';
+              ? ' (Đã sạc pin an toàn 92% & xuất phát từ điểm #1)'
+              : ' (Đã xuất phát lại từ điểm #1)';
           }
 
           if (shouldRestartRoute) {
             const firstWp = s.waypoints[0];
             const nextOrder = s.waypoints.length > 1 ? 2 : 1;
-            const nextBattery = needsSafeBattery ? 85 : s.batteryPercent;
+            const nextBattery = needsSafeBattery ? 92 : s.batteryPercent;
             const resetWaypoints = s.waypoints.map((wp, idx) => ({
               ...wp,
               visitState:
@@ -381,7 +399,7 @@ const flightMonitorSlice = createSlice({
             };
           }
 
-          const nextBattery = needsSafeBattery ? 85 : s.batteryPercent;
+          const nextBattery = needsSafeBattery ? 92 : s.batteryPercent;
           const updatedWaypoints = s.waypoints.map((wp) => {
             if (wp.order === s.currentWaypointOrder) {
               return {
@@ -452,6 +470,100 @@ const flightMonitorSlice = createSlice({
           state.editingNoteId = null;
         }
         state.lastActionMessage = `Đã xóa ghi chú #${action.payload} khỏi nhật ký nhiệm vụ.`;
+      })
+      .addCase(createUAV.fulfilled, (state, action) => {
+        const base = state.sessions.length > 0 ? state.sessions : loadStoredSessions();
+        if (!base.some((s) => s.uavId === action.payload.id)) {
+          const uav = action.payload;
+          const seq = 70 + base.length + 1;
+          const nowIso = new Date().toISOString();
+          const newSession: UavFlightSession = {
+            missionId: 700 + base.length + 1,
+            missionCode: `MSN-2026-${String(seq).padStart(3, '0')}`,
+            missionName: `Nhiệm vụ khảo sát định kỳ (${uav.id})`,
+            uavId: uav.id,
+            uavName: uav.name,
+            uavModel: uav.model,
+            zoneId: 1,
+            zoneName: uav.location || 'Khu A - Trang Trại Công Nghệ Cao Đà Lạt',
+            status: uav.status === 'ACTIVE' ? 'FLYING' : 'STANDBY',
+            batteryPercent: uav.battery,
+            batteryVoltageV: Number((42 + (uav.battery / 100) * 10.4).toFixed(1)),
+            batteryTempC: 30.5,
+            signalStrength: uav.signal || 95,
+            altitudeM: uav.status === 'ACTIVE' ? 35 : 0,
+            speedMs: uav.status === 'ACTIVE' ? 8 : 0,
+            headingDeg: 45,
+            satellites: 18,
+            latitude: 11.9408,
+            longitude: 108.4589,
+            homeLatitude: 11.9408,
+            homeLongitude: 108.4589,
+            currentWaypointOrder: uav.status === 'ACTIVE' ? 2 : 1,
+            completedWaypoints: uav.status === 'ACTIVE' ? 1 : 0,
+            totalWaypoints: 3,
+            segmentProgress: 0,
+            progressPercent: 0,
+            distanceTraveledM: 0,
+            totalRouteDistanceM: 420,
+            elapsedSeconds: 0,
+            estimatedRemainingSeconds: 120,
+            packetsCollected: 0,
+            packetErrors: 0,
+            errorReason: null,
+            startedAt: nowIso,
+            lastTelemetryAt: nowIso,
+            waypoints: [
+              {
+                order: 1,
+                label: 'WP-01 • Điểm xuất phát (TAKEOFF)',
+                latitude: 11.9408,
+                longitude: 108.4589,
+                altitudeM: 35,
+                targetSpeedMs: 8,
+                visitState: uav.status === 'ACTIVE' ? 'COMPLETED' : 'PENDING',
+                reachedAt: uav.status === 'ACTIVE' ? nowIso.slice(11, 19) : null,
+                collectedPackets: 0,
+                errorPackets: 0,
+              },
+              {
+                order: 2,
+                label: 'WP-02 • Điểm tuần tra trung tâm (NORMAL)',
+                latitude: 11.9422,
+                longitude: 108.4602,
+                altitudeM: 45,
+                targetSpeedMs: 8,
+                visitState: uav.status === 'ACTIVE' ? 'ACTIVE' : 'PENDING',
+                reachedAt: null,
+                collectedPackets: 0,
+                errorPackets: 0,
+              },
+              {
+                order: 3,
+                label: 'WP-03 • Trạm thu hồi (LANDING)',
+                latitude: 11.9431,
+                longitude: 108.4594,
+                altitudeM: 25,
+                targetSpeedMs: 5,
+                visitState: 'PENDING',
+                reachedAt: null,
+                collectedPackets: 0,
+                errorPackets: 0,
+              },
+            ],
+          };
+          state.sessions = [...base, newSession];
+          saveStoredSessions(state.sessions);
+        }
+      })
+      .addCase(deleteUAV.fulfilled, (state, action) => {
+        const base = state.sessions.length > 0 ? state.sessions : loadStoredSessions();
+        const filtered = base.filter((s) => s.uavId !== action.payload);
+        state.sessions = filtered;
+        if (state.selectedUavId === action.payload) {
+          state.selectedUavId = filtered[0]?.uavId ?? '';
+        }
+        saveStoredSessions(filtered);
       });
   },
 });
@@ -472,6 +584,7 @@ export const {
   setEditingNoteId,
   togglePinNoteLocal,
   restoreFlightMonitorDefaults,
+  syncPlannedMissionToMonitor,
   clearFlightActionMessage,
 } = flightMonitorSlice.actions;
 
