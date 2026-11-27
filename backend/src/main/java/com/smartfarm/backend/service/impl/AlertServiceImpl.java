@@ -33,10 +33,11 @@ public class AlertServiceImpl implements AlertService {
         this(alertRepository, zoneRepository, sensorRepository, emailAlertService, null);
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public AlertServiceImpl(AlertRepository alertRepository, ZoneRepository zoneRepository,
                             SensorRepository sensorRepository,
                             com.smartfarm.backend.service.EmailAlertService emailAlertService,
-                            com.smartfarm.backend.service.TelemetryRealtimeService telemetryRealtimeService) {
+                            @org.springframework.lang.Nullable com.smartfarm.backend.service.TelemetryRealtimeService telemetryRealtimeService) {
         this.alertRepository = alertRepository;
         this.zoneRepository = zoneRepository;
         this.sensorRepository = sensorRepository;

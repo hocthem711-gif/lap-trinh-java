@@ -73,6 +73,7 @@ public class SecurityConfig {
                                 "/sensor-data/sync/bulk",
                                 "/thresholds/**",
                                 "/alerts/**",
+                                "/sensors/**",
                                 "/uavs/**",
                                 "/uav/**",
                                 "/gateways/**",
@@ -84,6 +85,7 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.PUT,
                                 "/thresholds/**",
                                 "/missions/**",
+                                "/uavs/**",
                                 "/uav/**",
                                 "/gateways/**",
                                 "/sensors/**"
@@ -95,18 +97,19 @@ public class SecurityConfig {
                                 "/missions/**",
                                 "/uavs/**"
                         ).permitAll()
-                        // Cho phép xóa các đối tượng dữ liệu vận hành (ngưỡng, cảnh báo, note nhiệm vụ)
+                        // Cho phép xóa các đối tượng dữ liệu vận hành (ngưỡng, note nhiệm vụ, sensor)
                         .requestMatchers(org.springframework.http.HttpMethod.DELETE,
                                 "/thresholds/**",
-                                "/alerts/**",
+                                "/sensors/**",
                                 "/missions/**",
                                 "/gateways/**",
                                 "/uavs/**"
                         ).permitAll()
-                        // Thắt chặt bảo mật cấp cao: Chỉ ADMIN mới được thực thi thao tác xóa nông trại & khu vực
+                        // Thắt chặt bảo mật cấp cao: Chỉ ADMIN mới được thực thi thao tác xóa nông trại, khu vực & cảnh báo (F02/SYS-03)
                         .requestMatchers(org.springframework.http.HttpMethod.DELETE,
                                 "/farms/**",
-                                "/zones/**"
+                                "/zones/**",
+                                "/alerts/**"
                         ).hasRole("ADMIN")
                         .anyRequest().authenticated()
                 );
