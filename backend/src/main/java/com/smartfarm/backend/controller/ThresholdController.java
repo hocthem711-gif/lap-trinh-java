@@ -65,4 +65,11 @@ public class ThresholdController {
         thresholdService.deleteThreshold(id);
         return ResponseEntity.ok(ApiResponse.success("Xóa ngưỡng thành công!", "Threshold ID " + id + " đã bị xóa."));
     }
+
+    @PostMapping("/zone/{zoneId}/reset")
+    @Operation(summary = "Reset ngưỡng về mặc định theo Zone", description = "Xóa tất cả ngưỡng cũ trong Zone và tạo lại bộ ngưỡng mặc định cho nông nghiệp thông minh")
+    public ResponseEntity<ApiResponse<List<ThresholdResponse>>> resetZoneThresholds(@PathVariable Long zoneId) {
+        List<ThresholdResponse> responses = thresholdService.resetZoneThresholds(zoneId);
+        return ResponseEntity.ok(ApiResponse.success("Đã reset ngưỡng về mặc định cho Zone!", responses));
+    }
 }

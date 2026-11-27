@@ -18,7 +18,7 @@ import java.util.Map;
 @Tag(name = "Health Check", description = "API Kiểm tra trạng thái hoạt động & Chẩn đoán hệ thống Backend Core (Dev 1 - LTJ-1 & LTJ-36)")
 public class HealthCheckController {
 
-    @GetMapping({"/health", "/api/v1/health"})
+    @GetMapping("/health")
     @Operation(summary = "Kiểm tra hệ thống Backend", description = "Trả về trạng thái hoạt động, tài nguyên JVM và tiến độ Sprint của Smart Farm Backend")
     public ResponseEntity<ApiResponse<Map<String, Object>>> healthCheck() {
         Map<String, Object> healthInfo = new LinkedHashMap<>();

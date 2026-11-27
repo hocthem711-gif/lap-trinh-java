@@ -19,7 +19,7 @@ public class ThresholdRequest {
 
     private Double criticalMax;
 
-    private Boolean enabled = true;
+    private Boolean enabled;
 
     public ThresholdRequest() {}
 

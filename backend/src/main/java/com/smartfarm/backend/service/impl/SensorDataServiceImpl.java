@@ -53,12 +53,13 @@ public class SensorDataServiceImpl implements SensorDataService {
         this(sensorRepository, sensorDataRepository, zoneRepository, alertRepository, sensorDataValidator, null);
     }
 
+    @org.springframework.beans.factory.annotation.Autowired
     public SensorDataServiceImpl(SensorRepository sensorRepository,
                                  SensorDataRepository sensorDataRepository,
                                  ZoneRepository zoneRepository,
                                  AlertRepository alertRepository,
                                  SensorDataValidator sensorDataValidator,
-                                 com.smartfarm.backend.service.TelemetryRealtimeService telemetryRealtimeService) {
+                                 @org.springframework.lang.Nullable com.smartfarm.backend.service.TelemetryRealtimeService telemetryRealtimeService) {
         this.sensorRepository = sensorRepository;
         this.sensorDataRepository = sensorDataRepository;
         this.zoneRepository = zoneRepository;
@@ -329,7 +330,7 @@ public class SensorDataServiceImpl implements SensorDataService {
         LocalDateTime effectiveStart = start != null ? start : LocalDateTime.now().minusDays(7);
         LocalDateTime effectiveEnd = end != null ? end : LocalDateTime.now();
 
-        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(100, Math.max(1, size)), Sort.by(Sort.Direction.DESC, "recordedAt"));
+        Pageable pageable = PageRequest.of(Math.max(0, page), Math.min(1000, Math.max(1, size)), Sort.by(Sort.Direction.DESC, "recordedAt"));
 
         Page<SensorData> dataPage;
         if (sensorId != null) {
