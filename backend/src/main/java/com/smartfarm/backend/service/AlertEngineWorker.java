@@ -78,10 +78,15 @@ public class AlertEngineWorker {
                 continue;
             }
             Threshold threshold = thresholdOpt.get();
+            if (Boolean.FALSE.equals(threshold.getEnabled())) {
+                continue;
+            }
 
             Double val = data.getValue();
             Double minVal = threshold.getMinValue();
             Double maxVal = threshold.getMaxValue();
+            Double critMin = threshold.getCriticalMin();
+            Double critMax = threshold.getCriticalMax();
 
             boolean isViolated = false;
             String reason = "";
@@ -101,7 +106,9 @@ public class AlertEngineWorker {
             if (isViolated) {
                 if (openAlertOpt.isEmpty()) {
                     AlertLevel level = AlertLevel.WARNING;
-                    if ((maxVal != null && val > maxVal * 1.2) || (minVal != null && val < minVal * 0.8)) {
+                    if ((critMax != null && val >= critMax) || (critMin != null && val <= critMin)) {
+                        level = AlertLevel.CRITICAL;
+                    } else if ((maxVal != null && val > maxVal * 1.2) || (minVal != null && val < minVal * 0.8)) {
                         level = AlertLevel.CRITICAL;
                     }
 
