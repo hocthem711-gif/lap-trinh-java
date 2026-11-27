@@ -130,81 +130,31 @@ const MOCK_UAVS: UAV[] = [
     id: 'UAV-001',
     name: 'UAV Trinh sát 01',
     model: 'DJI Matrice 300 RTK',
-    battery: 92,
-    signal: 95,
+    battery: 84,
+    signal: 96,
     status: 'ACTIVE',
-    location: 'Khu A - Zone 1',
-    lastSeen: new Date(Date.now() - 60000).toISOString(),
-  },
-  {
-    id: 'UAV-002',
-    name: 'UAV Phun thuốc 01',
-    model: 'DJI Agras T40',
-    battery: 78,
-    signal: 88,
-    status: 'ACTIVE',
-    location: 'Khu B - Zone 2',
-    lastSeen: new Date(Date.now() - 120000).toISOString(),
-  },
-  {
-    id: 'UAV-003',
-    name: 'UAV Giám sát 02',
-    model: 'DJI Mavic 3 Enterprise',
-    battery: 45,
-    signal: 72,
-    status: 'IDLE',
-    location: 'Trạm sạc C',
-    lastSeen: new Date(Date.now() - 300000).toISOString(),
-  },
-  {
-    id: 'UAV-004',
-    name: 'UAV Khảo sát 01',
-    model: 'DJI Matrice 350 RTK',
-    battery: 15,
-    signal: 30,
-    status: 'MAINTENANCE',
-    location: 'Xưởng bảo trì',
-    lastSeen: new Date(Date.now() - 86400000).toISOString(),
-  },
-  {
-    id: 'UAV-005',
-    name: 'UAV Phun thuốc 02',
-    model: 'DJI Agras T25',
-    battery: 0,
-    signal: 0,
-    status: 'OFFLINE',
-    location: 'Không xác định',
-    lastSeen: new Date(Date.now() - 172800000).toISOString(),
-  },
-  {
-    id: 'UAV-006',
-    name: 'UAV Gieo hạt 01',
-    model: 'XAG P100',
-    battery: 88,
-    signal: 91,
-    status: 'ACTIVE',
-    location: 'Khu D - Zone 4',
+    location: 'Khu A - Nhà Kính Cà Chua',
     lastSeen: new Date(Date.now() - 30000).toISOString(),
   },
   {
-    id: 'UAV-007',
-    name: 'UAV Trinh sát 03',
-    model: 'Autel EVO II Pro',
-    battery: 63,
-    signal: 85,
-    status: 'IDLE',
-    location: 'Khu A - Zone 1',
-    lastSeen: new Date(Date.now() - 600000).toISOString(),
+    id: 'UAV-002',
+    name: 'UAV Giám sát 02',
+    model: 'DJI Matrice 30T',
+    battery: 26,
+    signal: 82,
+    status: 'ACTIVE',
+    location: 'Khu B - Cánh Đồng Lúa',
+    lastSeen: new Date(Date.now() - 60000).toISOString(),
   },
   {
-    id: 'UAV-008',
-    name: 'UAV Vận chuyển 01',
-    model: 'DJI FlyCart 30',
-    battery: 55,
-    signal: 78,
-    status: 'ACTIVE',
-    location: 'Khu C - Zone 3',
-    lastSeen: new Date(Date.now() - 90000).toISOString(),
+    id: 'UAV-003',
+    name: 'UAV Tuần tra 03',
+    model: 'Autel EVO II Dual 640T',
+    battery: 58,
+    signal: 46,
+    status: 'MAINTENANCE',
+    location: 'Khu C - Vườn Cây Ăn Quả',
+    lastSeen: new Date(Date.now() - 120000).toISOString(),
   },
 ];
 
@@ -333,6 +283,35 @@ export const zoneApi = {
 
 // ==================== UAV API (Hybrid + Mock Fallback + Backend Adapter) ====================
 let nextUavSeq = MOCK_UAVS.length + 1;
+const DELETED_UAV_CODES_KEY = 'smartfarm_deleted_uav_codes';
+const INTERNAL_TEST_UAV_CODES = new Set(['UAV-ALPHA-01', 'UAV-004']);
+
+const DEFAULT_FLEET_COORDS: Record<string, { lat: number; lng: number }> = {
+  'UAV-001': { lat: 11.9396, lng: 108.4662 },
+  'UAV-002': { lat: 11.9378, lng: 108.4668 },
+  'UAV-003': { lat: 11.9364, lng: 108.4659 },
+};
+
+function getDeletedUavCodes(): Set<string> {
+  try {
+    const raw = sessionStorage.getItem(DELETED_UAV_CODES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return new Set(parsed.map(String));
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return new Set();
+}
+
+function saveDeletedUavCodes(codes: Set<string>): void {
+  try {
+    sessionStorage.setItem(DELETED_UAV_CODES_KEY, JSON.stringify([...codes]));
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 interface BackendUavRaw {
   id?: string | number;
@@ -354,54 +333,114 @@ interface BackendUavRaw {
 function normalizeUavStatus(rawStatus?: string): UAV['status'] {
   const s = String(rawStatus ?? '').toUpperCase();
   if (s === 'ACTIVE' || s === 'FLYING' || s === 'RETURNING') return 'ACTIVE';
-  if (s === 'IDLE' || s === 'STANDBY' || s === 'READY') return 'IDLE';
-  if (s === 'MAINTENANCE') return 'MAINTENANCE';
+  if (s === 'IDLE' || s === 'STANDBY' || s === 'READY' || s === 'COMPLETED') return 'IDLE';
+  if (s === 'MAINTENANCE' || s === 'COLLECTION_ERROR') return 'MAINTENANCE';
   return 'OFFLINE';
 }
 
 function normalizeUav(raw: BackendUavRaw, fallback?: Partial<UAV>): UAV {
   const code = raw.code || (typeof raw.id === 'string' ? raw.id : `UAV-${String(raw.id ?? nextUavSeq++).padStart(3, '0')}`);
-  const status = normalizeUavStatus(raw.status ?? fallback?.status);
+  const matchedDefault = MOCK_UAVS.find((m) => m.id === code);
+  const effectiveFallback = fallback ?? matchedDefault;
+  const status = normalizeUavStatus(raw.status ?? effectiveFallback?.status);
   const battery =
     typeof raw.battery === 'number'
       ? raw.battery
       : typeof raw.batteryLevel === 'number'
         ? Math.round(raw.batteryLevel)
-        : (fallback?.battery ?? (status === 'OFFLINE' ? 0 : 85));
+        : (effectiveFallback?.battery ?? (status === 'OFFLINE' ? 0 : 85));
   const signal =
     typeof raw.signal === 'number'
       ? raw.signal
-      : (fallback?.signal ?? (raw.isConnected === false || status === 'OFFLINE' ? 0 : 90));
+      : (effectiveFallback?.signal ?? (raw.isConnected === false || status === 'OFFLINE' ? 0 : 90));
   const location =
     raw.location ||
-    fallback?.location ||
+    effectiveFallback?.location ||
     (typeof raw.latitude === 'number' && typeof raw.longitude === 'number'
       ? `${raw.latitude.toFixed(4)}, ${raw.longitude.toFixed(4)}`
       : 'Trang trại Đà Lạt');
 
   return {
     id: code,
-    name: raw.name || fallback?.name || `UAV ${code}`,
-    model: raw.model || fallback?.model || 'DJI Matrice 300 RTK',
+    name: raw.name || effectiveFallback?.name || `UAV ${code}`,
+    model: raw.model || effectiveFallback?.model || 'DJI Matrice 300 RTK',
     battery: Math.max(0, Math.min(100, battery)),
     signal: Math.max(0, Math.min(100, signal)),
     status,
     location,
-    lastSeen: raw.lastSeen || raw.lastSeenAt || fallback?.lastSeen || new Date().toISOString(),
+    lastSeen: raw.lastSeen || raw.lastSeenAt || effectiveFallback?.lastSeen || new Date().toISOString(),
   };
 }
 
 export const uavApi = {
   getAll: async (): Promise<UAV[]> => {
+    const deletedCodes = getDeletedUavCodes();
     try {
       const result = await apiRequest<BackendUavRaw[]>('/uavs');
-      if (Array.isArray(result.data) && result.data.length > 0) {
-        return result.data.map(item => normalizeUav(item));
+      if (Array.isArray(result.data)) {
+        const existingByCode = new Map<string, BackendUavRaw>();
+        for (const item of result.data) {
+          const code = item.code || String(item.id ?? '');
+          if (code) existingByCode.set(code, item);
+        }
+
+        // Đồng bộ đủ 3 UAV tiêu chuẩn (UAV-001 -> UAV-003) vào Backend tương ứng 3 Zone A, B, C
+        for (const seed of MOCK_UAVS) {
+          if (!existingByCode.has(seed.id) && !deletedCodes.has(seed.id)) {
+            const coords = DEFAULT_FLEET_COORDS[seed.id] ?? { lat: 11.9404, lng: 108.4583 };
+            try {
+              const created = await apiRequest<BackendUavRaw>('/uavs', {
+                method: 'POST',
+                body: JSON.stringify({
+                  code: seed.id,
+                  name: seed.name,
+                  model: seed.model,
+                  status: seed.status,
+                  batteryLevel: seed.battery,
+                  isConnected: seed.status !== 'OFFLINE',
+                  latitude: coords.lat,
+                  longitude: coords.lng,
+                }),
+              });
+              if (created.data) {
+                existingByCode.set(seed.id, created.data);
+              }
+            } catch {
+              existingByCode.set(seed.id, {
+                code: seed.id,
+                name: seed.name,
+                model: seed.model,
+                status: seed.status,
+                batteryLevel: seed.battery,
+                isConnected: seed.status !== 'OFFLINE',
+              });
+            }
+          }
+        }
+
+        const fleet = [...existingByCode.values()]
+          .filter((item) => {
+            const code = item.code || String(item.id ?? '');
+            return !INTERNAL_TEST_UAV_CODES.has(code) && !deletedCodes.has(code);
+          })
+          .map((item) => normalizeUav(item))
+          .sort((a, b) => a.id.localeCompare(b.id));
+
+        for (const u of fleet) {
+          const match = /^UAV-(\d+)$/i.exec(u.id);
+          if (match) {
+            nextUavSeq = Math.max(nextUavSeq, Number(match[1]) + 1);
+          }
+        }
+
+        if (fleet.length > 0 || deletedCodes.size >= MOCK_UAVS.length) {
+          return fleet;
+        }
       }
     } catch {
-      // Backend chưa bật hoặc lỗi kết nối -> dùng Mock chuẩn
+      // Backend chưa bật hoặc lỗi kết nối -> dùng danh sách đội bay chuẩn
     }
-    return [...MOCK_UAVS];
+    return MOCK_UAVS.filter((u) => !deletedCodes.has(u.id));
   },
 
   getById: async (id: string): Promise<UAV | undefined> => {
@@ -410,6 +449,11 @@ export const uavApi = {
 
   create: async (data: Omit<UAV, 'id' | 'lastSeen'>): Promise<UAV> => {
     const generatedCode = `UAV-${String(nextUavSeq++).padStart(3, '0')}`;
+    const deletedCodes = getDeletedUavCodes();
+    if (deletedCodes.has(generatedCode)) {
+      deletedCodes.delete(generatedCode);
+      saveDeletedUavCodes(deletedCodes);
+    }
     try {
       const backendPayload = {
         code: generatedCode,
@@ -418,6 +462,8 @@ export const uavApi = {
         status: data.status,
         batteryLevel: data.battery,
         isConnected: data.status === 'ACTIVE' || data.status === 'IDLE',
+        latitude: 11.9408,
+        longitude: 108.4589,
       };
       const result = await apiRequest<BackendUavRaw>('/uavs', {
         method: 'POST',
@@ -425,7 +471,9 @@ export const uavApi = {
       });
       if (result.data) {
         const normalized = normalizeUav(result.data, { ...data, id: generatedCode });
-        MOCK_UAVS.push(normalized);
+        if (!MOCK_UAVS.some((u) => u.id === normalized.id)) {
+          MOCK_UAVS.push(normalized);
+        }
         return normalized;
       }
     } catch {
@@ -436,11 +484,16 @@ export const uavApi = {
       id: generatedCode,
       lastSeen: new Date().toISOString(),
     };
-    MOCK_UAVS.push(newUav);
+    if (!MOCK_UAVS.some((u) => u.id === newUav.id)) {
+      MOCK_UAVS.push(newUav);
+    }
     return newUav;
   },
 
   delete: async (id: string): Promise<void> => {
+    const deletedCodes = getDeletedUavCodes();
+    deletedCodes.add(id);
+    saveDeletedUavCodes(deletedCodes);
     try {
       await apiRequest(`/uavs/${encodeURIComponent(id)}`, {
         method: 'DELETE',

@@ -1,6 +1,19 @@
 import RedAlertToastWidget from './components/RedAlertToastWidget';
 import HistoryChart from './components/HistoryChart'
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useDispatch, useSelector } from 'react-redux'
+import type { RootState, AppDispatch } from './store'
+import {
+  initFlightMonitorData,
+  restoreFlightMonitorDefaults,
+  toggleTelemetryStream,
+} from './store/slices/flightMonitorSlice'
+import {
+  initializeMissionReviewExportData,
+  setSelectedMissionId,
+} from './store/slices/missionReviewExportSlice'
+import { toggleStreaming } from './store/slices/sensorRealtimeSlice'
+import { fetchUAVs } from './store/slices/deviceSlice'
 import Login from './components/Login'
 import { logout } from './services/authService'
 import SensorOverviewMap from './components/SensorOverviewMap'
@@ -41,6 +54,7 @@ import {
   ChartColumn,
   ShieldAlert,
   FileSpreadsheet,
+  LogOut,
 } from 'lucide-react'
 import DeviceManagement from './components/DeviceManagement'
 import SensorAssignment from './components/SensorAssignment'
@@ -76,7 +90,7 @@ const menuItems = [
   { label: 'Cài đặt', icon: Settings },
 ]
 
-const uavList = [
+const defaultUavList = [
   {
     id: 'UAV-001',
     name: 'UAV Trinh sát 01',
@@ -107,77 +121,7 @@ const uavList = [
     status: 'Pin thấp',
     location: 'Khu vực C',
   },
-  {
-    id: 'UAV-004',
-    name: 'UAV Trinh sát 04',
-    model: 'DJI Matrice 300',
-    battery: 81,
-    signal: 93,
-    online: true,
-    status: 'Đang hoạt động',
-    location: 'Khu vực D',
-  },
 ]
-
-// Tổng số UAV
-const totalUavs = uavList.length;
-
-// Số UAV đang hoạt động
-const activeUavs = uavList.filter(
-  uav => uav.status === 'Đang hoạt động'
-).length;
-
-// Số UAV trực tuyến
-const onlineUavs = uavList.filter(
-  uav => uav.online
-).length;
-
-// Mức pin trung bình
-const lowBatteryUavs = uavList.filter(
-  uav => uav.battery <= 25
-).length;
-
-const averageBattery = totalUavs > 0
-  ? Math.round(
-      uavList.reduce(
-        (sum, uav) => sum + uav.battery,
-        0
-      ) / totalUavs
-    )
-  : 0;
-
-// Phần trăm thiết bị trực tuyến
-const onlinePercent = totalUavs > 0
-  ? Math.round((onlineUavs / totalUavs) * 100)
-  : 0;
-
-// Dữ liệu các thẻ Dashboard
-const stats = [
-  {
-    label: 'Tổng số UAV',
-    value: String(totalUavs),
-    note: 'Thiết bị trong hệ thống',
-    icon: Plane,
-  },
-  {
-    label: 'Đang hoạt động',
-    value: String(activeUavs),
-    note: 'UAV đang thực hiện nhiệm vụ',
-    icon: Activity,
-  },
-  {
-    label: 'Mức pin trung bình',
-    value: `${averageBattery}%`,
-    note: 'Pin trung bình của các UAV',
-    icon: Battery,
-  },
-  {
-    label: 'Kết nối trực tuyến',
-    value: String(onlineUavs),
-    note: `${onlinePercent}% tổng số UAV`,
-    icon: Signal,
-  },
-];
 
 type UserItem = {
   id: number
@@ -186,6 +130,8 @@ type UserItem = {
   role: string
   status: string
 }
+
+const USERS_STORAGE_KEY = 'smartfarm_system_users_v1'
 
 const initialUsers: UserItem[] = [
   {
@@ -207,29 +153,24 @@ const initialUsers: UserItem[] = [
     name: 'Thiện Hiếu',
     email: 'thienhieu@gmail.com',
     role: 'Người vận hành',
-    status: 'Tạm khóa',
+    status: 'Hoạt động',
+  },
+  {
+    id: 4,
+    name: 'Trần Nguyễn Bảo Hoàng',
+    email: 'hocthem711@gmail.com',
+    role: 'Quản trị viên',
+    status: 'Hoạt động',
+  },
+  {
+    id: 5,
+    name: 'Nguyễn Trường An',
+    email: 'nguyentruonganth2019@gmail.com',
+    role: 'Người vận hành',
+    status: 'Hoạt động',
   },
 ]
 
-
-const activityChartData = {
-  labels: ['Online', 'Offline'],
-  datasets: [
-    {
-      label: 'Số UAV',
-      data: [
-        onlineUavs,
-        totalUavs - onlineUavs,
-      ],
-      backgroundColor: [
-        '#22c55e',
-        '#ef4444',
-      ],
-      borderRadius: 8,
-      borderWidth: 0,
-    },
-  ],
-};
 
 const activityChartOptions = {
   responsive: true,
@@ -250,15 +191,153 @@ const activityChartOptions = {
   },
 }
 
-
 function App() {
+  const dispatch = useDispatch<AppDispatch>()
+  const monitorSessions = useSelector((state: RootState) => state.flightMonitor.sessions)
+  const isUavStreaming = useSelector((state: RootState) => state.flightMonitor.isStreaming)
+  const isSensorStreaming = useSelector((state: RootState) => state.sensorRealtime.isStreaming)
+  const openAlertsCount = useSelector(
+    (state: RootState) => state.alert.alerts.filter((a) => a.status === 'OPEN').length,
+  )
+  const deviceUavs = useSelector((state: RootState) => state.device.uavs)
+
   const [isLoggedIn, setIsLoggedIn] = useState(() => Boolean(localStorage.getItem('accessToken')))
   const [username, setUsername] = useState(() => localStorage.getItem('savedUsername') || '')
 
-  const [activePage, setActivePage] = useState('Tổng quan')
+  const [activePage, setActivePage] = useState(() => {
+    const saved = sessionStorage.getItem('smartfarm_active_page')
+    return saved && menuItems.some((m) => m.label === saved) ? saved : 'Tổng quan'
+  })
+
+  useEffect(() => {
+    sessionStorage.setItem('smartfarm_active_page', activePage)
+  }, [activePage])
+  const [globalSearch, setGlobalSearch] = useState('')
   const [uavSearch, setUavSearch] = useState('')
-  const [users, setUsers] = useState<UserItem[]>(initialUsers)
+  const [users, setUsers] = useState<UserItem[]>(() => {
+    try {
+      const saved = localStorage.getItem(USERS_STORAGE_KEY)
+      if (saved) {
+        const parsed = JSON.parse(saved) as UserItem[]
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed
+      }
+    } catch {
+      // Fallback to initialUsers
+    }
+    return initialUsers
+  })
   const [userSearch, setUserSearch] = useState('')
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users))
+    } catch {
+      // Ignore storage errors
+    }
+  }, [users])
+
+  useEffect(() => {
+    if (!isLoggedIn) return
+    dispatch(initFlightMonitorData())
+    dispatch(fetchUAVs())
+  }, [dispatch, isLoggedIn])
+
+  const uavList = useMemo(() => {
+    const fromSessions =
+      monitorSessions.length > 0
+        ? monitorSessions.map((s) => {
+            const battery = Math.round(s.batteryPercent)
+            const status =
+              battery <= 25
+                ? 'Pin thấp'
+                : s.status === 'FLYING' || s.status === 'RETURNING'
+                  ? 'Đang hoạt động'
+                  : 'Chờ nhiệm vụ'
+            return {
+              id: s.uavId,
+              name: s.uavName,
+              model: s.uavModel,
+              battery,
+              signal: s.signalStrength,
+              online: s.status !== 'COLLECTION_ERROR',
+              status,
+              location: s.zoneName.split(' - ')[0] || s.zoneName,
+            }
+          })
+        : defaultUavList
+
+    const seen = new Set(fromSessions.map((u) => u.id))
+    const extras = deviceUavs
+      .filter((u) => !seen.has(u.id))
+      .map((u) => ({
+        id: u.id,
+        name: u.name,
+        model: u.model,
+        battery: Math.round(u.battery),
+        signal: Math.round(u.signal),
+        online: u.status !== 'OFFLINE',
+        status:
+          u.battery <= 25
+            ? 'Pin thấp'
+            : u.status === 'ACTIVE'
+              ? 'Đang hoạt động'
+              : 'Chờ nhiệm vụ',
+        location: u.location,
+      }))
+
+    return [...fromSessions, ...extras]
+  }, [monitorSessions, deviceUavs])
+
+  const totalUavs = uavList.length
+  const activeUavs = uavList.filter((uav) => uav.status === 'Đang hoạt động').length
+  const onlineUavs = uavList.filter((uav) => uav.online).length
+  const lowBatteryUavs = uavList.filter((uav) => uav.battery <= 25).length
+  const averageBattery =
+    totalUavs > 0
+      ? Math.round(uavList.reduce((sum, uav) => sum + uav.battery, 0) / totalUavs)
+      : 0
+  const onlinePercent =
+    totalUavs > 0 ? Math.round((onlineUavs / totalUavs) * 100) : 0
+
+  const stats = [
+    {
+      label: 'Tổng số UAV',
+      value: String(totalUavs),
+      note: 'Thiết bị trong hệ thống',
+      icon: Plane,
+    },
+    {
+      label: 'Đang hoạt động',
+      value: String(activeUavs),
+      note: 'UAV đang thực hiện nhiệm vụ',
+      icon: Activity,
+    },
+    {
+      label: 'Mức pin trung bình',
+      value: `${averageBattery}%`,
+      note: 'Pin trung bình của các UAV',
+      icon: Battery,
+    },
+    {
+      label: 'Kết nối trực tuyến',
+      value: String(onlineUavs),
+      note: `${onlinePercent}% tổng số UAV`,
+      icon: Signal,
+    },
+  ]
+
+  const activityChartData = {
+    labels: ['Online', 'Offline'],
+    datasets: [
+      {
+        label: 'Số UAV',
+        data: [onlineUavs, totalUavs - onlineUavs],
+        backgroundColor: ['#22c55e', '#ef4444'],
+        borderRadius: 8,
+        borderWidth: 0,
+      },
+    ],
+  }
 
   const filteredUsers = users.filter((user) =>
     `${user.name} ${user.email} ${user.role}`
@@ -368,7 +447,31 @@ function App() {
           <div className="topbar-actions">
             <label className="search-box">
               <Search size={18} />
-              <input type="search" placeholder="Tìm kiếm..." />
+              <input
+                type="search"
+                value={globalSearch}
+                onChange={(e) => {
+                  const val = e.target.value
+                  setGlobalSearch(val)
+                  if (activePage === 'Quản lý UAV') setUavSearch(val)
+                  if (activePage === 'Quản lý người dùng') setUserSearch(val)
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && globalSearch.trim()) {
+                    const q = globalSearch.trim().toLowerCase()
+                    const matchedMenu = menuItems.find((m) =>
+                      m.label.toLowerCase().includes(q),
+                    )
+                    if (matchedMenu) {
+                      setActivePage(matchedMenu.label)
+                    } else if (uavList.some((u) => `${u.id} ${u.name}`.toLowerCase().includes(q))) {
+                      setActivePage('Quản lý UAV')
+                      setUavSearch(globalSearch.trim())
+                    }
+                  }
+                }}
+                placeholder="Tìm trang hoặc mã UAV (Enter)..."
+              />
             </label>
 
             <button
@@ -376,10 +479,14 @@ function App() {
               className="icon-button"
               aria-label="Thông báo"
               onClick={() => setActivePage('Ngưỡng & Cảnh báo')}
-              title="Mở trang Ngưỡng & Cảnh báo (LTJ-29)"
+              title="Mở trang Ngưỡng & Cảnh báo"
             >
-              <Bell size={20} />
-              <span className="notification-dot" />
+              <Bell size={18} />
+              {openAlertsCount > 0 && (
+                <span className="notification-badge">
+                  {openAlertsCount > 9 ? '9+' : openAlertsCount}
+                </span>
+              )}
             </button>
 
             <div className="user-profile">
@@ -387,24 +494,33 @@ function App() {
                 {(username || 'AD').slice(0, 2).toUpperCase()}
               </div>
               <div className="user-info">
-                <strong>{username || 'Administrator'}</strong>
-                <span>Quản trị viên</span>
+                <strong>
+                  {username.toLowerCase() === 'admin' || !username
+                    ? 'Administrator'
+                    : username}
+                </strong>
+                <span>
+                  {username.toLowerCase().includes('farmer')
+                    ? 'Chủ trang trại'
+                    : 'Quản trị viên'}
+                </span>
               </div>
-            </div>
 
-            <button
-              type="button"
-              className="logout-button"
-              onClick={() => {
-                logout()
-                setIsLoggedIn(false)
-                setUsername('')
-                setActivePage('Tổng quan')
-                setUavSearch('')
-              }}
-            >
-              Đăng xuất
-            </button>
+              <button
+                type="button"
+                className="logout-button"
+                onClick={() => {
+                  logout()
+                  setIsLoggedIn(false)
+                  setUsername('')
+                  setActivePage('Tổng quan')
+                  setUavSearch('')
+                }}
+              >
+                <LogOut size={15} />
+                <span>Đăng xuất</span>
+              </button>
+            </div>
           </div>
         </header>
 
@@ -437,7 +553,9 @@ function App() {
                 </div>
                 <span className="date-label">Dữ liệu minh họa</span>
               </div>
-              <RedAlertToastWidget />
+              <RedAlertToastWidget
+                onNavigateAlertsPage={() => setActivePage('Ngưỡng & Cảnh báo')}
+              />
               <div className="stats-grid">
                 {stats.map((stat) => {
                   const Icon = stat.icon
@@ -649,7 +767,16 @@ function App() {
           ) : activePage === 'Ngưỡng & Cảnh báo' ? (
             <ThresholdAlertManagement />
           ) : activePage === 'Giám sát & Note Mission' ? (
-            <FlightMonitoringNote />
+            <FlightMonitoringNote
+              onNavigateExportReview={async (targetUavId) => {
+                const res = await dispatch(initializeMissionReviewExportData()).unwrap()
+                const found = res.reviews.find((r) => r.uavId === targetUavId)
+                if (found) {
+                  dispatch(setSelectedMissionId(found.missionId))
+                }
+                setActivePage('Xuất Excel & Review Mission')
+              }}
+            />
           ) : activePage === 'Xuất Excel & Review Mission' ? (
             <ExcelExportMissionReview />
           ) : activePage === 'Bản đồ & vị trí' ? (
@@ -669,7 +796,7 @@ function App() {
       type="button"
       className="back-button"
       onClick={() => {
-        setNewUser({ name: '', email: '', role: 'Operator' })
+        setNewUser({ name: '', email: '', role: 'Người vận hành' })
         setShowAddUserForm(true)
       }}
     >
@@ -730,7 +857,7 @@ function App() {
         setNewUser({
           name: '',
           email: '',
-          role: 'Operator',
+          role: 'Người vận hành',
         })
         setShowAddUserForm(false)
       }}
@@ -781,8 +908,8 @@ function App() {
             }))
           }
         >
-          <option value="Admin">Admin</option>
-          <option value="Operator">Operator</option>
+          <option value="Quản trị viên">Quản trị viên</option>
+          <option value="Người vận hành">Người vận hành</option>
         </select>
       </div>
 
@@ -875,24 +1002,97 @@ function App() {
     </div>
   </div>
 ) : (
-  <div className="panel page-placeholder">
-    <div className="stat-icon">
-      <Settings size={24} />
+  <div className="uav-page">
+    <div className="section-title">
+      <div>
+        <h2>Cấu hình &amp; Thông tin Hệ thống</h2>
+        <p>Trạng thái kết nối dịch vụ Backend, MQTT Broker và điều khiển luồng dữ liệu thời gian thực</p>
+      </div>
+      <span className="date-label">Phiên bản v2.0</span>
     </div>
 
-    <h2>{activePage}</h2>
-    <p>
-      Đây là khu vực {activePage.toLowerCase()}.
-      Nội dung chi tiết sẽ được xây dựng ở bước tiếp theo.
-    </p>
+    <div className="panel uav-table-panel" style={{ marginBottom: 20 }}>
+      <div className="uav-toolbar">
+        <h3>Thông số Kết nối Hệ thống</h3>
+      </div>
+      <div className="uav-table-scroll">
+        <table className="uav-table">
+          <thead>
+            <tr>
+              <th>Phân hệ</th>
+              <th>Địa chỉ / Cấu hình</th>
+              <th>Trạng thái</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Backend REST API</strong></td>
+              <td><code>http://localhost:8080/api/v1</code></td>
+              <td><span className="uav-status status-active">Trực tuyến</span></td>
+            </tr>
+            <tr>
+              <td><strong>MQTT Cloud Broker</strong></td>
+              <td><code>tcp://broker.hivemq.com:1883</code> (QoS 1)</td>
+              <td><span className="uav-status status-active">Sẵn sàng</span></td>
+            </tr>
+            <tr>
+              <td><strong>Luồng Telemetry Đội bay UAV</strong></td>
+              <td>Nội suy 3D LERP (Chu kỳ 2 giây/nhịp)</td>
+              <td>
+                <span className={`uav-status ${isUavStreaming ? 'status-active' : 'status-idle'}`}>
+                  {isUavStreaming ? 'Đang phát' : 'Tạm dừng'}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Luồng Cảm biến Mặt đất</strong></td>
+              <td>Trang trại Công nghệ cao Đà Lạt (11.94°N, 108.45°E)</td>
+              <td>
+                <span className={`uav-status ${isSensorStreaming ? 'status-active' : 'status-idle'}`}>
+                  {isSensorStreaming ? 'Đang phát' : 'Tạm dừng'}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Tài khoản phiên hiện tại</strong></td>
+              <td>{username || 'admin'}</td>
+              <td><span className="uav-status status-active">Đã xác thực JWT</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
-    <button
-      type="button"
-      className="back-button"
-      onClick={() => setActivePage('Tổng quan')}
-    >
-      Quay lại Tổng quan
-    </button>
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 16 }}>
+        <button
+          type="button"
+          className="back-button"
+          onClick={() => dispatch(toggleTelemetryStream())}
+        >
+          {isUavStreaming ? 'Tạm dừng luồng UAV' : 'Bật luồng UAV'}
+        </button>
+        <button
+          type="button"
+          className="back-button"
+          onClick={() => dispatch(toggleStreaming())}
+        >
+          {isSensorStreaming ? 'Tạm dừng luồng Cảm biến' : 'Bật luồng Cảm biến'}
+        </button>
+        <button
+          type="button"
+          className="back-button"
+          onClick={() => dispatch(restoreFlightMonitorDefaults())}
+        >
+          Khôi phục dữ liệu đội bay mặc định
+        </button>
+        <button
+          type="button"
+          className="back-button"
+          onClick={() => setActivePage('Tổng quan')}
+        >
+          Quay lại Tổng quan
+        </button>
+      </div>
+    </div>
   </div>
 )}
 

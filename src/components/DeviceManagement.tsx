@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import {
   Plane, Radio, Search, Plus, Trash2, Eye, Signal,
@@ -9,9 +9,10 @@ import type { UAV, Gateway, UAVStatus, GatewayStatus } from '../types';
 import {
   fetchUAVs, fetchGateways, createUAV, createGateway, deleteUAV, deleteGateway,
   setActiveTab, setSearchQuery, setStatusFilter,
-  selectFilteredUAVs, selectFilteredGateways,
+  selectFilteredGateways,
   type DeviceTab,
 } from '../store/slices/deviceSlice';
+import { initFlightMonitorData } from '../store/slices/flightMonitorSlice';
 import './DeviceManagement.css';
 
 /**
@@ -57,8 +58,8 @@ function formatTimeAgo(isoString: string): string {
 // ==================== Main Component ====================
 export default function DeviceManagement() {
   const dispatch = useDispatch<AppDispatch>();
-  const { activeTab, searchQuery, statusFilter, loading, uavs, gateways } = useSelector((s: RootState) => s.device);
-  const filteredUAVs = useSelector(selectFilteredUAVs);
+  const { activeTab, searchQuery, statusFilter, loading, uavs: rawUavs, gateways } = useSelector((s: RootState) => s.device);
+  const monitorSessions = useSelector((s: RootState) => s.flightMonitor.sessions);
   const filteredGateways = useSelector(selectFilteredGateways);
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -69,7 +70,48 @@ export default function DeviceManagement() {
   useEffect(() => {
     dispatch(fetchUAVs());
     dispatch(fetchGateways());
-  }, [dispatch]);
+    if (monitorSessions.length === 0) {
+      dispatch(initFlightMonitorData());
+    }
+  }, [dispatch, monitorSessions.length]);
+
+  // Đồng bộ thông số trực tiếp (% Pin, Tín hiệu, Trạng thái, Vị trí) với phiên Giám sát Chuyến bay
+  const uavs = useMemo<UAV[]>(() => {
+    if (monitorSessions.length === 0) return rawUavs;
+    return rawUavs.map((u) => {
+      const live = monitorSessions.find((s) => s.uavId === u.id);
+      if (!live) return u;
+      const mappedStatus: UAVStatus =
+        live.status === 'FLYING' || live.status === 'RETURNING'
+          ? 'ACTIVE'
+          : live.status === 'COLLECTION_ERROR'
+            ? 'MAINTENANCE'
+            : 'IDLE';
+      return {
+        ...u,
+        name: live.uavName || u.name,
+        model: live.uavModel || u.model,
+        battery: Math.round(live.batteryPercent),
+        signal: Math.round(live.signalStrength),
+        status: mappedStatus,
+        location: live.zoneName,
+        lastSeen: live.lastTelemetryAt || u.lastSeen,
+      };
+    });
+  }, [rawUavs, monitorSessions]);
+
+  const filteredUAVs = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return uavs.filter((u) => {
+      const matchesSearch =
+        !q ||
+        u.name.toLowerCase().includes(q) ||
+        u.id.toLowerCase().includes(q) ||
+        u.model.toLowerCase().includes(q);
+      const matchesStatus = statusFilter === 'ALL' || u.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [uavs, searchQuery, statusFilter]);
 
   // UAV Stats
   const uavActive = uavs.filter(u => u.status === 'ACTIVE').length;

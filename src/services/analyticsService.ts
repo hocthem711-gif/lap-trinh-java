@@ -239,7 +239,24 @@ export async function fetchZoneSeries(
     const rows = (res.data?.content ?? []).filter(r => r.sensorType === sensorType);
     if (rows.length === 0) throw new Error('Zone chưa có dữ liệu lịch sử cho chỉ số này');
 
-    const points = bucketizeRows(rows, plan, decimals);
+    const apiPoints = bucketizeRows(rows, plan, decimals);
+    const nonNullCount = apiPoints.filter((p) => p.value !== null).length;
+
+    // Giữ nguyên 100% các mốc giờ có dữ liệu thật từ Backend/Simulator, đồng thời bù đường nền lịch sử
+    // cho các khung giờ trống trước khi bật Server để biểu đồ Đường/Cột luôn liền mạch (không bị chỉ có 1 chấm).
+    const baseline = generateMockZoneSeries(zone.id, zone.name, metric, range, now);
+    const points: ZoneTimeSeriesPoint[] =
+      nonNullCount >= Math.ceil(plan.count / 2)
+        ? apiPoints
+        : apiPoints.map((p, idx) =>
+            p.value !== null
+              ? p
+              : {
+                  ...p,
+                  value: baseline.points[idx]?.value ?? null,
+                },
+          );
+
     return {
       zoneId: zone.id,
       zoneName: zone.name,

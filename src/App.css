@@ -238,39 +238,60 @@ button {
 }
 
 .icon-button {
-  width: 35px;
-  height: 35px;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #475569;
+  cursor: pointer;
+  transition: all 0.18s ease;
 }
 
-.notification-dot {
+.icon-button:hover {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #2563eb;
+}
+
+.notification-badge {
   position: absolute;
-  right: 5px;
-  top: 4px;
-  width: 7px;
-  height: 7px;
-  border: 1px solid white;
-  border-radius: 50%;
-  background: #f16d75;
+  right: -4px;
+  top: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
 .user-profile {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding-left: 18px;
+  padding: 5px 6px 5px 14px;
   border-left: 1px solid #e9edf4;
 }
 
 .avatar {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  background: #e3ebff;
-  color: #3764d9;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2563eb, #4f46e5);
+  color: #ffffff;
   display: grid;
   place-items: center;
   font-size: 12px;
   font-weight: 700;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.22);
 }
 
 .user-info strong,
@@ -279,13 +300,37 @@ button {
 }
 
 .user-info strong {
-  font-size: 12px;
-  margin-bottom: 4px;
+  font-size: 13px;
+  color: #0f172a;
+  margin-bottom: 2px;
 }
 
 .user-info span {
-  color: #8b95a7;
-  font-size: 10px;
+  color: #64748b;
+  font-size: 11px;
+}
+
+.logout-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-left: 6px;
+  padding: 8px 13px;
+  border-radius: 9px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #475569;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+
+.logout-button:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
 }
 
 .mobile-menu {
