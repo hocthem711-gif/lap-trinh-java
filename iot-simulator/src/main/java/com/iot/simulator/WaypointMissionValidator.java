@@ -9,9 +9,9 @@ import java.util.List;
  */
 public class WaypointMissionValidator {
 
-    // 1. Khung tọa độ an toàn của nông trại (Geofence) và giới hạn vật lý của UAV
-    public static final double MIN_LAT = 10.840, MAX_LAT = 10.860;
-    public static final double MIN_LNG = 106.760, MAX_LNG = 106.790;
+    // 1. Khung tọa độ an toàn của nông trại Đà Lạt (Geofence khớp waypointSlice.ts) và giới hạn vật lý của UAV
+    public static final double MIN_LAT = 11.925, MAX_LAT = 11.955;
+    public static final double MIN_LNG = 108.440, MAX_LNG = 108.475;
     public static final double MIN_ALT = 5.0,    MAX_ALT = 500.0;  // Độ cao: 5m - 500m
     public static final double MIN_SPD = 1.0,    MAX_SPD = 30.0;   // Tốc độ: 1 - 30 m/s
     public static final double BATTERY_RATE_PER_MIN = 0.35;        // Hao pin: 0.35% / phút
@@ -101,7 +101,7 @@ public class WaypointMissionValidator {
         double distRounded = Math.round(totalDistM * 100.0) / 100.0;
         int timeRounded = (int) Math.round(totalTimeSec);
         double batteryDrain = Math.round((totalTimeSec / 60.0) * BATTERY_RATE_PER_MIN * 100.0) / 100.0;
-        return String.format("OK|Dist=%.2fm, Time=%ds, Pin=%.2f%%", distRounded, timeRounded, batteryDrain);
+        return String.format(java.util.Locale.US, "OK|Dist=%.2fm, Time=%ds, Pin=%.2f%%", distRounded, timeRounded, batteryDrain);
     }
 
     /**
@@ -128,34 +128,34 @@ public class WaypointMissionValidator {
         System.out.println("   SMART FARM IOT - REVIEW JSON WAYPOINTS & TEST TAO MISSION (LTJ-20)     ");
         System.out.println("==========================================================================");
 
-        String valid4Wp = "{\"missionName\":\"Khao sat Khu A\",\"waypoints\":["
-                + "{\"order\":1,\"latitude\":10.8450,\"longitude\":106.7650,\"altitude\":30,\"speed\":8,\"type\":\"TAKEOFF\"},"
-                + "{\"order\":2,\"latitude\":10.8485,\"longitude\":106.7710,\"altitude\":50,\"speed\":10,\"type\":\"NORMAL\"},"
-                + "{\"order\":3,\"latitude\":10.8520,\"longitude\":106.7760,\"altitude\":50,\"speed\":8,\"type\":\"HOVER\"},"
-                + "{\"order\":4,\"latitude\":10.8550,\"longitude\":106.7820,\"altitude\":20,\"speed\":5,\"type\":\"LANDING\"}"
+        String valid4Wp = "{\"missionName\":\"Khao sat Khu A Da Lat\",\"waypoints\":["
+                + "{\"order\":1,\"latitude\":11.9404,\"longitude\":108.4583,\"altitude\":30,\"speed\":8,\"type\":\"TAKEOFF\"},"
+                + "{\"order\":2,\"latitude\":11.9416,\"longitude\":108.4595,\"altitude\":50,\"speed\":10,\"type\":\"NORMAL\"},"
+                + "{\"order\":3,\"latitude\":11.9428,\"longitude\":108.4608,\"altitude\":50,\"speed\":8,\"type\":\"HOVER\"},"
+                + "{\"order\":4,\"latitude\":11.9435,\"longitude\":108.4599,\"altitude\":20,\"speed\":5,\"type\":\"LANDING\"}"
                 + "]}";
 
         int pass = 0;
         String r1 = validateMissionJson(valid4Wp);
         pass += check("TC-01", "Tao Mission chuan 4 Waypoints trong vung Geofence (F14)", r1.startsWith("OK"), r1);
-        pass += check("TC-02", "Doi chieu cong thuc Haversine 3D & tieu hao pin (0.35%/phut)", r1.contains("2168"), r1);
+        pass += check("TC-02", "Doi chieu cong thuc Haversine 3D & tieu hao pin (0.35%/phut)", r1.contains("510."), r1);
 
-        String r3 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"}]}");
+        String r3 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":11.9404,\"longitude\":108.4583,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"}]}");
         pass += check("TC-03", "Chan tao Mission khi so luong Waypoints < 2 diem", r3.startsWith("LOI"), r3);
 
-        String r4 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":10.91,\"longitude\":106.85,\"altitude\":50,\"speed\":8,\"type\":\"NORMAL\"}]}");
+        String r4 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":11.9404,\"longitude\":108.4583,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":11.9950,\"longitude\":108.5200,\"altitude\":50,\"speed\":8,\"type\":\"NORMAL\"}]}");
         pass += check("TC-04", "Phat hien Waypoint vuot ranh gioi an toan Geofence", r4.startsWith("LOI"), r4);
 
-        String r5 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":650,\"speed\":8,\"type\":\"NORMAL\"}]}");
+        String r5 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":11.9404,\"longitude\":108.4583,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":11.9416,\"longitude\":108.4595,\"altitude\":650,\"speed\":8,\"type\":\"NORMAL\"}]}");
         pass += check("TC-05", "Chan cau hinh do cao bay vuot nguong [5m - 500m]", r5.startsWith("LOI"), r5);
 
-        String r6 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":50,\"speed\":45,\"type\":\"NORMAL\"}]}");
+        String r6 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":11.9404,\"longitude\":108.4583,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":11.9416,\"longitude\":108.4595,\"altitude\":50,\"speed\":45,\"type\":\"NORMAL\"}]}");
         pass += check("TC-06", "Chan cau hinh toc do bay vuot nguong [1 - 30m/s]", r6.startsWith("LOI"), r6);
 
-        String r7 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":3,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":50,\"speed\":8,\"type\":\"LANDING\"}]}");
+        String r7 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":11.9404,\"longitude\":108.4583,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":3,\"latitude\":11.9416,\"longitude\":108.4595,\"altitude\":50,\"speed\":8,\"type\":\"LANDING\"}]}");
         pass += check("TC-07", "Phat hien loi danh so thu tu (order) bi nhay coc", r7.startsWith("LOI"), r7);
 
-        String r8 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":10.85,\"longitude\":106.77,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":10.852,\"longitude\":106.772,\"altitude\":50,\"speed\":8,\"type\":\"INVALID_TYPE\"}]}");
+        String r8 = validateMissionJson("{\"waypoints\":[{\"order\":1,\"latitude\":11.9404,\"longitude\":108.4583,\"altitude\":50,\"speed\":8,\"type\":\"TAKEOFF\"},{\"order\":2,\"latitude\":11.9416,\"longitude\":108.4595,\"altitude\":50,\"speed\":8,\"type\":\"INVALID_TYPE\"}]}");
         pass += check("TC-08", "Phat hien hanh dong WaypointType khong hop le", r8.startsWith("LOI"), r8);
 
         boolean okFlow = isValidStatusTransition("STANDBY", "PLANNING") && isValidStatusTransition("PLANNING", "ACTIVE") && isValidStatusTransition("ACTIVE", "COMPLETED");

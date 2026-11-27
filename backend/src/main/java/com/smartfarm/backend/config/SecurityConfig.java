@@ -51,7 +51,7 @@ public class SecurityConfig {
                                 "/ws-telemetry/**",
                                 "/realtime/**"
                         ).permitAll()
-                        // Cho phép truy vấn đọc dữ liệu viễn trắc và dashboard
+                        // Cho phép truy vấn đọc dữ liệu viễn trắc, lịch sử đồng bộ và xuất báo cáo dashboard
                         .requestMatchers(org.springframework.http.HttpMethod.GET,
                                 "/farms/**",
                                 "/zones/**",
@@ -61,7 +61,9 @@ public class SecurityConfig {
                                 "/alerts/**",
                                 "/uavs/**",
                                 "/gateways/**",
-                                "/missions/**"
+                                "/missions/**",
+                                "/uav-sync/**",
+                                "/reports/**"
                         ).permitAll()
                         // Cho phép cổng Ingestion dữ liệu tự động từ UAV / IoT Simulator / Gateway
                         .requestMatchers(org.springframework.http.HttpMethod.POST,

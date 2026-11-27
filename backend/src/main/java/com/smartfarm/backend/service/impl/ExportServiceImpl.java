@@ -452,7 +452,7 @@ public class ExportServiceImpl implements ExportService {
             map.put("secondaryMetric", "Chuẩn SmartFarm");
             map.put("statusLabel", d.getStatus() != null ? d.getStatus() : "NORMAL");
             map.put("gpsCoordinates", (d.getSensor() != null && d.getSensor().getLatitude() != null) ?
-                    d.getSensor().getLatitude() + ", " + d.getSensor().getLongitude() : "10.8450, 106.7650");
+                    d.getSensor().getLatitude() + ", " + d.getSensor().getLongitude() : "11.9404, 108.4583");
             map.put("operatorOrNote", "Dữ liệu quan trắc tự động");
             rows.add(map);
         }

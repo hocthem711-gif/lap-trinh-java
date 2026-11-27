@@ -47,13 +47,13 @@ public class UavFlightSimulator {
         this.waypoints = (waypoints != null && !waypoints.isEmpty()) ? waypoints : buildDefaultPresetWaypoints();
     }
 
-    /** Nạp 4 Waypoints mẫu Khu A (khớp PRESET_DEMO_WAYPOINTS Frontend) */
+    /** Nạp 4 Waypoints mẫu Khu A Đà Lạt (khớp PRESET_DEMO_WAYPOINTS Frontend & DataInitializer Backend) */
     public static List<WaypointMissionValidator.WaypointItem> buildDefaultPresetWaypoints() {
         return List.of(
-            makeWp(1, 10.8450, 106.7650, 30.0, 8.0, "TAKEOFF"),
-            makeWp(2, 10.8485, 106.7710, 50.0, 10.0, "NORMAL"),
-            makeWp(3, 10.8520, 106.7760, 50.0, 8.0, "HOVER"),
-            makeWp(4, 10.8550, 106.7820, 20.0, 5.0, "LANDING")
+            makeWp(1, 11.9404, 108.4583, 30.0, 8.0, "TAKEOFF"),
+            makeWp(2, 11.9416, 108.4595, 50.0, 10.0, "NORMAL"),
+            makeWp(3, 11.9428, 108.4608, 50.0, 8.0, "HOVER"),
+            makeWp(4, 11.9435, 108.4599, 20.0, 5.0, "LANDING")
         );
     }
 

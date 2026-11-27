@@ -27,10 +27,10 @@ public class SystemTestRunner {
 
     private static final Gson GSON = new Gson();
     private static final String SAMPLE_4WP_JSON = "{\"missionName\":\"Mission-SysTest-LTJ40\",\"uavId\":\"UAV-ALPHA-01\",\"zoneId\":1,\"waypoints\":["
-            + "{\"order\":1,\"latitude\":10.8450,\"longitude\":106.7650,\"altitude\":30,\"speed\":8,\"type\":\"TAKEOFF\"},"
-            + "{\"order\":2,\"latitude\":10.8485,\"longitude\":106.7710,\"altitude\":50,\"speed\":10,\"type\":\"NORMAL\"},"
-            + "{\"order\":3,\"latitude\":10.8520,\"longitude\":106.7760,\"altitude\":50,\"speed\":8,\"type\":\"HOVER\"},"
-            + "{\"order\":4,\"latitude\":10.8550,\"longitude\":106.7820,\"altitude\":20,\"speed\":5,\"type\":\"LANDING\"}]}";
+            + "{\"order\":1,\"latitude\":11.9404,\"longitude\":108.4583,\"altitude\":30,\"speed\":8,\"type\":\"TAKEOFF\"},"
+            + "{\"order\":2,\"latitude\":11.9416,\"longitude\":108.4595,\"altitude\":50,\"speed\":10,\"type\":\"NORMAL\"},"
+            + "{\"order\":3,\"latitude\":11.9428,\"longitude\":108.4608,\"altitude\":50,\"speed\":8,\"type\":\"HOVER\"},"
+            + "{\"order\":4,\"latitude\":11.9435,\"longitude\":108.4599,\"altitude\":20,\"speed\":5,\"type\":\"LANDING\"}]}";
 
     public static class TestCaseResult {
         public final String id, feature, name, detail;
@@ -269,8 +269,8 @@ public class SystemTestRunner {
         });
 
         runStep(report, "STD-02", "F14-F16", "Kiem dinh Waypoints Geofence, Haversine 3D & State Machine", () -> {
-            String oob = "{\"waypoints\":[{\"order\":1,\"latitude\":10.845,\"longitude\":106.765,\"altitude\":30,\"speed\":8,\"type\":\"TAKEOFF\"},"
-                    + "{\"order\":2,\"latitude\":11.500,\"longitude\":107.000,\"altitude\":50,\"speed\":10,\"type\":\"NORMAL\"}]}";
+            String oob = "{\"waypoints\":[{\"order\":1,\"latitude\":11.9404,\"longitude\":108.4583,\"altitude\":30,\"speed\":8,\"type\":\"TAKEOFF\"},"
+                    + "{\"order\":2,\"latitude\":11.9950,\"longitude\":108.5200,\"altitude\":50,\"speed\":10,\"type\":\"NORMAL\"}]}";
             boolean ok = WaypointMissionValidator.validateMissionJson(SAMPLE_4WP_JSON).startsWith("OK")
                     && WaypointMissionValidator.validateMissionJson(oob).startsWith("LOI")
                     && WaypointMissionValidator.isValidStatusTransition("STANDBY", "PLANNING")

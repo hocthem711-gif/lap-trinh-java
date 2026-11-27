@@ -76,8 +76,8 @@ class SystemTestingSuiteTest {
         assertEquals("COMPLETED", frames.get(frames.size() - 1).flightStatus);
 
         JsonObject lastFrame = gson.fromJson(frames.get(frames.size() - 1).toCompactJson(), JsonObject.class);
-        assertEquals(10.8550, lastFrame.get("latitude").getAsDouble(), 0.0001);
-        assertEquals(106.7820, lastFrame.get("longitude").getAsDouble(), 0.0001);
+        assertEquals(11.9435, lastFrame.get("latitude").getAsDouble(), 0.0001);
+        assertEquals(108.4599, lastFrame.get("longitude").getAsDouble(), 0.0001);
         assertEquals(20.0, lastFrame.get("altitude").getAsDouble(), 0.1);
     }
 

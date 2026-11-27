@@ -184,8 +184,8 @@ public class DataInitializer implements CommandLineRunner {
             uav.setStatus("ACTIVE");
             uav.setToken("UAV-TOKEN-ALPHA-01");
             uav.setIsConnected(true);
-            uav.setLatitude(10.8450);
-            uav.setLongitude(106.7650);
+            uav.setLatitude(11.9404);
+            uav.setLongitude(108.4583);
             uav.setAltitude(30.0);
             uav.setSpeed(8.0);
             uav.setBatteryLevel(100.0);
@@ -202,20 +202,22 @@ public class DataInitializer implements CommandLineRunner {
             mission.setName("Mission-KhuA-Demo");
             mission.setStatus("CREATED");
             mission.setUav(uav);
+            mission.setUavId("UAV-ALPHA-01");
+            mission.setZoneId(zones.isEmpty() ? 1L : zones.get(0).getId());
             mission.setCurrentWaypointOrder(1);
             mission.setCompletedWaypoints(0);
             mission.setTotalWaypoints(4);
             mission.setProgressPercent(0.0);
             mission.setLastTelemetryAt(LocalDateTime.now());
 
-            Waypoint w1 = new Waypoint(1, 10.8450, 106.7650, 30.0, 8.0, "TAKEOFF", "PENDING", mission);
-            Waypoint w2 = new Waypoint(2, 10.8485, 106.7710, 50.0, 10.0, "NORMAL", "PENDING", mission);
-            Waypoint w3 = new Waypoint(3, 10.8520, 106.7760, 50.0, 8.0, "HOVER", "PENDING", mission);
-            Waypoint w4 = new Waypoint(4, 10.8550, 106.7820, 20.0, 5.0, "LANDING", "PENDING", mission);
+            Waypoint w1 = new Waypoint(1, 11.9404, 108.4583, 30.0, 8.0, "TAKEOFF", "PENDING", mission);
+            Waypoint w2 = new Waypoint(2, 11.9416, 108.4595, 50.0, 10.0, "NORMAL", "PENDING", mission);
+            Waypoint w3 = new Waypoint(3, 11.9428, 108.4608, 50.0, 8.0, "HOVER", "PENDING", mission);
+            Waypoint w4 = new Waypoint(4, 11.9435, 108.4599, 20.0, 5.0, "LANDING", "PENDING", mission);
 
             mission.setWaypoints(new java.util.ArrayList<>(Arrays.asList(w1, w2, w3, w4)));
             missionRepository.save(mission);
-            log.info("[DATA-INIT] Đã khởi tạo dữ liệu mẫu UAV (UAV-ALPHA-01), Gateway (GW-01) và Mission 4 điểm Khu A");
+            log.info("[DATA-INIT] Đã khởi tạo dữ liệu mẫu UAV (UAV-ALPHA-01), Gateway (GW-01) và Mission 4 điểm Khu A (Đà Lạt)");
         }
     }
 }

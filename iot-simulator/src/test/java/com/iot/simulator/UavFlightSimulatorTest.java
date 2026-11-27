@@ -39,7 +39,8 @@ class UavFlightSimulatorTest {
         assertEquals("LANDING", wps.get(3).type);
 
         for (WaypointMissionValidator.WaypointItem wp : wps) {
-            assertTrue(wp.latitude >= 10.840 && wp.latitude <= 10.860, "Tọa độ trong Geofence");
+            assertTrue(wp.latitude >= WaypointMissionValidator.MIN_LAT && wp.latitude <= WaypointMissionValidator.MAX_LAT, "Tọa độ trong Geofence");
+            assertTrue(wp.longitude >= WaypointMissionValidator.MIN_LNG && wp.longitude <= WaypointMissionValidator.MAX_LNG, "Kinh độ trong Geofence");
             assertTrue(wp.altitude >= 5.0 && wp.altitude <= 500.0, "Cao độ an toàn");
             assertTrue(wp.speed >= 1.0 && wp.speed <= 30.0, "Tốc độ an toàn");
         }
