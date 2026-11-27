@@ -16,7 +16,7 @@ import {
 import L from 'leaflet';
 import {
   Thermometer, Droplets, Sun, Wind, Zap,
-  BatteryMedium, Signal, X, Wifi, WifiOff, AlertTriangle,
+  BatteryMedium, Signal, X, Wifi, WifiOff, AlertTriangle, LocateFixed,
 } from 'lucide-react';
 import type { RootState, AppDispatch } from '../store';
 import {
@@ -179,6 +179,10 @@ function SensorPopupContent({ sensor }: { sensor: RealtimeSensorNode }) {
 
 // ===== Main Map Component =====
 
+// Trung tâm bản đồ đặt ngay tại khu thung lũng canh tác trống trải Đà Lạt
+const DEFAULT_FARM_CENTER: [number, number] = [11.9378, 108.4652];
+const DEFAULT_FARM_ZOOM = 15;
+
 function SensorMapPopup() {
   const dispatch = useDispatch<AppDispatch>();
   const sensors = useSelector((state: RootState) => state.sensorRealtime.sensors);
@@ -215,9 +219,18 @@ function SensorMapPopup() {
     };
   }, [isStreaming, streamInterval, doTick]);
 
-  // Trung tâm bản đồ đặt ngay tại khu thung lũng canh tác trống trải Đà Lạt
-  const defaultCenter: [number, number] = [11.9378, 108.4652];
-  const defaultZoom = 15;
+  const handleRecenterFarm = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (sensorsRef.current.length > 0) {
+      const bounds = L.latLngBounds(
+        sensorsRef.current.map((s) => [s.location.lat, s.location.lng] as [number, number]),
+      );
+      map.flyToBounds(bounds, { padding: [50, 50], maxZoom: 16, duration: 0.9 });
+    } else {
+      map.flyTo(DEFAULT_FARM_CENTER, DEFAULT_FARM_ZOOM, { duration: 0.9 });
+    }
+  }, []);
 
   return (
     <div className="map-container">
@@ -236,6 +249,17 @@ function SensorMapPopup() {
         <div className="map-legend-count">{sensors.length} cảm biến</div>
       </div>
 
+      {/* Nút quay nhanh về trang trại đang theo dõi */}
+      <button
+        type="button"
+        className="map-recenter-btn"
+        onClick={handleRecenterFarm}
+        title="Quay về vị trí trang trại Đà Lạt đang theo dõi"
+      >
+        <LocateFixed size={16} />
+        <span>Về trang trại</span>
+      </button>
+
       {/* Selected Sensor Sidebar */}
       {selectedSensor && (
         <div className="map-detail-sidebar">
@@ -251,8 +275,8 @@ function SensorMapPopup() {
 
       {/* Leaflet Map */}
       <MapContainer
-        center={defaultCenter}
-        zoom={defaultZoom}
+        center={DEFAULT_FARM_CENTER}
+        zoom={DEFAULT_FARM_ZOOM}
         className="map-leaflet"
         ref={mapRef}
         scrollWheelZoom={true}

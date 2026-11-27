@@ -33,6 +33,7 @@ import {
   RotateCcw,
   CheckCircle2,
   Plane,
+  LocateFixed,
 } from 'lucide-react';
 import type { RootState, AppDispatch } from '../store';
 import { apiRequest } from '../services/api';
@@ -431,6 +432,15 @@ export default function FlightPathPlanner() {
     mapRef.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
   }, [mapRef, zoneId, waypoints]);
 
+  // Quay nhanh bản đồ về vùng trang trại Đà Lạt đang theo dõi (kể cả khi chưa vẽ waypoint)
+  const handleRecenterFarm = useCallback(() => {
+    if (!mapRef) return;
+    const zoneArea = ZONE_FLIGHT_AREAS[zoneId] ?? ZONE_FLIGHT_AREAS[1];
+    const bounds = L.latLngBounds(zoneArea.bounds);
+    waypoints.forEach((wp) => bounds.extend([wp.latitude, wp.longitude]));
+    mapRef.flyToBounds(bounds, { padding: [45, 45], maxZoom: 16, duration: 0.9 });
+  }, [mapRef, zoneId, waypoints]);
+
   const applyZonePresetToMap = useCallback(
     (targetZoneId: number) => {
       const zoneCfg = ZONE_FLIGHT_AREAS[targetZoneId] ?? ZONE_FLIGHT_AREAS[1];
@@ -733,6 +743,17 @@ export default function FlightPathPlanner() {
             Fit View
           </button>
         </div>
+
+        {/* Nút quay nhanh về trang trại đang theo dõi */}
+        <button
+          type="button"
+          className="planner-recenter-btn"
+          onClick={handleRecenterFarm}
+          title={`Quay về vùng trang trại ${activeZoneLabel} đang theo dõi`}
+        >
+          <LocateFixed size={16} />
+          <span>Về trang trại</span>
+        </button>
 
         {/* Save confirmation banner */}
         {saveMessage && (
