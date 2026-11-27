@@ -1,114 +1,112 @@
 @startuml Component_Diagram
 !theme plain
+top to bottom direction
 skinparam backgroundColor #FFFFFF
 skinparam componentStyle uml2
 skinparam defaultFontName "Segoe UI"
 skinparam defaultFontSize 12
-skinparam roundCorner 8
+skinparam roundCorner 10
 skinparam shadowing false
-skinparam linetype polyline
-skinparam nodesep 55
-skinparam ranksep 65
+skinparam nodesep 32
+skinparam ranksep 58
 skinparam packageStyle rectangle
 skinparam ArrowColor #2C3E50
+skinparam ArrowThickness 1.3
 skinparam PackageBorderColor #34495E
+skinparam PackageBorderThickness 1.6
+skinparam PackageFontSize 14
+skinparam PackageFontStyle bold
 skinparam ComponentBorderColor #2C3E50
+skinparam ComponentFontSize 12
+skinparam TitleFontSize 17
 
-title Sơ Đồ Thành Phần Hệ Thống Nông Nghiệp Thông Minh (Smart Farm IoT - Component Diagram)\n[Sprint 3][Dev 5] Task LTJ-15: Script Giả Lập Bắn MQTT, Test Tải & Kiến Trúc Hệ Thống
+title Sơ Đồ Thành Phần Kiến Trúc Hệ Thống (Component Diagram) — Smart Farm IoT & UAV\n[Sprint 1–8][Dev 5] LTJ-15
 
 ' =====================================================================
-' 1. TẦNG THIẾT BỊ IOT & GIẢ LẬP (DEV 5)
+' TẦNG 1: GIAO DIỆN NGƯỜI DÙNG WEB (FRONTEND)
 ' =====================================================================
-package "1. Tầng Thiết Bị IoT & Bộ Giả Lập (IoT Simulator - Java 17)" as EdgeLayer #FFF8F0 {
-    component "Bộ Điều Phối Giả Lập & Kiểm Thử Tải\n(IoTSimulatorApp - F20 Online)" as SimApp #FFE4C4
-    component "Bộ Sinh Dữ Liệu Cảm Biến & Tạo Nhiễu\n(SensorData - Đa chỉ số & Chèn lỗi F19)" as DataGen #FFE4C4
-    component "Bộ Phát Tin Nhắn MQTT Bất Đồng Bộ\n(MqttPublisher - Paho AsyncClient QoS 1)" as MqttPub #FFE4C4
-    component "Bộ Cầu Nối Đồng Bộ HTTP\n(HttpBridgeClient - Java 17 HttpClient)" as HttpBridge #FFE4C4
+package "1. Tầng Giao Diện Người Dùng Web (React 19 · TypeScript · Vite)" as Layer1 #EBF5FB {
+    component "Đăng Nhập & Quản Trị\n(Login · Tài khoản & Nông trại)\n[F01 – F03]" as FE_Admin #D6EAF8
+    component "Bản Đồ & Biểu Đồ Giám Sát\n(Leaflet Map · Lịch sử · So sánh Zone)\n[F04 – F07]" as FE_Monitor #D6EAF8
+    component "Quản Lý Thiết Bị & Nhiệm Vụ UAV\n(Gán cảm biến · Lộ trình bay · Nhật ký)\n[F12 – F17]" as FE_Uav #D6EAF8
+    component "Cảnh Báo & Xuất Báo Cáo\n(Cấu hình ngưỡng · Xử lý · Xuất file)\n[F08 – F11]" as FE_Alert #D6EAF8
 
-    SimApp -down-> DataGen : "1. Sinh ngẫu nhiên 10-20 cảm biến\n(Nhiệt độ, Độ ẩm, Đất, Ánh sáng @ 1s)"
-    SimApp -down-> MqttPub : "2a. Đóng gói JSON & Phát MQTT"
-    SimApp .down.> HttpBridge : "2b. Đồng bộ HTTP trực tiếp (Tùy chọn)"
+    component "Bộ Quản Lý Trạng Thái & Kết Nối Mạng\n(Redux Toolkit · Axios REST · WebSocket STOMP / SSE)" as FE_Gateway #AED6F1
+
+    FE_Admin -[hidden]right- FE_Monitor
+    FE_Monitor -[hidden]right- FE_Uav
+    FE_Uav -[hidden]right- FE_Alert
+
+    FE_Admin ..> FE_Gateway
+    FE_Monitor ..> FE_Gateway
+    FE_Uav ..> FE_Gateway
+    FE_Alert ..> FE_Gateway
 }
 
 ' =====================================================================
-' 2. TẦNG TRUYỀN THÔNG MQTT (DEV 2)
+' TẦNG 2: DỊCH VỤ LÕI BACKEND (SPRING BOOT)
 ' =====================================================================
-package "2. Tầng Truyền Thông Tin Nhắn IoT (MQTT Broker)" as BrokerLayer #F0FFF0 {
-    queue "Máy Chủ Trung Gian MQTT\n(HiveMQ Cloud / Mosquitto :1883)\nChủ đề: iot/ltj/sensor/zone-{id}/{devId}" as MqttBroker #D4EFDF
+package "2. Tầng Dịch Vụ Lõi Máy Chủ (Spring Boot 3.2 · Java 17)" as Layer2 #F5EEF8 {
+    component "Cổng Bảo Mật JWT & Đẩy Luồng Trực Tiếp\n(SecurityConfig · JwtAuthenticationFilter · TelemetryRealtimeService)" as BE_Security #D7BDE2
+
+    component "Quản Lý Tài Khoản,\nNông Trại & Khu Vực\n(Auth · User · Farm · Zone)\n[F01 – F03]" as BE_Core #EBDEF0
+    component "Quản Lý Cảm Biến,\nUAV & Nhiệm Vụ Bay\n(Sensor · Uav · Mission)\n[F12 – F17]" as BE_Mission #EBDEF0
+    component "Cảnh Báo Vượt Ngưỡng,\nEmail & Xuất Báo Cáo\n(AlertEngine · Email · Export)\n[F08 – F11]" as BE_Alert #EBDEF0
+    component "Thu Nhận, Đồng Bộ &\nLọc Dữ Liệu Cảm Biến Rác\n(MqttGateway · Validator)\n[F18 – F20]" as BE_Ingest #D1F2EB
+
+    component "Tầng Truy Xuất Cơ Sở Dữ Liệu\n(Spring Data JPA Repositories · Hibernate ORM)" as BE_JPA #FCF3CF
+
+    BE_Core -[hidden]right- BE_Mission
+    BE_Mission -[hidden]right- BE_Alert
+    BE_Alert -[hidden]right- BE_Ingest
+
+    BE_Security ..> BE_Core
+    BE_Security ..> BE_Mission
+    BE_Security ..> BE_Alert
+    BE_Security ..> BE_Ingest
+
+    BE_Ingest .left.> BE_Alert : quét ngưỡng
+    BE_Core ..> BE_JPA
+    BE_Mission ..> BE_JPA
+    BE_Alert ..> BE_JPA
+    BE_Ingest ..> BE_JPA
 }
 
 ' =====================================================================
-' 3. TẦNG GIAO DIỆN NGƯỜI DÙNG WEB (DEV 3 & DEV 4)
+' TẦNG 3: THIẾT BỊ BIÊN & UAV MOBILE GATEWAY
 ' =====================================================================
-package "3. Tầng Giao Diện Web (Frontend React + TypeScript + Vite)" as FrontendLayer #F0F8FF {
-    component "Giao Diện Đăng Nhập & Xác Thực\n(Login.tsx / authService.ts)" as FE_Auth #D6EAF8
-    component "Bản Đồ Leaflet & Ghim Vị Trí Cảm Biến\n(App.tsx / SensorMapPopup.tsx)\n[LTJ-13 & LTJ-14 - F05]" as FE_Map #D6EAF8
-    component "Bảng Giám Sát Cảm Biến Thời Gian Thực\n(SensorRealtimeTable.tsx)\n[LTJ-14 - F04]" as FE_Table #D6EAF8
-    component "Giao Diện Quản Lý UAV, Gateway & Cảm Biến\n(DeviceManagement / SensorAssignment)" as FE_Device #D6EAF8
-    component "Kho Quản Lý Trạng Thái Tập Trung\n(Redux Toolkit: sensorRealtimeSlice)" as FE_Store #EBF5FB
-    component "Dịch Vụ Gọi API & Luồng Thời Gian Thực\n(api.ts / realtimeStream.ts)" as FE_Api #EBF5FB
+package "3. Tầng Thiết Bị Biên & Trạm Thu Phát UAV (iot-simulator · Java 17)" as Layer3 #FEF5E7 {
+    component "Thu Thập Số Liệu Cảm Biến\n& Mô Phỏng Hành Trình UAV\n(SensorData · UavFlightSimulator\n· WaypointMissionValidator)" as Edge_Sim #FDEBD0
+    component "Quản Lý Lưu Tạm & Tự Động\nĐồng Bộ Bù Khi Mất Mạng\n(UavOfflineSyncManager ·\nOfflineStorageManager) [F20]" as Edge_Sync #F8C471
+    component "Bộ Phát Tin MQTT\n& Cầu Nối Truyền Tải\n(MqttPublisher · QoS 1)" as Edge_Mqtt #FAD7A0
+    database "Bộ Nhớ Đệm Ngoại Tuyến\n(SQLite: iot_offline.db)" as SQLite #FCF3CF
 
-    FE_Map -down-> FE_Store : "Đọc tọa độ GPS & trạng thái"
-    FE_Table -down-> FE_Store : "Đọc số liệu đo mới nhất"
-    FE_Auth -down-> FE_Api : "Đăng nhập (POST /auth/login)"
-    FE_Store -down-> FE_Api : "Lấy dữ liệu mới (GET /sensor-data/latest)"
-    FE_Device -down-> FE_Api : "Thêm/Sửa/Xóa UAV, Gateway, Cảm biến"
+    Edge_Sim ..> Edge_Mqtt : gửi khi có mạng
+    Edge_Sim ..> Edge_Sync : lưu khi mất mạng
+    Edge_Sync ..> Edge_Mqtt : đẩy đồng bộ bù
+    Edge_Sync ..> SQLite : đọc / ghi tạm
 }
 
 ' =====================================================================
-' 4. TẦNG ỨNG DỤNG LÕI BACKEND (DEV 1 & DEV 2)
+' TẦNG 4: CƠ SỞ DỮ LIỆU & DỊCH VỤ TRUNG GIAN
 ' =====================================================================
-package "4. Tầng Dịch Vụ Lõi Backend (Spring Boot 3.2 Core)" as BackendLayer #F5EEF8 {
+package "4. Tầng Lưu Trữ CSDL & Dịch Vụ Trung Gian" as Layer4 #FEF9E7 {
+    database "CSDL Quan Hệ Trung Tâm\n(H2 In-Memory / MySQL 8.0)\n[users, farms, zones, sensors,\nsensor_data, uavs, missions, alerts]" as DB #F9E79F
+    component "Dịch Vụ Thư Điện Tử\n(Gmail SMTP :587)" as SMTP #FADBD8
+    queue "Trạm Trung Chuyển MQTT\n(HiveMQ Broker :1883 · QoS 1)\n[Kênh: iot/ltj/sensor/# · iot/ltj/sync/#]" as Broker #ABEBC6
 
-    package "Phân Hệ Bảo Mật & Phân Quyền" as SecPkg #EBDEF0 {
-        component "Bộ Lọc Xác Thực JWT & Cấu Hình Bảo Mật\n(JwtAuthenticationFilter & SecurityConfig)" as BE_Sec #E8DAEF
-        component "Bộ Điều Khiển & Dịch Vụ Xác Thực\n(AuthController & AuthService - BCrypt/JWT)" as BE_Auth #E8DAEF
-    }
-
-    package "Phân Hệ Quản Lý Danh Mục Nông Trại" as CatPkg #EBDEF0 {
-        component "Quản Lý Trang Trại & Vùng Canh Tác\n(FarmController / ZoneService)\n[LTJ-6 - F03]" as BE_FarmZone #E8DAEF
-        component "Quản Lý Cảm Biến, Gateway & UAV\n(SensorController / GatewayController)\n[LTJ-7 & LTJ-11]" as BE_Sensor #E8DAEF
-    }
-
-    package "Phân Hệ Thu Nạp Dữ Liệu Cảm Biến & Lọc Rác" as IngestPkg #E8F8F5 {
-        component "Bộ Lắng Nghe Tin Nhắn MQTT\n(MqttGatewayConfig - MQTT Subscriber)\n[LTJ-12]" as BE_MqttSub #D1F2EB
-        component "API Thu Nạp & Truy Vấn Số Liệu Đo\n(SensorDataController: /simulator & /latest)\n[LTJ-11 - F04]" as BE_DataCtrl #D1F2EB
-        component "Dịch Vụ Xử Lý Dữ Liệu & Chống Trùng Lặp\n(SensorDataServiceImpl)" as BE_DataSvc #D1F2EB
-        component "Bộ Kiểm Định Dải Vật Lý & Lọc Dữ Liệu Rác\n(SensorDataValidator)\n[LTJ-11 - F19]" as BE_Validator #A3E4D7
-    }
-
-    BE_Sec -down-> BE_Auth : "Kiểm tra mã JWT"
-    BE_Sec -down-> BE_FarmZone : "Phân quyền Chủ trại / Admin"
-    BE_Sec -down-> BE_Sensor : "Kiểm soát quyền truy cập"
-    BE_Sec -down-> BE_DataCtrl : "Cho phép luồng dữ liệu cảm biến"
-
-    BE_MqttSub -down-> BE_DataSvc : "Chuyển tiếp gói tin từ MQTT"
-    BE_DataCtrl -down-> BE_DataSvc : "Gọi xử lý lưu trữ & truy vấn"
-    BE_DataSvc -down-> BE_Validator : "Kiểm tra ngưỡng vật lý hợp lệ (F19)\n(-10..60°C, 0..100% Độ ẩm, 0..150k lux)"
+    DB -[hidden]right- SMTP
+    SMTP -[hidden]right- Broker
 }
 
 ' =====================================================================
-' 5. TẦNG LƯU TRỮ CƠ SỞ DỮ LIỆU (DEV 1)
+' KẾT NỐI LIÊN TẦNG (ZERO CROSSING)
 ' =====================================================================
-package "5. Tầng Lưu Trữ Cơ Sở Dữ Liệu (Database Layer)" as DataLayer #FEF9E7 {
-    component "Tầng Truy Xuất Dữ Liệu Spring Data JPA\n(SensorDataRepository, SensorRepository,\nZoneRepository, FarmRepository, UserRepository)" as JPA_Repo #FCF3CF
-    database "Cơ Sở Dữ Liệu Quan Hệ\n(H2 In-Memory / MySQL 8.0)\n[Bảng: users, farms, zones, sensors, sensor_data]" as DB #F9E79F
+FE_Gateway ..> BE_Security : "Gọi REST API + JWT (:8080/api/v1)\n& nhận luồng WebSocket / SSE"
 
-    JPA_Repo -down-> DB : "Giao tiếp JDBC / Hibernate ORM"
-}
-
-' =====================================================================
-' QUAN HỆ GIAO TIẾP LIÊN TẦNG
-' =====================================================================
-MqttPub -down-> MqttBroker : "Gửi gói tin MQTT (Cổng 1883)\nQoS 1 | Dữ liệu JSON"
-MqttBroker -down-> BE_MqttSub : "Nhận gói tin MQTT (Subscribe)\niot/ltj/sensor/#"
-HttpBridge .down.> BE_DataCtrl : "Gửi HTTP POST\n/api/v1/sensor-data/simulator"
-
-FE_Api -down-> BE_Sec : "Giao tiếp HTTP RESTful JSON (Cổng 8080)\nĐính kèm Header: Bearer <JWT>"
-
-BE_Auth -down-> JPA_Repo : "Truy vấn Tài khoản & Vai trò"
-BE_FarmZone -down-> JPA_Repo : "Lưu / Đọc Trang trại & Vùng"
-BE_Sensor -down-> JPA_Repo : "Lưu / Đọc Cảm biến, Gateway, UAV"
-BE_DataSvc -down-> JPA_Repo : "Lưu số liệu đo hợp lệ\n& Truy vấn dữ liệu mới nhất"
+BE_JPA ..> DB : "Đọc / Ghi CSDL\n(JDBC)"
+BE_Alert ..> SMTP : "Gửi email cảnh báo\n(SMTP :587)"
+BE_Ingest ..> Broker : "Đăng ký nhận tin\n(MQTT Subscribe :1883)"
+Edge_Mqtt ..> Broker : "Đẩy số liệu đo & đồng bộ bù\n(MQTT Publish :1883 · QoS 1)"
 
 @enduml

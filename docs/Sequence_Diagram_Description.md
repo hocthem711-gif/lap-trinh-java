@@ -1,65 +1,64 @@
-# 📐 TÀI LIỆU ĐẶC TẢ SƠ ĐỒ TUẦN TỰ (SEQUENCE DIAGRAM SPECIFICATION)
-## Dự án: Hệ Thống Giám Sát & Điều Khiển Nông Nghiệp Thông Minh (Smart Farm IoT)
-### Nhiệm vụ: `[Sprint 2][Dev 5] LTJ-10: Test API Danh mục & Script MQTT Giả lập`
+# Đặc Tả Sơ Đồ Tuần Tự (Sequence Diagram Specification) — Smart Farm IoT & UAV
+
+**Dự án:** Nền tảng IoT có UAV hỗ trợ phục vụ giám sát và thu thập dữ liệu cảm biến nông trại  
+**Mã công việc:** `[Sprint 2–8][Dev 5] LTJ-10`  
+**Chuẩn mô hình hóa:** UML 2.0  
+
+- **Mã nguồn PlantUML:**
+  - [`docs/Sequence_Auth_Login.puml`](./Sequence_Auth_Login.puml)
+  - [`docs/Sequence_Add_Device.puml`](./Sequence_Add_Device.puml)
+- **Hình ảnh kết xuất:**
+  - [`docs/images/Sequence_Auth_Login.png`](./images/Sequence_Auth_Login.png) · [`Sequence_Auth_Login.svg`](./images/Sequence_Auth_Login.svg)
+  - [`docs/images/Sequence_Add_Device.png`](./images/Sequence_Add_Device.png) · [`Sequence_Add_Device.svg`](./images/Sequence_Add_Device.svg)
 
 ---
 
-> **Tác giả:** Dev 5 (Architecture & IoT Specialist)  
-> **Sprint:** Sprint 2 (10/10/2026 - 17/10/2026)  
-> **Ngôn ngữ mô hình hóa:** PlantUML  
-> **File mã nguồn PlantUML:**
-> * [`docs/Sequence_Auth_Login.puml`](file:///f:/lap_trinh_java/docs/Sequence_Auth_Login.puml)
-> * [`docs/Sequence_Add_Device.puml`](file:///f:/lap_trinh_java/docs/Sequence_Add_Device.puml)  
-> **Hình ảnh sơ đồ:**
-> * [`docs/images/Sequence_Auth_Login.png`](file:///f:/lap_trinh_java/docs/images/Sequence_Auth_Login.png)
-> * [`docs/images/Sequence_Add_Device.png`](file:///f:/lap_trinh_java/docs/images/Sequence_Add_Device.png)
+## 1. Sơ Đồ 1: Luồng Đăng Nhập & Xác Thực Phân Quyền JWT (`F01`)
+
+![Sequence Auth Login](./images/Sequence_Auth_Login.png)
+
+### 1.1. Các thành phần tham gia (Lifelines)
+| Thành phần | Ký hiệu UML | Lớp / Công nghệ thực tế trong hệ thống |
+|---|---|---|
+| **Người Dùng** | `actor` | `Farm Administrator` hoặc `UAV & Device Operator` |
+| **Web SPA** | `boundary` | Ứng dụng React 19 + TypeScript + Vite |
+| **JwtAuthenticationFilter** | `control` | `com.smartfarm.backend.security.JwtAuthenticationFilter` |
+| **AuthController** | `control` | `com.smartfarm.backend.controller.AuthController` |
+| **AuthServiceImpl** | `control` | `com.smartfarm.backend.service.impl.AuthServiceImpl` |
+| **AuthenticationManager & CustomUserDetailsService** | `control` | Spring Security + `CustomUserDetailsService` |
+| **JwtTokenProvider** | `control` | `com.smartfarm.backend.security.JwtTokenProvider` |
+| **CSDL Quan Hệ** | `database` | H2 In-Memory (demo) / MySQL 8.0 (production) — bảng `users`, `roles` |
+
+### 1.2. Trình tự xử lý chính
+1. **Gửi yêu cầu đăng nhập:** Client gọi `POST /api/v1/auth/login` với `LoginRequest { usernameOrEmail, password }`.
+2. **Kiểm tra mật khẩu BCrypt:** `AuthenticationManager` nạp tài khoản qua `CustomUserDetailsService` và đối chiếu `PasswordEncoder.matches()`.
+3. **Rẽ nhánh `alt`:**
+   - **Nhánh lỗi:** Ném `BadCredentialsException`, trả `401 Unauthorized`.
+   - **Nhánh hợp lệ:** `JwtTokenProvider.generateToken()` ký chuỗi JWT bằng `HMAC-SHA256` (chứa `username`, danh sách `roles`, thời hạn 24h), trả `200 OK ApiResponse<AuthResponse>`. Client lưu `accessToken` vào `localStorage`.
+4. **Ủy quyền các request tiếp theo:** Khi gọi API bảo mật (ví dụ `GET /api/v1/farms`), `JwtAuthenticationFilter` kiểm tra chữ ký Bearer Token, nạp quyền vào `SecurityContextHolder` trước khi chuyển vào Controller.
 
 ---
 
-## 1. SƠ ĐỒ 1: LUỒNG ĐĂNG NHẬP & XÁC THỰC PHÂN QUYỀN JWT (F01)
+## 2. Sơ Đồ 2: Luồng Đăng Ký Cảm Biến & Thu Thập Telemetry Qua MQTT (`F12`, `F18`, `F19`)
 
-### 1.1. Mục đích kiến trúc
-Mô tả chi tiết quá trình người dùng gửi thông tin xác thực lên hệ thống, cơ chế kiểm tra mật khẩu bằng thuật toán băm BCrypt, sinh chữ ký số JWT (HMAC-SHA256) chứa các quyền hạn (Role Claims), và cách các request tiếp theo được bảo vệ qua bộ lọc `JwtAuthenticationFilter`.
+![Sequence Add Device](./images/Sequence_Add_Device.png)
 
-### 1.2. Danh sách các thành phần tham gia (Participants)
-1. **User (Actor):** Người dùng thao tác trên trình duyệt.
-2. **Web Client (React / Vite):** Ứng dụng Frontend nhận input, gọi REST API và lưu trữ Token.
-3. **JwtAuthenticationFilter (Control):** Bộ lọc chặn bắt request, trích xuất và xác thực Bearer Token trước khi tới Controller.
-4. **AuthController & AuthService (Control):** Tầng tiếp nhận và điều phối nghiệp vụ xác thực.
-5. **AuthenticationManager & CustomUserDetailsService (Control):** Thành phần cốt lõi của Spring Security chịu trách nhiệm nạp User và so khớp mật khẩu.
-6. **Database (H2 / PostgreSQL):** Bảng `users` và `roles` lưu trữ thông tin tài khoản.
-7. **JwtTokenProvider (Control):** Chịu trách nhiệm mã hóa và giải mã chuỗi JWT.
+### 2.1. Các thành phần tham gia (Lifelines)
+| Thành phần | Ký hiệu UML | Lớp / Công nghệ thực tế trong hệ thống |
+|---|---|---|
+| **UAV & Device Operator** | `actor` | Người vận hành thiết bị và nhiệm vụ bay UAV |
+| **Web SPA** | `boundary` | Giao diện quản lý cảm biến & bản đồ số (React 19) |
+| **SensorController** | `control` | `com.smartfarm.backend.controller.SensorController` |
+| **SensorServiceImpl** | `control` | `com.smartfarm.backend.service.impl.SensorServiceImpl` |
+| **CSDL Quan Hệ** | `database` | H2 In-Memory / MySQL 8.0 — bảng `zones`, `sensors`, `sensor_data` |
+| **MqttGatewayConfig & SensorDataServiceImpl** | `control` | `MqttGatewayConfig`, `SensorDataServiceImpl`, `SensorDataValidator` |
+| **HiveMQ MQTT Broker** | `queue` | MQTT Broker cổng `:1883` (QoS 1) |
+| **UAV Mobile Gateway / IoT Simulator** | `entity` | Module `iot-simulator` (Java 17 `MqttPublisher`) |
 
-### 1.3. Các bước thực thi chính
-1. **Gửi yêu cầu:** Người dùng gửi `POST /api/v1/auth/login` với body `{ "usernameOrEmail", "password" }`.
-2. **Nạp thông tin:** `CustomUserDetailsService` truy vấn database tìm theo username hoặc email.
-3. **So khớp mật khẩu:** `PasswordEncoder.matches()` so sánh mật khẩu raw với mật khẩu mã hóa BCrypt.
-   * **Nếu sai:** Ném `BadCredentialsException` ➔ Trả về `401 Unauthorized`.
-   * **Nếu đúng:** `JwtTokenProvider` đóng gói Subject, Claims (Role), thời hạn (24 giờ), ký bằng Secret Key 256-bit.
-4. **Phản hồi:** Trả về `AuthResponse` gồm `accessToken`, `tokenType: Bearer` và thông tin User. Client lưu vào `localStorage`.
-5. **Ủy quyền:** Ở các request sau (ví dụ `GET /api/v1/farms`), Client đính kèm `Authorization: Bearer <accessToken>`. `JwtAuthenticationFilter` giải mã token và thiết lập vào `SecurityContextHolder`.
-
----
-
-## 2. SƠ ĐỒ 2: LUỒNG THÊM THIẾT BỊ MỚI & ĐĂNG KÝ MQTT BROKER (F03 / IoT)
-
-### 2.1. Mục đích kiến trúc
-Mô tả luồng tích hợp giữa Tầng Ứng Dụng (Web UI), Tầng Dịch Vụ (Backend Spring Boot), Tầng Truyền Thông (MQTT Broker HiveMQ), và Tầng Thiết Bị (IoT Simulator). Đảm bảo tính nhất quán dữ liệu từ lúc tạo thiết bị trên cơ sở dữ liệu đến khi nhận telemetry cảm biến đầu tiên.
-
-### 2.2. Danh sách các thành phần tham gia (Participants)
-1. **Farmer (Actor):** Chủ trang trại thêm cảm biến vào khu vực canh tác.
-2. **Web Dashboard (React UI):** Giao diện quản lý hiển thị danh sách cây trang trại/zone.
-3. **Device/Zone Controller & Service (Control):** Xử lý nghiệp vụ gắn thiết bị vào Zone.
-4. **Database (Entity/DB):** Bảng `devices` và `zones`.
-5. **MQTT Broker (HiveMQ / EMQX):** Máy chủ trung gian xử lý publish/subscribe gói tin IoT.
-6. **IoT Simulator / Hardware (IoT Device):** Chương trình giả lập bắn dữ liệu cảm biến định kỳ.
-
-### 2.3. Các bước thực thi chính
-1. **Tạo thiết bị:** Người dùng chọn Farm ➔ Chọn Zone A ➔ Gửi `POST /api/v1/zones/{zoneId}/devices`.
-2. **Kiểm tra quyền sở hữu:** Backend xác minh Zone có thuộc quyền quản lý của Farmer hay không.
-3. **Sinh Topic & Lưu trữ:** Sinh mã `deviceCode = DEV-Z1-001`, cấu hình topic `iot/ltj/sensor/zone-1/DEV-Z1-001`. Lưu thiết bị vào DB ở trạng thái `PENDING_CONNECT`.
-4. **Đăng ký MQTT Topic:** Backend gửi lệnh `SUBSCRIBE` topic của thiết bị mới lên MQTT Broker (QoS 1).
-5. **Simulator Kết nối & Gửi dữ liệu:**
-   * Script IoT Simulator gửi gói tin `CONNECT` tới Broker.
-   * Định kỳ mỗi 5 giây, Simulator tính toán số liệu cảm biến (Nhiệt độ, Độ ẩm đất, Độ ẩm không khí) và gửi bản tin JSON lên Topic chỉ định.
-   * Backend nhận gói tin, lưu lịch sử đo đạc, đổi trạng thái thiết bị sang `ONLINE` và phát WebSocket (STOMP) để Frontend cập nhật biểu đồ thời gian thực.
+### 2.2. Trình tự xử lý chính
+1. **Đăng ký cảm biến (`F12`):** Người vận hành gửi `POST /api/v1/sensors` kèm `SensorCreateRequest { sensorCode, sensorType, zoneId, latitude, longitude }`.
+2. **Kiểm tra ràng buộc (`alt`):** `SensorServiceImpl` kiểm tra trùng mã `sensorCode` và sự tồn tại của `Zone`. Nếu hợp lệ, lưu bản ghi vào bảng `sensors` (`status = ACTIVE`) và trả về `201 Created`.
+3. **Thu thập & Kiểm định Telemetry qua MQTT (`F18`, `F19` — khung `loop`):**
+   - Khi khởi động (`@PostConstruct`), `MqttGatewayConfig` đăng ký lắng nghe `iot/ltj/sensor/#` và `iot/ltj/sync/#` (QoS 1).
+   - Thiết bị biên / UAV Gateway gửi bản tin JSON (`IoTSimulatorPayload`) lên topic `iot/ltj/sensor/{nodeCode}`.
+   - Backend kiểm tra giới hạn tần suất (`Rate-Limit >= 3000ms/node`), xác thực mã cảm biến đã đăng ký (`F18`), kiểm định dải giá trị vật lý qua `SensorDataValidator` & chống trùng mốc thời gian (`F19`), lưu vào bảng `sensor_data` và phát sự kiện WebSocket / SSE cập nhật giao diện thời gian thực.

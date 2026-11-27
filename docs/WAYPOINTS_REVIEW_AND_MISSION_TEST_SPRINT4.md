@@ -144,7 +144,7 @@ Quá trình kiểm thử kết hợp cả **Postman Collection** (`docs/SmartFar
 
 ---
 
-## 4. HƯỚNG DẪN CHẠY KIỂM THỬ NHANH (DÀNH CHO DEMO & VẤN ĐÁP)
+## 4. HƯỚNG DẪN THỰC THI BỘ KIỂM THỬ TỰ ĐỘNG
 
 ### Cách 1: Chạy Bộ Kiểm Thử Tự Động Bằng Dòng Lệnh (Nhanh nhất - 1 giây)
 Mở Terminal tại thư mục `iot-simulator` và chạy lệnh:

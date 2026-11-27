@@ -1,0 +1,71 @@
+@startuml Deployment_Diagram
+!pragma layout smetana
+!theme plain
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
+skinparam roundCorner 10
+skinparam shadowing false
+skinparam nodesep 85
+skinparam ranksep 115
+skinparam ArrowColor #2C3E50
+skinparam ArrowThickness 1.4
+skinparam NodeBorderColor #34495E
+skinparam ArtifactBorderColor #2C3E50
+skinparam DatabaseBorderColor #7D6608
+skinparam QueueBorderColor #1E8449
+skinparam TitleFontSize 18
+
+title Sơ Đồ Triển Khai Hệ Thống (Deployment Diagram) — Smart Farm IoT & UAV\n[Sprint 8][Dev 5] LTJ-40\n
+
+' ================= 1. MÁY NGƯỜI DÙNG =================
+node "<<device>>\nMáy Người Dùng (PC / Laptop / Tablet)" as Client #EBF5FB {
+  node "<<execution environment>>\nTrình duyệt Web (Chrome / Edge / Firefox)" as Browser #D6EAF8 {
+    artifact "Giao diện Web SPA (dist/)\nReact 19 + TypeScript + Vite\nBản đồ Leaflet · Biểu đồ Chart.js" as SPA #AED6F1
+  }
+}
+
+' ================= 2. DỊCH VỤ ĐÁM MÂY =================
+cloud "Dịch Vụ Đám Mây (Internet)" as Cloud #EAFAF1 {
+  node "Bản đồ trực tuyến\nOpenStreetMap (:443)" as OSM #D6EAF8
+  node "Dịch vụ gửi Email\nGmail SMTP (:587)" as SMTP #FADBD8
+  queue "Trạm trung chuyển MQTT\nHiveMQ (:1883 · QoS 1)" as Broker #ABEBC6
+}
+
+' ================= 3. MÁY CHỦ ỨNG DỤNG =================
+node "<<device>>\nMáy Chủ Ứng Dụng (Docker Host)" as Server #F5EEF8 {
+  node "<<execution environment>>\nMôi trường Docker: smart-farm-backend\n(Java 17 JRE)" as Container #EBDEF0 {
+    artifact "Ứng dụng Backend (smart-farm-backend.jar)\nSpring Boot 3.2.5 · Cổng :8080\nREST API /api/v1 · JWT · WebSocket/SSE" as JAR #D7BDE2
+    database "CSDL H2 In-Memory\n(chạy chung bộ nhớ — bản demo)" as H2 #FCF3CF
+  }
+}
+
+database "<<device>>\nCSDL MySQL 8.0 (:3306)\n(dùng khi triển khai thật)" as MySQL #F9E79F
+
+' ================= 4. TẦNG BIÊN NÔNG TRẠI =================
+node "<<device>>\nNút Cảm Biến (Sensor Node)\nNhiệt độ · Độ ẩm · Đất · Ánh sáng · Pin" as Sensors #FDEBD0
+
+node "<<device>>\nTrạm Thu Phát Di Động Trên UAV\n(UAV Mobile Gateway)" as UAV #FAD7A0 {
+  artifact "Phần mềm thu thập biên (iot-simulator)\nMqttPublisher · UavFlightSimulator\nUavOfflineSyncManager" as SIM #F8C471
+  database "Bộ nhớ tạm SQLite\niot_offline.db" as SQLITE #FCF3CF
+}
+
+' ================= BỐ CỤC =================
+Client -[hidden]right- Cloud
+Client -[hidden]down- Server
+Cloud -[hidden]down- Sensors
+Sensors -[hidden]right- UAV
+
+' ================= KẾT NỐI =================
+Client -down-> Server : (1) Gọi API & nhận dữ liệu trực tiếp\nHTTPS + JWT · WebSocket/SSE
+Client -right-> OSM : (2) Tải bản đồ\nHTTPS :443
+JAR -down-> H2 : (3) Đọc/ghi CSDL tạm\n(JDBC trong bộ nhớ)
+Server ..down..> MySQL : (4) Kết nối CSDL chính\nJDBC :3306 (khi triển khai thật)
+Server -up-> SMTP : (5) Gửi email cảnh báo\nSMTP :587
+Server <-up-> Broker : (6) Đăng ký nhận dữ liệu\nMQTT :1883 (kênh iot/ltj/#)
+Sensors -right-> UAV : (7) Thu dữ liệu cảm biến\nkhi UAV bay tới gần
+Sensors ..up..> Broker : (8) Gửi thẳng khi có mạng\n(chế độ trực tuyến)
+SIM -right-> SQLITE : (9) Lưu tạm khi mất mạng\n(is_synced = 0)
+UAV -up-> Broker : (10) Đẩy số liệu đo & đồng bộ bù\nMQTT Publish (QoS 1)
+
+@enduml

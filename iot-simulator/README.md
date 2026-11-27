@@ -132,6 +132,7 @@ iot-simulator/
 │   │   └── SystemTestRunner.java                    # Bộ kiểm thử End-to-End System Testing 12 kịch bản (LTJ-40)
 │   └── test/java/com/iot/simulator/
 │       ├── SystemTestingSuiteTest.java              # Bộ 5 Unit/Integration Tests cấp hệ thống (LTJ-40)
+│       ├── WaypointMissionValidatorTest.java        # Bộ 5 Unit Tests kiểm thử Geofence, Haversine 3D & FSM (LTJ-20)
 │       ├── ExtremeAlertSimulationTest.java          # Bộ 4 Unit Tests kiểm thử dữ liệu cực đoan & Alert (LTJ-30)
 │       ├── UavFlightSimulatorTest.java              # Bộ 4 Unit Tests kiểm thử thuật toán LERP & Telemetry (LTJ-35)
 │       ├── OfflineStorageManagerTest.java           # Bộ 3 Unit Tests kiểm thử SQLite (LTJ-25)

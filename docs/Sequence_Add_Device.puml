@@ -1,91 +1,113 @@
 @startuml Sequence_Add_Device
 !theme plain
-autonumber
+autonumber "<b>[00]"
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 13
 skinparam BoxPadding 10
-skinparam ParticipantPadding 10
+skinparam ParticipantPadding 12
 skinparam RoundCorner 8
 skinparam Shadowing false
-skinparam ArrowColor #2C3E50
-skinparam ActorBorderColor #2C3E50
-skinparam ParticipantBorderColor #2C3E50
 
-title [Sprint 2][Dev 5] Sơ Đồ Tuần Tự (Sequence Diagram) - Luồng Thêm Thiết Bị & Kết Nối MQTT (F03/IoT)
+skinparam sequence {
+    ArrowColor #2C3E50
+    ArrowThickness 1.3
+    LifeLineBorderColor #5D6D7E
+    LifeLineBackgroundColor #EBF5FB
+    ParticipantBorderColor #2C3E50
+    ParticipantFontSize 13
+    ParticipantFontStyle bold
+    ActorBorderColor #2C3E50
+    ActorFontSize 13
+    ActorFontStyle bold
+    GroupBorderColor #2E86C1
+    GroupBackgroundColor #F8F9F9
+    GroupHeaderFontSize 12
+    GroupFontSize 12
+    DividerBackgroundColor #EAFAF1
+    DividerBorderColor #27AE60
+    DividerFontSize 13
+}
 
-actor "Chủ Trang Trại (Farmer)" as Farmer #LightYellow
-boundary "Web Dashboard\n(React UI)" as UI #AliceBlue
-control "JwtAuthFilter" as Filter #LightCyan
-control "Device/Zone Controller" as Controller #LightCyan
-control "Device/Zone Service" as Service #LightCyan
-database "Database\n(H2 / PostgreSQL)" as DB #Ivory
-queue "MQTT Broker\n(HiveMQ / EMQX)" as Broker #Honeydew
-entity "IoT Simulator\n(Sensor Client)" as Simulator #MistyRose
+title Sơ Đồ Tuần Tự (Sequence Diagram) — Đăng Ký Cảm Biến & Thu Thập Dữ Liệu MQTT (F12, F18, F19)\n[Sprint 2–8][Dev 5] LTJ-10
 
-== 1. YÊU CẦU THÊM THIẾT BỊ MỚI VÀO VÙNG CANH TÁC ==
-Farmer -> UI: Chọn Farm -> Chọn Zone A -> Nhấn [+ Thêm Thiết Bị]
+actor "Người Vận Hành\n(UAV & Thiết bị)" as Operator #F5CBA7
+boundary "Giao Diện Web\n(React 19 SPA)" as UI #D6EAF8
+control "Controller Cảm Biến\n(SensorController)" as Ctrl #D1F2EB
+control "Dịch Vụ Cảm Biến\n(SensorServiceImpl)" as SensorSvc #FCF3CF
+database "Cơ Sở Dữ Liệu\n(H2 / MySQL 8.0)" as DB #F9E79F
+control "Bộ Thu Nhận & Kiểm Định\n(MqttGateway & Validator)" as MqttBackend #EBDEF0
+queue "Trạm Trung Chuyển MQTT\n(HiveMQ :1883)" as Broker #ABEBC6
+entity "Gateway UAV / Giả Lập\n(iot-simulator)" as Edge #FAD7A0
+
+== 1. Đăng Ký & Gán Nút Cảm Biến Vào Khu Vực Nông Trại (F12) ==
+
+Operator -> UI : Chọn khu vực (Zone), nhập mã cảm biến,\nloại đo & tọa độ GPS
 activate UI
 
-Farmer -> UI: Điền Form: Tên thiết bị ("Sensor Temp/Hum 01"), Loại cảm biến, Chu kỳ gửi (5s)
-UI -> Filter: POST /api/v1/zones/{zoneId}/devices\nHeader: Authorization: Bearer <accessToken>\nPayload: { "deviceName", "deviceType", "interval": 5 }
-activate Filter
+UI -> Ctrl : Gửi yêu cầu đăng ký cảm biến\nPOST /api/v1/sensors (kèm mã JWT)
+activate Ctrl
 
-Filter -> Filter: Xác thực tính hợp lệ của Bearer Token (ROLE_FARMER)
-Filter -> Controller: Cho phép chuyển tiếp Request
-deactivate Filter
-activate Controller
+Ctrl -> SensorSvc : Gọi hàm tạo cảm biến createSensor()
+activate SensorSvc
 
-Controller -> Service: createDevice(zoneId, deviceRequest, currentUserId)
-activate Service
-
-== 2. KIỂM TRA PHÂN QUYỀN VÀ LƯU VÀO DATABASE ==
-Service -> DB: SELECT * FROM zones WHERE id = ? AND farm.owner.id = ?
+SensorSvc -> DB : Kiểm tra trùng mã sensorCode\n& kiểm tra Zone có tồn tại
 activate DB
-DB --> Service: Trả về thông tin Zone hợp lệ
+DB --> SensorSvc : Trả về kết quả kiểm tra từ CSDL
 deactivate DB
 
-alt Không tìm thấy Zone hoặc Người dùng không sở hữu Trang trại
-    Service --> Controller: Ném ResourceNotFoundException / AccessDeniedException
-    Controller --> UI: 403 Forbidden / 404 Not Found
-    UI --> Farmer: Báo lỗi "Không có quyền thêm thiết bị vào khu vực này"
-else Zone hợp lệ & Có toàn quyền sở hữu
-    Service -> Service: Sinh mã thiết bị duy nhất: deviceCode = "DEV-Z1-001"\nCấu hình Topic: "iot/ltj/sensor/zone-1/DEV-Z1-001"
-    Service -> DB: INSERT INTO devices (code, name, type, zone_id, status) VALUES (...)
+alt Trùng mã cảm biến hoặc Zone không tồn tại
+    SensorSvc --> Ctrl : Báo lỗi dữ liệu không hợp lệ / không thấy Zone
+    Ctrl --> UI : Trả về mã lỗi 400 Bad Request / 404 Not Found
+    UI --> Operator : Hiện thông báo lỗi trên biểu mẫu đăng ký
+else Thông tin hợp lệ
+    SensorSvc -> DB : Lưu thiết bị mới vào bảng sensors\n(trạng thái ACTIVE)
     activate DB
-    DB --> Service: Lưu thành công (Device ID = 10, Status = "PENDING_CONNECT")
+    DB --> SensorSvc : Xác nhận đã lưu cảm biến thành công
     deactivate DB
 
-    == 3. ĐĂNG KÝ VỚI MQTT BROKER ==
-    Service -> Broker: Backend Gateway Subscribe Topic:\n"iot/ltj/sensor/zone-1/DEV-Z1-001" (QoS 1)
+    SensorSvc --> Ctrl : Trả về thông tin cảm biến (SensorResponse)
+    deactivate SensorSvc
+
+    Ctrl --> UI : Trả về 201 Created (Đăng ký thành công)
+    deactivate Ctrl
+
+    UI --> Operator : Hiển thị nút cảm biến mới trên Bản đồ & Khu vực
+end
+deactivate UI
+
+== 2. Thu Thập, Kiểm Định Số Liệu Qua MQTT & Cập Nhật Trực Tiếp (F18, F19) ==
+
+note over MqttBackend, Broker #E8F8F5
+  Ngay khi khởi động Server, MqttGatewayConfig tự động kết nối Broker
+  và đăng ký lắng nghe các kênh: iot/ltj/sensor/# và iot/ltj/sync/# (QoS 1)
+end note
+
+loop Định kỳ thu thập & truyền số liệu môi trường
+    Edge -> Edge : Đo chỉ số môi trường\n(nhiệt độ, độ ẩm, đất, ánh sáng, pin)
+    activate Edge
+
+    Edge ->> Broker : Bắn gói tin JSON lên kênh\niot/ltj/sensor/{nodeCode} (QoS 1)
     activate Broker
-    Broker --> Service: SUBACK (Xác nhận đăng ký nhận dữ liệu thành công)
+    Broker --> Edge : Phản hồi PUBACK (Đã nhận gói tin)
+    deactivate Edge
+
+    Broker ->> MqttBackend : Đẩy gói tin cảm biến sang Backend\nmessageArrived()
     deactivate Broker
+    activate MqttBackend
 
-    Service --> Controller: Trả về DeviceResponse (ID, Mã thiết bị, MQTT Topic, Trạng thái)
-    deactivate Service
+    MqttBackend -> MqttBackend : Chống gửi dồn dập (>= 3 giây/nút)\n& lọc số liệu sai dải vật lý (F19)
 
-    Controller --> UI: 201 Created\n{"status": 201, "data": { "deviceId": 10, "topic": "iot/ltj/sensor/zone-1/DEV-Z1-001" }}
-    deactivate Controller
+    MqttBackend -> DB : Đối chiếu mã cảm biến đã đăng ký (F18),\nchống trùng lặp & lưu bảng sensor_data
+    activate DB
+    DB --> MqttBackend : Xác nhận lưu bản ghi số liệu thành công
+    deactivate DB
 
-    UI --> Farmer: Hiển thị thiết bị mới trong danh sách cây Zone A (Icon cam: Chờ kết nối)
+    MqttBackend ->> UI : Phát số liệu mới tức thì qua WebSocket / SSE
+    deactivate MqttBackend
+    activate UI
+    UI --> Operator : Đổi trạng thái Xanh (Online) & nhảy biểu đồ trực tiếp
     deactivate UI
 end
-
-== 4. THIẾT BỊ IOT / SIMULATOR KẾT NỐI VÀ BẮN DỮ LIỆU THỰC TẾ ==
-Simulator -> Broker: CONNECT (ClientId: "DEV-Z1-001", CleanSession: true)
-activate Simulator
-activate Broker
-Broker --> Simulator: CONNACK (Connection Accepted)
-
-loop Định kỳ mỗi 5 giây (Scheduled Telemetry)
-    Simulator -> Simulator: Đọc/Giả lập chỉ số cảm biến:\n{ temperature: 27.5, humidity: 68.2, soilMoisture: 75.0, timestamp: 172916... }
-    Simulator -> Broker: PUBLISH Topic: "iot/ltj/sensor/zone-1/DEV-Z1-001"\nPayload: JSON Data (QoS 1)
-    Broker --> Simulator: PUBACK (Đã nhận gói tin)
-    
-    Broker -> Controller: Đẩy gói tin sang Backend MQTT Inbound Adapter
-    Controller -> DB: Ghi nhận bản ghi Telemetry lịch sử & cập nhật Device Status = "ONLINE"
-    Controller -> UI: Đẩy sự kiện qua WebSocket (STOMP / SockJS)
-    UI --> Farmer: Cập nhật icon Xanh Lá (Online) và biểu đồ Realtime nhảy số tức thì
-end
-deactivate Broker
-deactivate Simulator
 
 @enduml

@@ -1,77 +1,129 @@
-@startuml UseCaseDiagram
+@startuml UseCase
 left to right direction
+skinparam backgroundColor #FFFFFF
+skinparam defaultFontName "Segoe UI"
+skinparam defaultFontSize 12
 skinparam actorStyle awesome
 skinparam packageStyle rectangle
-skinparam roundcorner 8
+skinparam roundcorner 10
 skinparam shadowing false
-skinparam linetype polyline
+skinparam nodesep 20
+skinparam ranksep 60
 
 skinparam usecase {
-    BackgroundColor #F0F8FF
-    BorderColor #4682B4
+    BackgroundColor #EBF5FB
+    BorderColor #2E86C1
+    BorderThickness 1.3
     ArrowColor #2C3E50
+    ArrowThickness 1.2
+    FontSize 12
+}
+skinparam actor {
+    FontSize 13
+    FontStyle bold
+    BorderColor #2C3E50
+}
+skinparam package {
+    BackgroundColor #FDFEFE
+    BorderColor #7F8C8D
+    FontColor #1B2631
+    FontSize 13
+    FontStyle bold
+}
+skinparam rectangle {
+    BorderColor #1B2631
+    BorderThickness 1.8
+    FontSize 15
+    FontStyle bold
 }
 
-title Hệ thống Giám sát IoT - Use Case Diagram\n[Sprint 1][Dev 5] LTJ-5
+title Sơ Đồ Ca Sử Dụng (Use Case Diagram) — Hệ Thống Smart Farm IoT & UAV\n[Sprint 1–8][Dev 5] LTJ-5
 
-actor "Quản trị viên\n(Admin)" as Admin #LightGreen
-actor "Người dùng\n(User)" as User #LightBlue
-actor "Thiết bị IoT\n(IoT Device)" as IoT #Orange
+' ===== TÁC NHÂN BÊN TRÁI =====
+actor "Farm Administrator\n(Quản trị viên nông trại)" as Admin #82E0AA
 
-rectangle "Hệ thống Giám sát IoT" {
+' ===== RANH GIỚI HỆ THỐNG =====
+rectangle "Hệ thống Nền tảng IoT & UAV Giám sát Nông trại" {
 
-    package "Quản trị Hệ thống" {
-        usecase "Quản lý người dùng" as UC9
-        usecase "Quản lý thiết bị" as UC10
-        usecase "Cấu hình ngưỡng\ncảnh báo" as UC11
+    package "1. Quản trị & Giám sát Nông trại" as PKG_FARM #F8F9F9 {
+        usecase "F02: Quản lý tài khoản người dùng" as UC02
+        usecase "F03: Quản lý Nông trại & Khu vực (Zone)" as UC03
+        usecase "F04: Xem Dashboard tổng quan" as UC04
+        usecase "F05: Xem bản đồ vị trí & trạng thái cảm biến" as UC05
+        usecase "F06: Xem dữ liệu hiện tại & lịch sử" as UC06
+        usecase "F07: So sánh dữ liệu giữa các Zone" as UC07
     }
 
-    package "Quản lý Tài khoản" {
-        usecase "Đăng nhập" as UC1
-        usecase "Đăng ký" as UC2
-        usecase "Đổi mật khẩu" as UC3
+    package "2. Cảnh báo & Báo cáo" as PKG_ALERT #FEF9E7 {
+        usecase "F08: Xem, xác nhận & đóng cảnh báo" as UC08
+        usecase "F09: Cấu hình ngưỡng, timeout & pin yếu" as UC09
+        usecase "F10: Nhận thông báo Web & Email" as UC10
+        usecase "F11: Xuất báo cáo tổng hợp" as UC11
     }
 
-    package "Giám sát Dữ liệu" {
-        usecase "Xem Dashboard\n(Biểu đồ thời gian thực)" as UC4
-        usecase "Xem lịch sử\ndữ liệu cảm biến" as UC5
-        usecase "Nhận cảnh báo\n(Alert)" as UC6
+    package "3. Xác thực Truy cập" as PKG_AUTH #EBF5FB {
+        usecase "F01: Đăng nhập & Đăng xuất" as UC01
     }
 
-    package "Điều khiển Thiết bị" {
-        usecase "Bật / Tắt thiết bị" as UC7
-        usecase "Lập lịch tự động" as UC8
+    package "4. Thu thập & Đồng bộ Dữ liệu Biên" as PKG_EDGE #E8F8F5 {
+        usecase "F18: Phát hiện & xác thực nút cảm biến" as UC18
+        usecase "F19: Thu thập & kiểm tra hợp lệ dữ liệu" as UC19
+        usecase "F20: Lưu Offline (SQLite) & tự động đồng bộ" as UC20
     }
 
-    package "IoT Gateway" {
-        usecase "Gửi dữ liệu\ncảm biến (MQTT)" as UC12
-        usecase "Nhận lệnh\nđiều khiển" as UC13
+    package "5. Quản lý Thiết bị & Nhiệm vụ UAV" as PKG_UAV #FDEDEC {
+        usecase "F12: Đăng ký, cập nhật & gán nút cảm biến" as UC12
+        usecase "F13: Quản lý UAV & Mobile Gateway" as UC13
+        usecase "F14: Tạo nhiệm vụ bay (Mission & Waypoints)" as UC14
+        usecase "F15: Giám sát bay & tiến độ Telemetry" as UC15
+        usecase "F16: Cập nhật thủ công trạng thái Mission" as UC16
+        usecase "F17: Xem lại kết quả & điểm lỗi Mission" as UC17
     }
 }
 
-' Phân cấp vai trò: Admin kế thừa User
-User <|-- Admin : <<kế thừa>>
+' ===== TÁC NHÂN BÊN PHẢI =====
+actor "Sensor Collection Engine\n(UAV Mobile Gateway)" as Engine #F9E79F
+actor "IoT Sensor Node\n(Nút cảm biến)" as Sensor #F5B041
+actor "UAV & Device Operator\n(Người vận hành UAV & thiết bị)" as Operator #F5CBA7
 
-' Tương tác Quản trị viên
-Admin --> UC9
-Admin --> UC10
-Admin --> UC11
+' ===== CỐ ĐỊNH BỐ CỤC 2 CỘT GỌN ĐẸP =====
+UC03 -[hidden]-> UC18
+UC04 -[hidden]-> UC19
+UC05 -[hidden]-> UC20
+UC09 -[hidden]-> UC14
 
-' Tương tác Người dùng
-User --> UC1
-User --> UC2
-User --> UC3
-User --> UC4
-User --> UC5
-User --> UC6
-User --> UC7
+' ===== LIÊN KẾT ACTOR - USE CASE (NÉT LIỀN CHUẨN UML 2.0) =====
+Admin -- UC02
+Admin -- UC03
+Admin -- UC04
+Admin -- UC05
+Admin -- UC06
+Admin -- UC07
+Admin -- UC08
+Admin -- UC09
+Admin -- UC10
+Admin -- UC11
+Admin -- UC01
 
-' Tương tác Thiết bị IoT (từ bên phải sang)
-UC12 <-- IoT
-UC13 <-- IoT
+UC18 -- Engine
+UC19 -- Engine
+UC20 -- Engine
 
-' Quan hệ giữa các Use Case
-UC8 .up.> UC7 : <<extend>>
-UC7 ..> UC13 : <<include>>
+UC18 -- Sensor
+UC19 -- Sensor
+
+UC17 -- Operator
+UC13 -- Operator
+UC12 -- Operator
+UC16 -- Operator
+UC15 -- Operator
+UC14 -- Operator
+UC01 -- Operator
+
+' ===== QUAN HỆ INCLUDE / EXTEND CHUẨN UML 2.0 =====
+UC07 .> UC06 : <<extend>>
+UC16 .> UC15 : <<extend>>
+UC19 .> UC18 : <<include>>
+UC20 .> UC19 : <<extend>>
 
 @enduml

@@ -7,7 +7,7 @@
 > **Người thực hiện:** Trần Nguyễn Bảo Hoàng — Dev 5 (IoT, System Architecture & QA Specialist)  
 > **Ngày thực hiện kiểm thử:** 21/11/2026  
 > **Phạm vi kiểm thử:** Toàn bộ 3 phân hệ tích hợp sau Sprint 8 (`backend/` Spring Boot 3.2.5 + `src/` React 19 TypeScript + `iot-simulator/` Java 17 + MQTT Broker HiveMQ Cloud + Cấu hình Docker)  
-> **Kết quả tổng quan:** **100% PASS** trên toàn bộ bộ kiểm thử tự động & kiểm thử End-to-End trực tiếp (`56/56` Backend Unit Tests, `20/20` Simulator Unit/Integration Tests, `12/12` Live E2E System Tests, `0` lỗi Frontend Build/Lint).
+> **Kết quả tổng quan:** **100% PASS** trên toàn bộ bộ kiểm thử tự động & kiểm thử End-to-End trực tiếp (`83/83` Backend Unit Tests, `25/25` Simulator Unit/Integration Tests, `12/12` Live E2E System Tests, `0` lỗi Frontend Build/Lint).
 
 ---
 
@@ -29,11 +29,11 @@
 
 | Phân hệ / Cấp độ kiểm thử | Công cụ / Lệnh thực thi | Số lượng Test | Pass | Fail | Tỷ lệ |
 | :--- | :--- | :---: | :---: | :---: | :---: |
-| **1. Backend Core Unit & Service Tests** | `.\mvnw.cmd test` (Maven Surefire + JUnit 5) | **56** | **56** | 0 | **100%** |
-| **2. IoT Simulator & QA Unit/Integration Tests** | `.\gradlew.bat test` (Gradle + JUnit 5) | **20** | **20** | 0 | **100%** |
+| **1. Backend Core Unit & Service Tests** | `.\mvnw.cmd test` (Maven Surefire + JUnit 5) | **83** | **83** | 0 | **100%** |
+| **2. IoT Simulator & QA Unit/Integration Tests** | `.\gradlew.bat test` (Gradle + JUnit 5) | **25** | **25** | 0 | **100%** |
 | **3. Live End-to-End System Testing (REST + SQLite + MQTT)** | `.\gradlew.bat run --args="--system-test ..."` (`SystemTestRunner`) | **12** | **12** | 0 | **100%** |
-| **4. Frontend TypeScript Compile & Production Build** | `npm run build` (`tsc -b && vite build`) | 2,077 modules | PASS | 0 | **100%** |
-| **5. Frontend Static Analysis (Linting)** | `npm run lint` (`oxlint` — 116 rules / 40 files) | 40 files | PASS | 0 | **100%** |
+| **4. Frontend TypeScript Compile & Production Build** | `npm run build` (`tsc -b && vite build`) | 2,082 modules | PASS | 0 | **100%** |
+| **5. Frontend Static Analysis (Linting)** | `npm run lint` (`oxlint` — 116 rules / 43 files) | 43 files | PASS | 0 | **100%** |
 | **6. Docker Compose & OpenAPI Spec Verification** | `docker compose config` & `GET /v3/api-docs` | 64 endpoints | PASS | 0 | **100%** |
 
 ---
@@ -61,21 +61,27 @@ Bộ kiểm thử [`SystemTestRunner.java`](../iot-simulator/src/main/java/com/i
 
 ## 4. CHI TIẾT BỘ UNIT TEST TỰ ĐỘNG (BACKEND & IOT SIMULATOR)
 
-### 4.1. Phân hệ Backend Core (`backend/` — 56/56 PASS)
+### 4.1. Phân hệ Backend Core (`backend/` — 83/83 PASS)
 | Lớp kiểm thử | Số test case | Phạm vi bao phủ | Kết quả |
 | :--- | :---: | :--- | :---: |
-| `AlertServiceTest` | 10 | Tạo Alert, lọc theo Zone/Unread, Mark Read, Resolve, Xóa, gọi EmailAlertService | **PASS (10/10)** |
-| `EmailAlertServiceTest` | 4 | Gửi HTML email thành công, xử lý lỗi SMTP timeout, tôn trọng cờ `app.mail.enabled=false` | **PASS (4/4)** |
 | `SensorDataServiceTest` | 12 | Ingest đơn lẻ, Simulator 4 chỉ số, Bulk Sync chống trùng lặp, từ chối vượt ngưỡng F19 | **PASS (12/12)** |
-| `TelemetryRealtimeServiceTest` | 5 | Đăng ký SSE Stream, phát sóng WebSocket `/topic/telemetry`, `/topic/alerts` | **PASS (5/5)** |
+| `AlertServiceTest` | 10 | Tạo Alert, lọc theo Zone/Unread, Mark Read, Resolve, Xóa, gọi EmailAlertService | **PASS (10/10)** |
 | `ThresholdServiceTest` | 9 | CRUD Threshold, kiểm tra hợp lệ `minValue < maxValue`, lọc theo Zone | **PASS (9/9)** |
-| `UavMissionServiceTest` | 7 | Handshake cấp Session ID, cập nhật tiến độ 4 điểm tới `COMPLETED`, cảnh báo pin thấp `RETURNING` | **PASS (7/7)** |
 | `SensorDataValidatorTest` | 9 | Biên độ vật lý nhiệt độ, độ ẩm, ánh sáng, độ ẩm đất, pin, mốc thời gian | **PASS (9/9)** |
+| `ExportServiceTest` | 8 | Xuất báo cáo Excel Apache POI (Multi-Sheet, Sensor, Alert, Mission) & PDF OpenPDF (F11) | **PASS (8/8)** |
+| `UavMissionServiceTest` | 7 | Handshake cấp Session ID, cập nhật tiến độ 4 điểm tới `COMPLETED`, cảnh báo pin thấp `RETURNING` | **PASS (7/7)** |
+| `GatewayServiceTest` | 6 | Quản lý danh mục trạm thu Gateway, trạng thái kết nối & gán vùng canh tác (F13) | **PASS (6/6)** |
+| `MissionServiceTest` | 5 | Khởi tạo lộ trình Waypoints, chuyển trạng thái nhiệm vụ & lưu nhật ký vận hành (F14, F16) | **PASS (5/5)** |
+| `MqttGatewayConfigTest` | 5 | Định tuyến topic MQTT cảm biến/UAV/Bulk Sync & kiểm tra Rate-Limiting 3000ms/node | **PASS (5/5)** |
+| `TelemetryRealtimeServiceTest` | 5 | Đăng ký SSE Stream, phát sóng WebSocket `/topic/telemetry`, `/topic/alerts` | **PASS (5/5)** |
+| `EmailAlertServiceTest` | 4 | Gửi HTML email thành công, xử lý lỗi SMTP timeout, tôn trọng cờ `app.mail.enabled=false` | **PASS (4/4)** |
+| `UavHandshakeSyncTest` | 3 | Bắt tay xác thực thiết bị UAV ngoại tuyến & ghi nhận phiên `SyncLog` (F18, F20) | **PASS (3/3)** |
 
-### 4.2. Phân hệ IoT Simulator (`iot-simulator/` — 20/20 PASS)
+### 4.2. Phân hệ IoT Simulator (`iot-simulator/` — 25/25 PASS)
 | Lớp kiểm thử | Số test case | Phạm vi bao phủ | Kết quả |
 | :--- | :---: | :--- | :---: |
-| `SystemTestingSuiteTest` *(Mới — LTJ-40)* | 5 | Standalone Self-Test, tách biệt Anomaly vs Extreme, chuỗi Waypoint→LERP, phục hồi SQLite khi rớt mạng giữa phiên, FSM | **PASS (5/5)** |
+| `SystemTestingSuiteTest` *(LTJ-40)* | 5 | Standalone Self-Test, tách biệt Anomaly vs Extreme, chuỗi Waypoint→LERP, phục hồi SQLite khi rớt mạng giữa phiên, FSM | **PASS (5/5)** |
+| `WaypointMissionValidatorTest` *(LTJ-20)* | 5 | Kiểm định JSON 4 Waypoint chuẩn, chặn ngoài vùng Geofence, tính Haversine 3D, chặn sai độ cao/tốc độ/thứ tự & FSM Mission | **PASS (5/5)** |
 | `ExtremeAlertSimulationTest` | 4 | Nhiệt độ cực đoan `60°C`, Pin `5%`, cực đoan kép, tương thích DTO | **PASS (4/4)** |
 | `UavFlightSimulatorTest` | 4 | Nội suy tuyến tính LERP 3D, 4 điểm mẫu Geofence, tiêu hao pin, JSON Telemetry | **PASS (4/4)** |
 | `UavOfflineSyncManagerTest` | 4 | Gửi Online vs lưu Offline, giao thức 3 bước Handshake/Bulk/Complete, phục hồi sau lỗi | **PASS (4/4)** |
@@ -90,7 +96,7 @@ Trong quá trình chạy vòng System Testing đầu tiên, bộ kiểm thử t�
 | Mã lỗi | Mức độ | Mô tả phát hiện trong quá trình kiểm thử | Nguyên nhân gốc rễ | Phân công xử lý & Trạng thái nghiệm thu QA |
 | :---: | :---: | :--- | :--- | :--- |
 | **DEFECT-01** | **Medium** | Kịch bản `SYS-06` gửi nhiệt độ bất thường `99.9°C` tới `POST /api/v1/sensor-data` bị trả về **`HTTP 500 Internal Server Error`** thay vì chuẩn REST **`HTTP 400 Bad Request`**. | `SensorDataServiceImpl.ingestData()` ném ngoại lệ `IllegalArgumentException` khi bộ lọc `F19` từ chối dữ liệu (dữ liệu rác đã được chặn thành công, không lưu CSDL). Tuy nhiên, `GlobalExceptionHandler.java` (thuộc phạm vi Backend của Dev 1) chưa đăng ký handler riêng cho `IllegalArgumentException` nên bị rơi vào handler tổng `Exception.class` (`500`). | **Phát hiện & Bàn giao:** Dev 5 (QA) đã phân tích nguyên nhân gốc rễ và lập phiếu bàn giao Dev 1 bổ sung `@ExceptionHandler(IllegalArgumentException.class)` trả về `HttpStatus.BAD_REQUEST (400)`. Về phía QA, kịch bản `SYS-06` nghiệm thu PASS mục tiêu an toàn dữ liệu (hệ thống chặn thành công 100% dữ liệu rác). |
-| **DEFECT-02** | **Low** | Tồn tại dòng ghi chú conflict cũ (`>>>>>>> dcf948f...`) trong Javadoc của [`IoTSimulatorApp.java`](../iot-simulator/src/main/java/com/iot/simulator/IoTSimulatorApp.java) (dòng 439). | Sót từ thao tác merge nhánh trước đó. | **Đã xử lý (Dev 5 scope):** Làm sạch Javadoc, tích hợp thêm chế độ `--system-test` và chạy `./gradlew.bat test` đạt **20/20 PASS**. |
+| **DEFECT-02** | **Low** | Tồn tại dòng ghi chú conflict cũ (`>>>>>>> dcf948f...`) trong Javadoc của [`IoTSimulatorApp.java`](../iot-simulator/src/main/java/com/iot/simulator/IoTSimulatorApp.java) (dòng 439). | Sót từ thao tác merge nhánh trước đó. | **Đã xử lý (Dev 5 scope):** Làm sạch Javadoc, tích hợp thêm chế độ `--system-test` và chạy `./gradlew.bat test` đạt **25/25 PASS**. |
 
 ### Lưu ý khuyến nghị nhẹ sau kiểm thử (Non-blocking Observations):
 1. Trong [`backend/docker-compose.yml`](../backend/docker-compose.yml), Docker Compose v2 hiển thị cảnh báo nhẹ về thuộc tính `version: '3.8'` (obsolete) — tệp vẫn hoàn toàn hợp lệ (`exit 0`), có thể lược bỏ dòng `version` ở bản bảo trì sau.

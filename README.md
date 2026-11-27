@@ -26,6 +26,7 @@ Hệ thống Giám sát & Điều khiển Nông nghiệp Thông minh tích hợp
 * **Component Diagram (v2.0):** [`Component_Diagram.puml`](docs/Component_Diagram.puml) | [`Component_Diagram_Description.md`](docs/Component_Diagram_Description.md)
 * **Activity Diagram (Alert Engine):** [`Activity_Diagram_Alert.puml`](docs/Activity_Diagram_Alert.puml) | [`Activity_Diagram_Alert_Description.md`](docs/Activity_Diagram_Alert_Description.md)
 * **Class Diagram (Sprint 8):** [`Class_Diagram.puml`](docs/Class_Diagram.puml) | [`Class_Diagram_Description.md`](docs/Class_Diagram_Description.md)
+* **Deployment Diagram (Sprint 8):** [`Deployment_Diagram.puml`](docs/Deployment_Diagram.puml) | [`Deployment_Diagram_Description.md`](docs/Deployment_Diagram_Description.md)
 
 ### 3. Báo Cáo Kiểm Thử Theo Sprint (Sprint 2 → Sprint 8)
 * 🧪 **Sprint 8 — System Testing Report (Toàn hệ thống):** [`docs/SYSTEM_TESTING_REPORT_SPRINT8.md`](docs/SYSTEM_TESTING_REPORT_SPRINT8.md)
