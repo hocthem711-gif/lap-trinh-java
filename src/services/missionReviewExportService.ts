@@ -1025,62 +1025,80 @@ export async function buildExportPreviewDataset(
     sensorType: string,
     val: number,
     rawUnit?: string
-  ): { categoryLabel: string; primaryMetric: string; secondaryMetric: string; outOfRange: boolean } => {
+  ): {
+    categoryLabel: string;
+    primaryMetric: string;
+    secondaryMetric: string;
+    outOfRange: boolean;
+    isCritical: boolean;
+  } => {
     if (sensorType === 'TEMPERATURE') {
+      const min = DEFAULT_THRESHOLDS.temperature.min;
+      const max = DEFAULT_THRESHOLDS.temperature.max;
       return {
         categoryLabel: 'Nhiệt độ Không khí (°C)',
         primaryMetric: `${val.toFixed(1)} °C`,
-        secondaryMetric: `${DEFAULT_THRESHOLDS.temperature.min} - ${DEFAULT_THRESHOLDS.temperature.max} °C`,
-        outOfRange:
-          val < DEFAULT_THRESHOLDS.temperature.min || val > DEFAULT_THRESHOLDS.temperature.max,
+        secondaryMetric: `${min} - ${max} °C`,
+        outOfRange: val < min || val > max,
+        isCritical: val < min * 0.8 || val > max * 1.2,
       };
     }
     if (sensorType === 'HUMIDITY') {
+      const min = DEFAULT_THRESHOLDS.airHumidity.min;
+      const max = DEFAULT_THRESHOLDS.airHumidity.max;
       return {
         categoryLabel: 'Độ ẩm Không khí (%)',
         primaryMetric: `${val.toFixed(1)} %`,
-        secondaryMetric: `${DEFAULT_THRESHOLDS.airHumidity.min} - ${DEFAULT_THRESHOLDS.airHumidity.max} %`,
-        outOfRange:
-          val < DEFAULT_THRESHOLDS.airHumidity.min || val > DEFAULT_THRESHOLDS.airHumidity.max,
+        secondaryMetric: `${min} - ${max} %`,
+        outOfRange: val < min || val > max,
+        isCritical: val < min * 0.8 || val > max * 1.1,
       };
     }
     if (sensorType === 'SOIL_MOISTURE') {
+      const min = DEFAULT_THRESHOLDS.soilMoisture.min;
+      const max = DEFAULT_THRESHOLDS.soilMoisture.max;
       return {
         categoryLabel: 'Độ ẩm Đất (%)',
         primaryMetric: `${val.toFixed(1)} %`,
-        secondaryMetric: `${DEFAULT_THRESHOLDS.soilMoisture.min} - ${DEFAULT_THRESHOLDS.soilMoisture.max} %`,
-        outOfRange:
-          val < DEFAULT_THRESHOLDS.soilMoisture.min || val > DEFAULT_THRESHOLDS.soilMoisture.max,
+        secondaryMetric: `${min} - ${max} %`,
+        outOfRange: val < min || val > max,
+        isCritical: val < min * 0.8 || val > max * 1.15,
       };
     }
     if (sensorType === 'LIGHT') {
+      const min = 300;
+      const max = DEFAULT_THRESHOLDS.light.max;
       return {
         categoryLabel: 'Cường độ Ánh sáng (lux)',
-        primaryMetric: `${Number(val.toFixed(1)).toLocaleString('vi-VN')} ${rawUnit || 'lux'}`,
-        secondaryMetric: `300 - ${DEFAULT_THRESHOLDS.light.max.toLocaleString('vi-VN')} lux`,
-        outOfRange: val < 200 || val > DEFAULT_THRESHOLDS.light.max,
+        primaryMetric: `${Math.round(val).toLocaleString('vi-VN')} ${rawUnit || 'lux'}`,
+        secondaryMetric: `${min} - ${max.toLocaleString('vi-VN')} lux`,
+        outOfRange: val < min || val > max,
+        isCritical: val < 100 || val > max * 1.2,
       };
     }
+    const min = DEFAULT_THRESHOLDS.co2.min;
+    const max = DEFAULT_THRESHOLDS.co2.max;
     return {
       categoryLabel: 'Nồng độ CO₂ (ppm)',
       primaryMetric: `${Math.round(val).toLocaleString('vi-VN')} ${rawUnit || 'ppm'}`,
-      secondaryMetric: `${DEFAULT_THRESHOLDS.co2.min} - ${DEFAULT_THRESHOLDS.co2.max} ppm`,
-      outOfRange: val < DEFAULT_THRESHOLDS.co2.min || val > DEFAULT_THRESHOLDS.co2.max,
+      secondaryMetric: `${min} - ${max} ppm`,
+      outOfRange: val < min || val > max,
+      isCritical: val > max * 1.2,
     };
   };
 
-  // 4.1. Ưu tiên lấy DỮ LIỆU THẬT từ Backend (/sensor-data/latest & /sensor-data/history/paged) do IoT Simulator bắn lên!
+  // 4.1. Lấy DỮ LIỆU THẬT từ Backend (/sensor-data/latest & /sensor-data/history/paged) và chuẩn hóa mã bản ghi đồng nhất
   let loadedRealBackendIoT = false;
   try {
     const [latestRes, histZ1, histZ2, histZ3] = await Promise.all([
       apiRequest<BackendLatestSensorItem[]>('/sensor-data/latest').catch(() => null),
-      apiRequest<BackendPagedSensorHistory>('/sensor-data/history/paged?zoneId=1&page=0&size=12').catch(
+      apiRequest<BackendPagedSensorHistory>('/sensor-data/history/paged?zoneId=1&page=0&size=20').catch(
         () => null
       ),
-      apiRequest<BackendPagedSensorHistory>('/sensor-data/history/paged?zoneId=2&page=0&size=12').catch(
+      apiRequest<BackendPagedSensorHistory>('/sensor-data/history/paged?zoneId=2&page=0&size=20').catch(
         () => null
       ),
-      apiRequest<BackendPagedSensorHistory>('/sensor-data/history/paged?zoneId=3&page=0&size=12').catch(
+      apiRequest<BackendPagedSensorHistory>('/sensor-data/history/paged?zoneId=3&page=0&size=20').catch(
         () => null
       ),
     ]);
@@ -1094,9 +1112,6 @@ export async function buildExportPreviewDataset(
 
     if (latestItems.length > 0 || historyItems.length > 0) {
       loadedRealBackendIoT = true;
-      const seenKeys = new Set<string>();
-
-      // Đưa đủ 4 chỉ số mới nhất của từng Zone (TEMP, HUM, SOIL, LIGHT) lên đầu tiên
       const sensorOrder: Record<string, number> = {
         TEMPERATURE: 1,
         HUMIDITY: 2,
@@ -1104,95 +1119,106 @@ export async function buildExportPreviewDataset(
         LIGHT: 4,
         CO2: 5,
       };
-      const sortedLatest = [...latestItems].sort((a, b) => {
-        if (a.zoneId !== b.zoneId) return a.zoneId - b.zoneId;
-        return (sensorOrder[a.sensorType] ?? 9) - (sensorOrder[b.sensorType] ?? 9);
-      });
 
-      for (const item of sortedLatest) {
+      interface UnifiedSensorRecord {
+        zoneId: number;
+        sensorCode: string;
+        sensorType: string;
+        value: number;
+        unit?: string;
+        batteryLevel?: number;
+        timestampStr: string;
+        latitude?: number;
+        longitude?: number;
+      }
+
+      const unifiedMap = new Map<string, UnifiedSensorRecord>();
+
+      for (const item of latestItems) {
         if (typeof item.latestValue !== 'number') continue;
-        const { zoneTag, zoneTitle, uavCode } = mapSensorZoneDisplay(item.zoneId);
         const ts = formatLocalDateTimeStr(item.lastUpdated);
-        const dedupKey = `${item.sensorCode}|${ts}`;
-        seenKeys.add(dedupKey);
-
-        const valleyCoord = IOT_VALLEY_SENSOR_COORDS[item.sensorCode];
-        const lat = valleyCoord ? valleyCoord.lat : (item.latitude ?? 11.9396);
-        const lng = valleyCoord ? valleyCoord.lng : (item.longitude ?? 108.4662);
-        const metricMeta = describeSensorMetric(item.sensorType, item.latestValue, item.unit);
-        const rawStatus = String(item.dataStatus || 'NORMAL').toUpperCase();
-        const isCritical = rawStatus === 'CRITICAL';
-        const isWarning = rawStatus === 'WARNING' || metricMeta.outOfRange;
-        const bat = Math.round(item.batteryLevel ?? 100);
-
-        rows.push({
-          id: `IOT-LATEST-${item.sensorCode}`,
-          datasetType: 'SENSOR_TELEMETRY',
-          timestamp: ts,
-          zoneName: zoneTitle,
-          sourceCode: item.sensorCode,
-          categoryLabel: metricMeta.categoryLabel,
-          primaryMetric: metricMeta.primaryMetric,
-          secondaryMetric: metricMeta.secondaryMetric,
-          statusLabel: isCritical
-            ? 'Vượt ngưỡng Nguy hiểm (CRITICAL)'
-            : isWarning
-              ? 'Cảnh báo Ngưỡng (WARNING)'
-              : 'An toàn (NORMAL)',
-          severityLevel: isCritical ? 'CRITICAL' : isWarning ? 'WARNING' : 'NORMAL',
-          gpsCoordinates: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-          operatorOrNote: `Chỉ số mới nhất từ IoT Simulator → Đồng bộ qua ${uavCode} | Pin cảm biến: ${bat}%`,
-          rawValues: {
-            zoneTag,
-            sensorCode: item.sensorCode,
-            sensorType: item.sensorType,
-            value: item.latestValue,
-            unit: item.unit,
-          },
+        const key = `${item.sensorCode}|${ts}`;
+        unifiedMap.set(key, {
+          zoneId: item.zoneId,
+          sensorCode: item.sensorCode,
+          sensorType: item.sensorType,
+          value: item.latestValue,
+          unit: item.unit,
+          batteryLevel: item.batteryLevel,
+          timestampStr: ts,
+          latitude: item.latitude,
+          longitude: item.longitude,
         });
       }
 
-      // Bổ sung thêm các gói lịch sử vừa bắn lên theo từng giây thực tế từ /sensor-data/history/paged
       for (const h of historyItems) {
         if (typeof h.value !== 'number') continue;
         const ts = formatLocalDateTimeStr(h.recordedAt);
-        const dedupKey = `${h.sensorCode}|${ts}`;
-        if (seenKeys.has(dedupKey)) continue;
-        seenKeys.add(dedupKey);
-
-        const { zoneTag, zoneTitle, uavCode } = mapSensorZoneDisplay(h.zoneId);
-        const valleyCoord = IOT_VALLEY_SENSOR_COORDS[h.sensorCode];
-        const lat = valleyCoord ? valleyCoord.lat : 11.9396;
-        const lng = valleyCoord ? valleyCoord.lng : 108.4662;
-        const metricMeta = describeSensorMetric(h.sensorType, h.value, h.unit);
-        const rawStatus = String(h.status || 'NORMAL').toUpperCase();
-        const isCritical = rawStatus === 'CRITICAL';
-        const isWarning = rawStatus === 'WARNING' || metricMeta.outOfRange;
-        const bat = Math.round(h.batteryLevel ?? 100);
-
-        rows.push({
-          id: `IOT-${h.id}`,
-          datasetType: 'SENSOR_TELEMETRY',
-          timestamp: ts,
-          zoneName: zoneTitle,
-          sourceCode: h.sensorCode,
-          categoryLabel: metricMeta.categoryLabel,
-          primaryMetric: metricMeta.primaryMetric,
-          secondaryMetric: metricMeta.secondaryMetric,
-          statusLabel: isCritical
-            ? 'Vượt ngưỡng Nguy hiểm (CRITICAL)'
-            : isWarning
-              ? 'Cảnh báo Ngưỡng (WARNING)'
-              : 'An toàn (NORMAL)',
-          severityLevel: isCritical ? 'CRITICAL' : isWarning ? 'WARNING' : 'NORMAL',
-          gpsCoordinates: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-          operatorOrNote: `Bản ghi MQTT #${h.id} từ IoT Simulator → Thu qua ${uavCode} | Pin cảm biến: ${bat}%`,
-          rawValues: {
-            zoneTag,
+        const key = `${h.sensorCode}|${ts}`;
+        if (!unifiedMap.has(key)) {
+          unifiedMap.set(key, {
+            zoneId: h.zoneId,
             sensorCode: h.sensorCode,
             sensorType: h.sensorType,
             value: h.value,
             unit: h.unit,
+            batteryLevel: h.batteryLevel,
+            timestampStr: ts,
+          });
+        }
+      }
+
+      // Sắp xếp khoa học: theo Zone (1→3) → Thời gian mới nhất lên đầu → Thứ tự chuẩn TEMP, HUM, SOIL, LIGHT
+      const sortedRecords = [...unifiedMap.values()].sort((a, b) => {
+        if (a.zoneId !== b.zoneId) return a.zoneId - b.zoneId;
+        if (a.timestampStr !== b.timestampStr) {
+          return b.timestampStr.localeCompare(a.timestampStr);
+        }
+        return (sensorOrder[a.sensorType] ?? 9) - (sensorOrder[b.sensorType] ?? 9);
+      });
+
+      const seqByZone: Record<number, number> = {};
+      const maxRowsPerZone = 20;
+
+      for (const rec of sortedRecords) {
+        const currentSeq = (seqByZone[rec.zoneId] ?? 0) + 1;
+        if (currentSeq > maxRowsPerZone) continue;
+        seqByZone[rec.zoneId] = currentSeq;
+
+        const { zoneTag, zoneTitle, uavCode } = mapSensorZoneDisplay(rec.zoneId);
+        const valleyCoord = IOT_VALLEY_SENSOR_COORDS[rec.sensorCode];
+        const lat = valleyCoord ? valleyCoord.lat : (rec.latitude ?? 11.9396);
+        const lng = valleyCoord ? valleyCoord.lng : (rec.longitude ?? 108.4662);
+        const metricMeta = describeSensorMetric(rec.sensorType, rec.value, rec.unit);
+        const bat = Math.round(rec.batteryLevel ?? 94);
+
+        // Chỉ đánh giá vượt ngưỡng dựa trên chính giá trị đo của cảm biến đó so với cột Ngưỡng chuẩn
+        const isCritical = metricMeta.isCritical;
+        const isWarning = !isCritical && metricMeta.outOfRange;
+
+        rows.push({
+          id: `IOT-Z${rec.zoneId}-${String(currentSeq).padStart(3, '0')}`,
+          datasetType: 'SENSOR_TELEMETRY',
+          timestamp: rec.timestampStr,
+          zoneName: zoneTitle,
+          sourceCode: rec.sensorCode,
+          categoryLabel: metricMeta.categoryLabel,
+          primaryMetric: metricMeta.primaryMetric,
+          secondaryMetric: metricMeta.secondaryMetric,
+          statusLabel: isCritical
+            ? 'Vượt ngưỡng Nguy hiểm (CRITICAL)'
+            : isWarning
+              ? 'Cảnh báo Ngưỡng (WARNING)'
+              : 'An toàn (NORMAL)',
+          severityLevel: isCritical ? 'CRITICAL' : isWarning ? 'WARNING' : 'NORMAL',
+          gpsCoordinates: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+          operatorOrNote: `Thu thập qua ${uavCode} | Pin cọc cảm biến: ${bat}%`,
+          rawValues: {
+            zoneTag,
+            sensorCode: rec.sensorCode,
+            sensorType: rec.sensorType,
+            value: rec.value,
+            unit: rec.unit ?? '',
           },
         });
       }
@@ -1233,7 +1259,7 @@ export async function buildExportPreviewDataset(
         statusLabel: metricMeta.outOfRange ? 'Cảnh báo Ngưỡng (WARNING)' : 'An toàn (NORMAL)',
         severityLevel: metricMeta.outOfRange ? 'WARNING' : 'NORMAL',
         gpsCoordinates: `${s.location.lat.toFixed(5)}, ${s.location.lng.toFixed(5)}`,
-        operatorOrNote: `Thu thập qua ${uavCode} | Pin cảm biến: ${Math.round(s.battery)}%`,
+        operatorOrNote: `Thu thập qua ${uavCode} | Pin cọc cảm biến: ${Math.round(s.battery)}%`,
         rawValues: { zoneTag, sensorCode: s.sensorCode, value: rawVal },
       });
     });
@@ -1499,7 +1525,7 @@ function generateMultiSheetExcelXml(
       </Row>
       <Row ss:Height="20">
         <Cell ss:MergeAcross="${Math.max(1, sheetCols.length - 1)}" ss:StyleID="sMetaRow">
-          <Data ss:Type="String">Ngày xuất: ${escapeXml(nowStr)} | Người xuất: Nguyễn Trường An (Dev 4 - Quatrungvoon) | Khu vực: ${escapeXml(config.zoneFilter)} | Khung thời gian: ${escapeXml(config.timeRange)} | Tổng số dòng: ${rowsForSheet.length}</Data>
+          <Data ss:Type="String">Ngày xuất: ${escapeXml(nowStr)} | Khu vực: ${escapeXml(config.zoneFilter)} | Khung thời gian: ${escapeXml(config.timeRange)} | Tổng số dòng: ${rowsForSheet.length}</Data>
         </Cell>
       </Row>
       <Row ss:Height="24">${headerCells}</Row>
@@ -1667,7 +1693,7 @@ function generateMultiSheetExcelXml(
  xmlns:x="urn:schemas-microsoft-com:office:excel"
  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
  <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
-  <Author>Nguyễn Trường An (Dev 4 - Quatrungvoon)</Author>
+  <Author>SmartFarm IoT &amp; UAV Platform</Author>
   <Company>SmartFarm IoT &amp; UAV Platform</Company>
   <Created>${new Date().toISOString()}</Created>
  </DocumentProperties>
@@ -1763,7 +1789,7 @@ function generateUtf8BomCsv(
     );
     lines.push(
       escapeCsvCell(
-        `Người xuất: Nguyễn Trường An (Dev 4) | Khu vực: ${config.zoneFilter} | Khung giờ: ${config.timeRange} | Số bản ghi: ${filteredRows.length}`
+        `Khu vực: ${config.zoneFilter} | Khung giờ: ${config.timeRange} | Số bản ghi: ${filteredRows.length}`
       )
     );
   }
@@ -1851,7 +1877,7 @@ function generatePrintableHtmlReport(
 <body>
   <div class="banner">
     <h1>HỆ THỐNG SMARTFARM IOT &amp; UAV PLATFORM — BÁO CÁO NGHIỆM THU &amp; TRÍCH XUẤT DỮ LIỆU (F11 / F17)</h1>
-    <p>Phân hệ: ${escapeXml(meta.label)} | Người trích xuất: Nguyễn Trường An (Dev 4) | Thời gian: ${escapeXml(new Date().toLocaleString('vi-VN'))}</p>
+    <p>Phân hệ: ${escapeXml(meta.label)} | Thời gian: ${escapeXml(new Date().toLocaleString('vi-VN'))}</p>
   </div>
   <h2>1. Tổng kết Nghiệm thu Nhiệm vụ Bay UAV (Mission Review Summary - F17)</h2>
   ${reviewCardsHtml}
@@ -2158,7 +2184,6 @@ export const missionReviewExportApi = {
           exportMetadata: {
             project: 'SmartFarm IoT & UAV Platform',
             sprintTask: 'Sprint 8 - LTJ-39 (F11 & F17)',
-            exportedBy: 'Nguyễn Trường An (Dev 4 - Quatrungvoon)',
             exportedAt: new Date().toISOString(),
             datasetType: config.datasetType,
             datasetLabel: meta.label,

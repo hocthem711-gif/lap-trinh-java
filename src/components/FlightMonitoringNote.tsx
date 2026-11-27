@@ -37,6 +37,7 @@ import {
   selectFlightUav,
   toggleTelemetryStream,
   tickAllFlightSessions,
+  applyLiveUavTelemetry,
   changeUavFlightStatus,
   adjustUavBatteryManual,
   addManualMissionNote,
@@ -48,6 +49,7 @@ import {
   selectAllFlightSessions,
   selectActiveFlightSession,
 } from '../store/slices/flightMonitorSlice';
+import { telemetrySocketClient } from '../services/telemetrySocketClient';
 import {
   updateDroneDetails,
   SignalLevel,
@@ -197,6 +199,11 @@ export default function FlightMonitoringNote({
     if (sessions.length === 0) {
       dispatch(initFlightMonitorData());
     }
+    telemetrySocketClient.connect();
+    const unsubscribe = telemetrySocketClient.subscribeTelemetry((data) => {
+      dispatch(applyLiveUavTelemetry(data));
+    });
+    return () => unsubscribe();
   }, [dispatch, sessions.length]);
 
   useEffect(() => {

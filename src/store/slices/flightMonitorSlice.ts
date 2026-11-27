@@ -21,6 +21,7 @@ import {
 } from '../../types/flightMonitor';
 import {
   advanceFlightSessionTick,
+  calculateBearingDeg,
   createMissionNoteApi,
   deleteMissionNoteApi,
   fetchFlightSessions,
@@ -34,7 +35,10 @@ import {
   loadStoredSessions,
   type PlannedMissionSyncPayload,
 } from '../../services/flightMonitorService';
+import type { LiveUavTelemetryEvent } from '../../services/telemetrySocketClient';
 import { createUAV, deleteUAV } from './deviceSlice';
+
+const liveControlLockUntil: Record<string, number> = {};
 
 // ==================== STATE INTERFACE ====================
 
@@ -158,8 +162,121 @@ const flightMonitorSlice = createSlice({
     },
 
     tickAllFlightSessions: (state) => {
-      state.sessions = state.sessions.map((s) => advanceFlightSessionTick(s));
+      const now = Date.now();
+      state.sessions = state.sessions.map((s) =>
+        (liveControlLockUntil[s.uavId] ?? 0) > now ? s : advanceFlightSessionTick(s),
+      );
       saveStoredSessions(state.sessions);
+    },
+
+    applyLiveUavTelemetry: (
+      state,
+      action: PayloadAction<LiveUavTelemetryEvent>,
+    ) => {
+      const live = action.payload;
+      if (state.sessions.length === 0) {
+        state.sessions = loadStoredSessions();
+      }
+      liveControlLockUntil[live.uavId] = Date.now() + 5000;
+      state.selectedUavId = live.uavId;
+
+      const timeStr = new Date().toTimeString().slice(0, 8);
+      state.sessions = state.sessions.map((s) => {
+        if (s.uavId !== live.uavId) return s;
+
+        const heading =
+          live.headingDeg && live.headingDeg > 0
+            ? live.headingDeg
+            : Math.abs(live.latitude - s.latitude) > 1e-6 ||
+                Math.abs(live.longitude - s.longitude) > 1e-6
+              ? calculateBearingDeg(
+                  s.latitude,
+                  s.longitude,
+                  live.latitude,
+                  live.longitude,
+                )
+              : s.headingDeg;
+
+        const totalWps = s.waypoints.length || 4;
+        const rawWpOrder = live.currentWaypointOrder ?? s.currentWaypointOrder;
+        const rawSt = (live.status || '').toUpperCase();
+        const isReturningHomeLeg =
+          rawSt === 'RETURNING' ||
+          (rawWpOrder > totalWps && rawSt !== 'COMPLETED');
+        const wpOrder = Math.min(totalWps, rawWpOrder);
+
+        const nextStatus: FlightMonitorStatus =
+          rawSt === 'COMPLETED'
+            ? 'COMPLETED'
+            : isReturningHomeLeg
+              ? 'RETURNING'
+              : rawSt === 'COLLECTION_ERROR'
+                ? 'COLLECTION_ERROR'
+                : 'FLYING';
+
+        const updatedWaypoints = s.waypoints.map((w) => {
+          if (
+            nextStatus === 'COMPLETED' ||
+            isReturningHomeLeg ||
+            w.order < wpOrder
+          ) {
+            return {
+              ...w,
+              visitState: 'COMPLETED' as const,
+              reachedAt: w.reachedAt || timeStr,
+            };
+          }
+          if (w.order === wpOrder) {
+            return {
+              ...w,
+              visitState: 'ACTIVE' as const,
+              reachedAt: w.reachedAt || timeStr,
+            };
+          }
+          return {
+            ...w,
+            visitState: 'PENDING' as const,
+            reachedAt: null,
+          };
+        });
+
+        const completedCount =
+          nextStatus === 'COMPLETED' || isReturningHomeLeg
+            ? totalWps
+            : Math.max(0, wpOrder - 1);
+        const pct =
+          nextStatus === 'COMPLETED' || isReturningHomeLeg
+            ? 100
+            : typeof live.progressPercent === 'number'
+              ? Math.min(99, Math.round(live.progressPercent))
+              : Math.min(99, Math.round((completedCount / totalWps) * 100));
+
+        const bat = Math.max(
+          0,
+          Math.min(100, Number((live.batteryPercent ?? s.batteryPercent).toFixed(1))),
+        );
+
+        return {
+          ...s,
+          status: nextStatus,
+          latitude: live.latitude,
+          longitude: live.longitude,
+          altitudeM: Number((live.altitudeM ?? s.altitudeM).toFixed(1)),
+          speedMs: Number((live.speedMs ?? s.speedMs).toFixed(1)),
+          headingDeg: heading,
+          batteryPercent: bat,
+          batteryVoltageV: Number((42 + (bat / 100) * 10.4).toFixed(1)),
+          currentWaypointOrder: wpOrder,
+          completedWaypoints: completedCount,
+          progressPercent: pct,
+          distanceTraveledM: Math.round((pct / 100) * s.totalRouteDistanceM),
+          packetsCollected: s.packetsCollected + 4,
+          lastTelemetryAt: new Date().toISOString(),
+          waypoints: updatedWaypoints,
+        };
+      });
+      saveStoredSessions(state.sessions);
+      state.lastActionMessage = `[IoT Simulator Live] Đang nhận tọa độ trực tiếp của ${live.uavId}: (${live.latitude.toFixed(5)}, ${live.longitude.toFixed(5)}) • Cao độ ${live.altitudeM}m • Pin ${live.batteryPercent}%`;
     },
 
     adjustUavBatteryManual: (
@@ -572,6 +689,7 @@ export const {
   selectFlightUav,
   toggleTelemetryStream,
   tickAllFlightSessions,
+  applyLiveUavTelemetry,
   adjustUavBatteryManual,
   jumpToWaypoint,
   setNoteFilterUav,

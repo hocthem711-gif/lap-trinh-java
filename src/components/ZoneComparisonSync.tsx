@@ -128,11 +128,15 @@ export default function ZoneComparisonSync() {
     };
   }, []);
 
-  // Khởi tạo danh sách Zone/UAV và tải dữ liệu lịch sử Sync lần đầu
+  // Khởi tạo danh sách Zone/UAV, tải dữ liệu lịch sử Sync lần đầu và tự động đồng bộ mỗi 5 giây
   useEffect(() => {
     dispatch(initAnalyticsMetadata()).then(() => {
       dispatch(loadUavSyncSessions());
     });
+    const pollTimer = window.setInterval(() => {
+      dispatch(loadUavSyncSessions());
+    }, 5000);
+    return () => window.clearInterval(pollTimer);
   }, [dispatch]);
 
   // Tự động tải lại chuỗi thời gian khi đổi Zone A, Zone B, Chỉ số hoặc Khung thời gian
@@ -520,15 +524,26 @@ export default function ZoneComparisonSync() {
             </p>
           </div>
 
-          <button
-            type="button"
-            className="zcs-btn-simulate"
-            onClick={handleSimulateNewSync}
-            title="Mô phỏng UAV bay về trạm và đẩy 30 bản ghi từ SQLite lên MQTT"
-          >
-            <Zap size={16} />
-            Giả lập UAV Đồng bộ mới
-          </button>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="zcs-btn-reset"
+              onClick={() => dispatch(loadUavSyncSessions())}
+              title="Làm mới danh sách phiên đồng bộ từ Backend"
+            >
+              <RefreshCw size={15} />
+              Làm mới
+            </button>
+            <button
+              type="button"
+              className="zcs-btn-simulate"
+              onClick={handleSimulateNewSync}
+              title="Mô phỏng UAV bay về trạm và đẩy 30 bản ghi từ SQLite lên MQTT"
+            >
+              <Zap size={16} />
+              Giả lập UAV Đồng bộ mới
+            </button>
+          </div>
         </div>
 
         {/* 4 Thẻ KPI Tổng hợp Lịch sử Đồng bộ */}

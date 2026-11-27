@@ -9,6 +9,7 @@ import type { RealtimeStatus } from '../types/realtime';
 import {
   initFlightMonitorData,
   tickAllFlightSessions,
+  applyLiveUavTelemetry,
   selectAllFlightSessions,
   toggleTelemetryStream,
   restoreFlightMonitorDefaults,
@@ -114,6 +115,7 @@ export default function SensorOverviewMap() {
     telemetrySocketClient.connect();
     const unsubscribe = telemetrySocketClient.subscribeTelemetry((data) => {
       setLiveTelemetry((prev) => ({ ...prev, [data.uavId]: data }));
+      dispatch(applyLiveUavTelemetry(data));
     });
 
     return () => unsubscribe();

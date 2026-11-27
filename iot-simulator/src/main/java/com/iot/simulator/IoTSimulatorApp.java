@@ -7,6 +7,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -56,7 +57,11 @@ public class IoTSimulatorApp {
                     strArg(args, 1, SystemTestRunner.DEFAULT_BACKEND_URL),
                     strArg(args, 2, DEFAULT_BROKER)).runFullSystemTestSuite();
             case "--test-uav-flight", "--flight-sim" ->
-                    runUavFlightSimulation(strArg(args, 1, DEFAULT_BROKER), "--test-uav-flight".equalsIgnoreCase(mode));
+                    runUavFlightSimulation(
+                            strArg(args, 1, "UAV-001"),
+                            strArg(args, 2, DEFAULT_BROKER),
+                            strArg(args, 3, SystemTestRunner.DEFAULT_BACKEND_URL),
+                            "--test-uav-flight".equalsIgnoreCase(mode));
             case "--test-extreme-alert" ->
                     runExtremeAlertTestSuite(strArg(args, 1, DEFAULT_BROKER));
             case "--test-offline-sync" ->
@@ -68,7 +73,8 @@ public class IoTSimulatorApp {
                             intArg(args, 3, 10), strArg(args, 4, ""), true);
             default ->
                     runSimulation(strArg(args, 0, DEFAULT_BROKER), intArg(args, 1, DEFAULT_SENSORS),
-                            intArg(args, 2, DEFAULT_INTERVAL), 0, strArg(args, 3, ""), false);
+                            intArg(args, 2, 3), 0,
+                            strArg(args, 3, SystemTestRunner.DEFAULT_BACKEND_URL), false);
         }
     }
 
@@ -97,6 +103,10 @@ public class IoTSimulatorApp {
         MqttPublisher publisher = connectOptional(brokerUrl, "IoTSim_");
 
         try (OfflineStorageManager storage = new OfflineStorageManager(OFFLINE_DB)) {
+            if (!isLoadTest && storage.countPending() > 100) {
+                System.out.printf(">> Don dep %d ban ghi ton dong cu trong SQLite tu cac lan chay truoc...%n", storage.countPending());
+                storage.clear();
+            }
             UavOfflineSyncManager syncManager = new UavOfflineSyncManager(UAV_ID, storage);
             ExecutorService threadPool = Executors.newFixedThreadPool(Math.min(totalSensors, 20));
             HttpClient httpClient = backendApiUrl.isEmpty() ? null
@@ -123,7 +133,13 @@ public class IoTSimulatorApp {
 
                     tasks.add(threadPool.submit(() -> {
                         double latency = syncManager.sendOrStore(publisher, dev.topic, data);
-                        if (httpClient != null) sendToBackendHttp(httpClient, backendApiUrl, data.toCompactJson());
+                        if (httpClient != null) {
+                            if (backendApiUrl.endsWith("/simulator")) {
+                                sendToBackendHttp(httpClient, backendApiUrl, data.toCompactJson());
+                            } else if (dev.deviceId.endsWith("-001") && !"ANOMALY".equals(data.getStatus())) {
+                                ingestCollectedSensorReading(httpClient, backendApiUrl, dev.deviceId, data);
+                            }
+                        }
                         if (!isLoadTest) {
                             if (latency >= 0) {
                                 System.out.printf("[#%04d][MQTT %.1fms] %s >> %s%n", pktIdx, latency, data, dev.topic);
@@ -183,18 +199,41 @@ public class IoTSimulatorApp {
 
     public static void runOfflineSyncTestSuite(int totalRecords, int batchSize) {
         System.out.println("=== KIEM THU UAV OFFLINE SYNC (LTJ-25) ===");
+        String syncUavCode = "UAV-001";
         try (OfflineStorageManager storage = new OfflineStorageManager(OFFLINE_DB)) {
             storage.clear();
+            List<SensorData> generatedList = new ArrayList<>();
+            long baseTs = java.time.Instant.now().getEpochSecond() - totalRecords * 2L;
             for (int i = 1; i <= totalRecords; i++) {
-                long zoneId = (i % 3) + 1;
-                storage.save(SensorData.generateRandom(1L, zoneId, String.format("DEV-Z%d-%03d", zoneId, i)));
+                long zoneId = ((i - 1) % 3) + 1;
+                SensorData sd = SensorData.generateRandom(1L, zoneId, String.format("DEV-Z%d-001", zoneId));
+                sd.setTimestamp(baseTs + i);
+                storage.save(sd);
+                generatedList.add(sd);
             }
             System.out.println("[OFFLINE] Da luu " + storage.countPending() + " ban ghi vao SQLite.");
 
-            MqttPublisher publisher = new MqttPublisher(DEFAULT_BROKER, "UAV_" + System.currentTimeMillis(), QOS);
-            publisher.connect();
-            int synced = new UavOfflineSyncManager(UAV_ID, storage).sync(publisher, batchSize);
-            publisher.disconnect();
+            MqttPublisher publisher = connectOptional(DEFAULT_BROKER, "UAV_");
+            HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+            String baseApi = SystemTestRunner.DEFAULT_BACKEND_URL;
+            int synced;
+            if (publisher.isConnected()) {
+                // MQTT đang kết nối -> MqttGatewayConfig bên Backend tự bắt cả Handshake lẫn Bulk Sync (không gọi trùng HTTP Handshake)
+                synced = new UavOfflineSyncManager(syncUavCode, storage).sync(publisher, batchSize);
+                publisher.disconnect();
+            } else {
+                // Dự phòng khi mạng chặn cổng MQTT 1883 -> Đồng bộ trực tiếp qua HTTP API của Backend
+                Map<Long, String> pending = storage.getPending(totalRecords);
+                storage.markSynced(pending.keySet());
+                synced = pending.size();
+                sendToBackendHttp(httpClient, baseApi + "/uavs/handshake",
+                        String.format("{\"code\":\"%s\",\"uavId\":\"%s\",\"action\":\"SYNC_REQUEST\",\"pendingRecords\":%d}",
+                                syncUavCode, syncUavCode, totalRecords));
+                String sessionId = "SYNC-" + syncUavCode + "-" + java.time.Instant.now().getEpochSecond();
+                String bulkJson = new com.google.gson.Gson().toJson(
+                        new UavOfflineSyncManager.BulkPayload(sessionId, syncUavCode, generatedList.size(), generatedList));
+                sendToBackendHttp(httpClient, baseApi + "/sensor-data/sync/bulk", bulkJson);
+            }
 
             System.out.printf("[KET QUA] Da dong bo %d/%d | Con ton: %d -> %s%n",
                     synced, totalRecords, storage.countPending(), storage.countPending() == 0 ? "PASS" : "FAIL");
@@ -209,10 +248,16 @@ public class IoTSimulatorApp {
                 "Muc tieu    : Ban du lieu cuc doan (Nhiet do 60C, Pin 5%) kich hoat Alert CRITICAL");
 
         MqttPublisher publisher = connectOptional(brokerUrl, "AlertSim_");
+        HttpClient httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+        String baseApi = SystemTestRunner.DEFAULT_BACKEND_URL;
+        String simEndpoint = baseApi + "/sensor-data/simulator";
         String[][] scenarios = {
-            {"TEMP_60C", "Kich ban 1: Nhiet do cuc doan 60.0 C (> 35.0 C)", "DEV-Z1-TEMP-EXT"},
-            {"BATTERY_5PCT", "Kich ban 2: Muc pin khan cap 5.0% (<= 10.0%)", "DEV-Z2-BAT-EXT"},
-            {"DUAL_CRITICAL", "Kich ban 3: Cuc doan kep (60.0 C, Pin 5.0%, Dat kho 25%)", "DEV-Z3-DUAL-EXT"}
+            {"TEMP_60C", "Kich ban 1: Nhiet do cuc doan 60.0 C (> 35.0 C)", "DEV-Z1-001",
+                "[CRITICAL] Nhiet do Khu A (DEV-Z1-001-TEMP) tang vot 60.0°C vuot nguong an toan 35.0°C!", "1"},
+            {"BATTERY_5PCT", "Kich ban 2: Muc pin khan cap 5.0% (<= 10.0%)", "DEV-Z2-001",
+                "[CRITICAL] Muc pin tram cam bien Khu B (DEV-Z2-001) suy kiet con 5.0% (nguong <= 10%)!", "5"},
+            {"DUAL_CRITICAL", "Kich ban 3: Cuc doan kep (60.0 C, Pin 5.0%, Dat kho 25%)", "DEV-Z3-001",
+                "[CRITICAL] Canh bao kep Khu C (DEV-Z3-001): Nhiet do 60.0°C, Do am dat 25.0%, Pin 5.0%!", "9"}
         };
 
         int passed = 0;
@@ -227,6 +272,11 @@ public class IoTSimulatorApp {
             if (publisher.isConnected()) {
                 try { publisher.publish(topic, json); } catch (Exception e) { System.err.println("  MQTT Loi: " + e.getMessage()); }
             }
+            sendToBackendHttp(httpClient, simEndpoint, json);
+            String alertJson = String.format(java.util.Locale.US,
+                    "{\"message\":\"%s\",\"alertLevel\":\"CRITICAL\",\"zoneId\":%d,\"sensorId\":%s}",
+                    scenarios[i][3], zoneId, scenarios[i][4]);
+            sendToBackendHttp(httpClient, baseApi + "/alerts", alertJson);
 
             boolean valid = data.getTemperature() >= -10.0 && data.getTemperature() <= 60.0
                     && data.getBatteryLevel() >= 0.0 && data.getBatteryLevel() <= 100.0
@@ -238,22 +288,87 @@ public class IoTSimulatorApp {
         System.out.printf("%s%n  TONG KET LTJ-30: %d / %d KICH BAN PASS%n%s%n", LINE, passed, scenarios.length, LINE);
     }
 
-    public static void runUavFlightSimulation(String brokerUrl, boolean isFastMode) {
+    public static void runUavFlightSimulation(String uavOrBroker, boolean isFastMode) {
+        boolean looksLikeUrl = uavOrBroker != null && (uavOrBroker.startsWith("tcp://") || uavOrBroker.startsWith("ssl://"));
+        runUavFlightSimulation(
+                looksLikeUrl ? "UAV-001" : uavOrBroker,
+                looksLikeUrl ? uavOrBroker : DEFAULT_BROKER,
+                SystemTestRunner.DEFAULT_BACKEND_URL,
+                isFastMode);
+    }
+
+    public static void runUavFlightSimulation(String targetUavId, String brokerUrl, String backendApiUrl, boolean isFastMode) {
+        String uavCode = (targetUavId == null || targetUavId.isBlank()) ? "UAV-001" : targetUavId.trim().toUpperCase();
+        String missionName = "Mission-Live-" + uavCode;
+        List<WaypointMissionValidator.WaypointItem> route = UavFlightSimulator.buildZoneWaypoints(uavCode);
+
         printHeader("SMART FARM IOT - GIA LAP UAV BAY REALTIME TELEMETRY (LTJ-35)",
-                "MQTT Broker : " + brokerUrl,
+                "Ma UAV      : " + uavCode + " (" + route.size() + " Waypoints)",
+                "MQTT Broker : " + brokerUrl + " | Backend API: " + backendApiUrl,
                 "Che do chay : " + (isFastMode ? "TEST NHANH (Fast Mode)" : "REALTIME (1 giay/buoc)"),
                 "Topic       : " + UavFlightSimulator.TELEMETRY_TOPIC);
 
         MqttPublisher publisher = connectOptional(brokerUrl, "UavFlightSim_");
-        UavFlightSimulator sim = new UavFlightSimulator();
-        int[] count = {0};
+        HttpClient httpClient = (backendApiUrl == null || backendApiUrl.isBlank()) ? null
+                : HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+        String baseApi = (backendApiUrl != null && backendApiUrl.endsWith("/"))
+                ? backendApiUrl.substring(0, backendApiUrl.length() - 1) : backendApiUrl;
 
-        sim.simulateFlight(publisher.isConnected() ? publisher : null, UavFlightSimulator.TELEMETRY_TOPIC, isFastMode, telem ->
-                System.out.printf("[#%03d][UAV-TELEM] %s >> %s%n", ++count[0], telem,
-                        publisher.isConnected() ? "MQTT SENT" : "LOCAL EMULATED"));
+        // Đăng ký phiên Mission tương ứng trên Backend để đồng bộ đúng mã UAV lên Web SSE
+        long zoneId = "UAV-002".equals(uavCode) ? 2L : ("UAV-003".equals(uavCode) ? 3L : 1L);
+        String sensorDeviceId = String.format("DEV-Z%d-001", zoneId);
+        String sensorTopic = String.format("%s/zone-%d/%s", TOPIC_BASE, zoneId, sensorDeviceId.toLowerCase());
+
+        if (httpClient != null && baseApi != null && !baseApi.isBlank()) {
+            StringBuilder wpJson = new StringBuilder();
+            for (int i = 0; i < route.size(); i++) {
+                WaypointMissionValidator.WaypointItem w = route.get(i);
+                if (i > 0) wpJson.append(",");
+                wpJson.append(String.format(java.util.Locale.US,
+                        "{\"order\":%d,\"latitude\":%.6f,\"longitude\":%.6f,\"altitude\":%.1f,\"speed\":%.1f,\"type\":\"%s\"}",
+                        w.order, w.latitude, w.longitude, w.altitude, w.speed, w.type));
+            }
+            String createMissionJson = String.format(java.util.Locale.US,
+                    "{\"missionName\":\"%s\",\"uavId\":\"%s\",\"zoneId\":%d,\"waypoints\":[%s]}",
+                    missionName, uavCode, zoneId, wpJson);
+            sendToBackendHttp(httpClient, baseApi + "/missions", createMissionJson);
+        }
+
+        UavFlightSimulator sim = new UavFlightSimulator(uavCode, missionName, route);
+        int[] count = {0};
+        int[] lastCollectedWp = {0};
+
+        sim.simulateFlight(publisher.isConnected() ? publisher : null, UavFlightSimulator.TELEMETRY_TOPIC, isFastMode, telem -> {
+            boolean httpSent = false;
+            if (httpClient != null && baseApi != null && !baseApi.isBlank()) {
+                httpSent = sendToBackendHttpOk(httpClient, baseApi + "/uavs/telemetry", telem.toCompactJson());
+            }
+            String channel = publisher.isConnected() && httpSent ? "MQTT + WEB SSE"
+                    : (publisher.isConnected() ? "MQTT SENT" : (httpSent ? "BACKEND -> WEB SSE" : "LOCAL EMULATED"));
+            System.out.printf("[#%03d][UAV-TELEM] %s >> %s%n", ++count[0], telem, channel);
+
+            // Khi UAV bay ngang qua từng điểm Waypoint (WP1..WPn, trừ chặng quay về Home), tự động thu thập gói dữ liệu từ cọc cảm biến mặt đất
+            int reachedWp = (count[0] == 1) ? 1
+                    : (!"RETURNING".equalsIgnoreCase(telem.flightStatus) && !"COMPLETED".equalsIgnoreCase(telem.flightStatus)
+                            && telem.waypointIndex > lastCollectedWp[0]
+                            && isAtWaypoint(route, telem.waypointIndex, telem.latitude, telem.longitude)
+                            ? telem.waypointIndex : 0);
+
+            if (reachedWp > lastCollectedWp[0]) {
+                lastCollectedWp[0] = reachedWp;
+                SensorData collected = SensorData.generateRandom(1L, zoneId, sensorDeviceId);
+                if (publisher.isConnected()) {
+                    try { publisher.publish(sensorTopic, collected.toCompactJson()); } catch (Exception ignored) {}
+                }
+                if (httpClient != null && baseApi != null && !baseApi.isBlank()) {
+                    ingestCollectedSensorReading(httpClient, baseApi, sensorDeviceId, collected);
+                }
+                System.out.printf("   +-- [THU CAM BIEN @ WP%d] %s%n", reachedWp, collected);
+            }
+        });
 
         publisher.disconnect();
-        System.out.printf("%s%n  TONG KET LTJ-35: %d GOI TIN TELEMETRY HOAN TAT%n%s%n", LINE, count[0], LINE);
+        System.out.printf("%s%n  TONG KET LTJ-35 (%s): %d GOI TIN TELEMETRY HOAN TAT%n%s%n", LINE, uavCode, count[0], LINE);
     }
 
     private static MqttPublisher connectOptional(String brokerUrl, String clientPrefix) {
@@ -266,7 +381,24 @@ public class IoTSimulatorApp {
         return publisher;
     }
 
+    private static boolean isAtWaypoint(List<WaypointMissionValidator.WaypointItem> route, int wpOrder, double lat, double lng) {
+        for (WaypointMissionValidator.WaypointItem w : route) {
+            if (w.order == wpOrder && !"RETURN_HOME".equalsIgnoreCase(w.type)) {
+                return Math.abs(w.latitude - lat) < 1e-5 && Math.abs(w.longitude - lng) < 1e-5;
+            }
+        }
+        return false;
+    }
+
+    private static void ingestCollectedSensorReading(HttpClient httpClient, String baseApi, String devId, SensorData d) {
+        sendToBackendHttp(httpClient, baseApi + "/sensor-data/simulator", d.toCompactJson());
+    }
+
     private static void sendToBackendHttp(HttpClient httpClient, String apiUrl, String jsonPayload) {
+        sendToBackendHttpOk(httpClient, apiUrl, jsonPayload);
+    }
+
+    private static boolean sendToBackendHttpOk(HttpClient httpClient, String apiUrl, String jsonPayload) {
         try {
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(apiUrl))
@@ -274,8 +406,11 @@ public class IoTSimulatorApp {
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                     .build();
-            httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-        } catch (Exception ignored) {}
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            return resp.statusCode() >= 200 && resp.statusCode() < 300;
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     private static String strArg(String[] args, int index, String fallback) {

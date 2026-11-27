@@ -5,6 +5,7 @@ import com.google.gson.GsonBuilder;
 
 import java.time.Instant;
 import java.util.Random;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Mô hình dữ liệu viễn trắc cảm biến IoT Smart Farm (LTJ-10, LTJ-15, LTJ-30).
@@ -26,6 +27,7 @@ public class SensorData {
     private static final Random random = new Random();
     private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
     private static final Gson compactGson = new Gson();
+    private static final ConcurrentHashMap<String, double[]> lastDeviceState = new ConcurrentHashMap<>();
 
     public SensorData() {}
 
@@ -52,19 +54,44 @@ public class SensorData {
         this(deviceId, 1L, 1L, temperature, humidity, 60.0, light, 100.0, "NORMAL");
     }
 
-    private static double randomTenths(double min, double max) {
-        return Math.round((min + random.nextDouble() * (max - min)) * 10.0) / 10.0;
+    private static double round1(double value) {
+        return Math.round(value * 10.0) / 10.0;
     }
 
-    /** Sinh dữ liệu cảm biến ngẫu nhiên trong dải sinh trưởng thực tế của nông trại. */
+    private static double stepSmooth(double current, double maxDelta, double min, double max) {
+        double delta = (random.nextDouble() * 2.0 - 1.0) * maxDelta;
+        double next = Math.max(min, Math.min(max, current + delta));
+        return round1(next);
+    }
+
+    /**
+     * Sinh dữ liệu cảm biến dao động mượt quanh nền vi khí hậu thực tế của từng Zone Đà Lạt
+     * (tránh nhảy số đột ngột phi vật lý giữa hai lần đo liên tiếp).
+     */
     public static SensorData generateRandom(Long farmId, Long zoneId, String deviceId) {
-        double temp = randomTenths(20.0, 36.0);
-        double hum = randomTenths(45.0, 90.0);
-        double soil = randomTenths(50.0, 85.0);
-        double lux = randomTenths(150.0, 1200.0);
-        double battery = randomTenths(70.0, 100.0);
-        String status = (temp > 34.0 || soil < 55.0) ? "WARNING" : "NORMAL";
-        return new SensorData(deviceId, farmId, zoneId, temp, hum, soil, lux, battery, status);
+        String key = (deviceId != null && !deviceId.isBlank()) ? deviceId : ("ZONE-" + zoneId);
+        long z = (zoneId != null) ? zoneId : 1L;
+
+        double[] state = lastDeviceState.compute(key, (k, prev) -> {
+            if (prev == null) {
+                int hashOffset = Math.abs(k.hashCode() % 5);
+                double baseTemp = (z == 2L ? 23.2 : (z == 3L ? 25.8 : 24.6)) + hashOffset * 0.2;
+                double baseHum  = (z == 2L ? 72.0 : (z == 3L ? 64.0 : 68.5)) + hashOffset * 0.5;
+                double baseSoil = (z == 2L ? 70.0 : (z == 3L ? 63.5 : 67.0)) + hashOffset * 0.4;
+                double baseLux  = (z == 2L ? 910.0 : (z == 3L ? 1040.0 : 860.0)) + hashOffset * 12.0;
+                double baseBat  = 94.0 - (hashOffset * 1.5);
+                return new double[]{round1(baseTemp), round1(baseHum), round1(baseSoil), Math.round(baseLux), round1(baseBat)};
+            }
+            double nextTemp = stepSmooth(prev[0], 0.2, 21.0, 33.5);
+            double nextHum  = stepSmooth(prev[1], 0.5, 52.0, 84.0);
+            double nextSoil = stepSmooth(prev[2], 0.4, 56.0, 80.0);
+            double nextLux  = Math.round(stepSmooth(prev[3], 12.0, 600.0, 1180.0));
+            double nextBat  = round1(Math.max(75.0, prev[4] - (random.nextDouble() < 0.25 ? 0.1 : 0.0)));
+            return new double[]{nextTemp, nextHum, nextSoil, nextLux, nextBat};
+        });
+
+        String status = (state[0] > 34.0 || state[2] < 55.0) ? "WARNING" : "NORMAL";
+        return new SensorData(deviceId, farmId, zoneId, state[0], state[1], state[2], state[3], state[4], status);
     }
 
     public static SensorData generateRandom(String deviceId) {

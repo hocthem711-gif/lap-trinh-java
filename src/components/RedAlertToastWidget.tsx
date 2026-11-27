@@ -11,6 +11,7 @@ import {
   triggerExtremeTelemetryBurst,
   acknowledgeAlertById,
 } from '../store/slices/alertSlice';
+import { telemetrySocketClient } from '../services/telemetrySocketClient';
 import './RedAlertToastWidget.css';
 
 interface Props {
@@ -25,12 +26,15 @@ export default function RedAlertToastWidget({ onNavigateAlertsPage }: Props) {
   // Danh sách ID các thẻ Toast đã bị người dùng đóng thủ công
   const [closedToastIds, setClosedToastIds] = useState<number[]>([]);
 
-  // 1. Tải dữ liệu cảnh báo khi mở Dashboard
+  // 1. Tải dữ liệu cảnh báo khi mở Dashboard & tự động bắt sóng SSE khi IoT Simulator bắn cảnh báo cực đoan
   useEffect(() => {
-    if (alerts.length === 0) {
+    dispatch(initThresholdAlertModule());
+    telemetrySocketClient.connect();
+    const unsub = telemetrySocketClient.subscribeAlerts(() => {
       dispatch(initThresholdAlertModule());
-    }
-  }, [dispatch, alerts.length]);
+    });
+    return () => unsub();
+  }, [dispatch]);
 
   // 2. Lấy tối đa 3 cảnh báo đang mở (OPEN) mới nhất chưa bị đóng thủ công
   const toasts = alerts
