@@ -135,18 +135,24 @@ public class MqttGatewayConfig {
                 return;
             }
 
-            // 3. Nếu là telemetry từ cảm biến -> kiểm tra Rate Limiting (LTJ-12) & lưu DB
+            // 3. Nếu là telemetry từ cảm biến -> parse JSON hợp lệ trước rồi mới áp dụng Rate Limiting (LTJ-12) & lưu DB
+            IoTSimulatorPayload simPayload;
+            try {
+                simPayload = objectMapper.readValue(payload, IoTSimulatorPayload.class);
+            } catch (Exception ex) {
+                log.warn("[MQTT GATEWAY] Không thể parse IoTSimulatorPayload từ topic {}: {}", topic, ex.getMessage());
+                return;
+            }
+            if (simPayload == null) {
+                return;
+            }
+
             String nodeCode = extractNodeCode(topic, payload);
             if (nodeCode != null) {
                 if (isAllowedByRateLimiter(nodeCode)) {
                     log.info("[MQTT GATEWAY][RATE-LIMIT-PASS] Node {}: Bản tin hợp lệ, đang lưu vào DB", nodeCode);
-                    try {
-                        IoTSimulatorPayload simPayload = objectMapper.readValue(payload, IoTSimulatorPayload.class);
-                        sensorDataService.ingestSimulatorPayload(simPayload);
-                        log.info("[MQTT GATEWAY] Đã lưu telemetry cảm biến thành công từ node: {}", simPayload.getDeviceId());
-                    } catch (Exception ex) {
-                        log.warn("[MQTT GATEWAY] Không thể parse IoTSimulatorPayload từ topic {}: {}", topic, ex.getMessage());
-                    }
+                    sensorDataService.ingestSimulatorPayload(simPayload);
+                    log.info("[MQTT GATEWAY] Đã lưu telemetry cảm biến thành công từ node: {}", simPayload.getDeviceId());
                 } else {
                     log.debug("[MQTT GATEWAY][RATE-LIMIT-DROP] Node {}: Bỏ qua do gửi dồn dập (< 3000ms)", nodeCode);
                 }

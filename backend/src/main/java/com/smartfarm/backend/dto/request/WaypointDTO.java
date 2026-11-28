@@ -21,7 +21,7 @@ public class WaypointDTO {
     public Integer getEffectiveOrder() {
         if (order != null) return order;
         if (orderIndex != null) return orderIndex;
-        return 1;
+        return null;
     }
 
     public String getEffectiveType() {
